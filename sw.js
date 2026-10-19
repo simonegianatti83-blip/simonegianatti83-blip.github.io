@@ -1,6 +1,6 @@
 /* Archivio ODG – service worker: conserva l'app sul dispositivo per l'uso offline.
    Per pubblicare una nuova versione dell'app, cambia il numero qui sotto. */
-const VERSIONE = "archivio-odg-v4";
+const VERSIONE = "archivio-odg-v5";
 const FILE_APP = [
   "./", "./index.html", "./manifest.webmanifest",
   "./apple-touch-icon.png", "./icona-192.png",

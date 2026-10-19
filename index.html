@@ -549,7 +549,13 @@ document.addEventListener("keydown",e=>{
 /* ===== avvio ===== */
 /* ===== uso offline: service worker + archivio persistente ===== */
 if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){
-  window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
+  window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").then(r=>r.update()).catch(()=>{}); });
+  // Quando arriva una nuova versione dell'app, ricarica una volta per mostrarla subito.
+  let ricaricata=false, avevaController=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(!avevaController){avevaController=true;return;}
+    if(ricaricata) return; ricaricata=true; location.reload();
+  });
 }
 try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
 
