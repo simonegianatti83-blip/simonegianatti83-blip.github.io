@@ -130,6 +130,8 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 1px}
 .drop{border:2px dashed var(--line);border-radius:var(--r-md);padding:22px;text-align:center}
 .drop.over{border-color:var(--dds);background:var(--dds-soft)}
 .primary{background:var(--ink);color:var(--surface);border:0;border-radius:var(--r-md);padding:12px 20px;font-weight:700;font-size:15px}
+.demo{margin:14px 0 0;font-size:14.5px;color:var(--ink-2);text-align:center}
+.link{border:0;background:none;padding:0;color:var(--dds);font-weight:650;text-decoration:underline;text-underline-offset:3px}
 .drop .hint{display:block;margin-top:8px;font-size:13.5px;color:var(--ink-3)}
 .steps{margin:20px 0 0;padding-left:22px;color:var(--ink-2);font-size:14.5px;max-width:62ch}
 .steps li{margin-bottom:6px}
@@ -414,6 +416,7 @@ function welcomeHtml(){
     <h2>Carica il tuo archivio</h2>
     <p>Qui trovi ODG, DDS e comunicazioni del Comando, cercando per parola nell’oggetto o nel testo. Per iniziare importa il file <b>odg_database.json</b> dalla cartella Drive “ODG Archivio”.</p>
     <div class="drop" id="drop"><button class="primary" id="eImport">Scegli il file…</button><span class="hint">oppure trascinalo qui</span></div>
+    <p class="demo">Vuoi solo vedere come funziona? <button class="link" id="eDemo">Prova con documenti di esempio</button></p>
     ${stepsHtml()}
   </div>`;
 }
@@ -424,7 +427,9 @@ function stepsHtml(){
     <li>In questa pagina tocca <b>Dati</b> e poi <b>Importa aggiornamento</b>. I documenti nuovi si aggiungono, quelli già presenti non si duplicano.</li>
     <li>Fatto: la ricerca funziona anche senza connessione.</li></ol>`;
 }
-function bindWelcome(){ $("eImport").onclick=()=>$("file").click(); setupDrop($("drop")); }
+function bindWelcome(){ $("eImport").onclick=()=>$("file").click(); setupDrop($("drop"));
+  $("eDemo").onclick=()=>fetch("odg_esempio.json").then(r=>r.text()).then(importText)
+    .catch(()=>toast("Per caricare l’esempio serve la connessione la prima volta")); }
 
 function openDoc(i){
   const d=docs[i],t=tipoOf(d),dlg=$("dlg");
