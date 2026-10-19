@@ -2,7 +2,7 @@
    Online: la pagina viene sempre presa fresca dal sito (così gli aggiornamenti arrivano subito).
    Offline: si usa la copia salvata sul dispositivo.
    Per pubblicare una nuova versione dell'app, cambia il numero qui sotto. */
-const VERSIONE = "archivio-odg-v6";
+const VERSIONE = "archivio-odg-v7";
 const FILE_APP = [
   "./", "./index.html", "./manifest.webmanifest",
   "./apple-touch-icon.png", "./icona-192.png",
@@ -43,7 +43,10 @@ self.addEventListener("fetch", e => {
     e.respondWith(
       conTimeout(fetch(req, { cache: "no-store" }), ATTESA_RETE_MS)
         .then(res => {
-          if (res.ok) { const copia = res.clone(); caches.open(VERSIONE).then(c => c.put("./index.html", copia)); }
+          const p = new URL(req.url).pathname;
+          if (res.ok && (p.endsWith("/") || p.endsWith("/index.html"))) {
+            const copia = res.clone(); caches.open(VERSIONE).then(c => c.put("./index.html", copia));
+          }
           return res;
         })
         .catch(() => caches.match("./index.html").then(r => r || caches.match("./")))
