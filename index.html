@@ -549,7 +549,7 @@ document.addEventListener("keydown",e=>{
 /* ===== avvio ===== */
 /* ===== uso offline: service worker + archivio persistente ===== */
 if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){
-  window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").then(r=>r.update()).catch(()=>{}); });
+  window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{}); });
   // Quando arriva una nuova versione dell'app, ricarica una volta per mostrarla subito.
   let ricaricata=false, avevaController=!!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener("controllerchange",()=>{
