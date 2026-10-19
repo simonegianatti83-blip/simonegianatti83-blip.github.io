@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16212F">
+<title>Archivio ODG</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icona-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Archivio ODG">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+:root{
+  --bg:#EEF1F5; --surface:#FFFFFF; --ink:#16212F; --ink-2:#4A5767; --ink-3:#7A8697;
+  --line:#D6DDE6; --line-2:#E6EBF1; --head:#16212F; --head-ink:#F3F6FA;
+  --odg:#C1121F; --odg-soft:#FBE9EA; --dds:#1D5C9E; --dds-soft:#E6EFF8;
+  --com:#2E7A4E; --com-soft:#E5F2EA; --alt:#6B5B45; --alt-soft:#F1ECE4;
+  --mark:#FFE27A; --focus:#1D5C9E;
+  --r-lg:14px; --r-md:10px; --r-sm:7px;
+  --font: "Avenir Next","Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1620; --surface:#18212D; --ink:#E7ECF2; --ink-2:#AEB9C6; --ink-3:#7F8C9B;
+    --line:#2A3544; --line-2:#222C39; --head:#0A1018; --head-ink:#E7ECF2;
+    --odg:#F0565F; --odg-soft:#3A1C20; --dds:#5C9BE0; --dds-soft:#172A40;
+    --com:#4FB57B; --com-soft:#16301F; --alt:#C2AB8C; --alt-soft:#2E281F;
+    --mark:#7D6400; --focus:#5C9BE0;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1620; --surface:#18212D; --ink:#E7ECF2; --ink-2:#AEB9C6; --ink-3:#7F8C9B;
+  --line:#2A3544; --line-2:#222C39; --head:#0A1018; --head-ink:#E7ECF2;
+  --odg:#F0565F; --odg-soft:#3A1C20; --dds:#5C9BE0; --dds-soft:#172A40;
+  --com:#4FB57B; --com-soft:#16301F; --alt:#C2AB8C; --alt-soft:#2E281F;
+  --mark:#7D6400; --focus:#5C9BE0;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--font);-webkit-text-size-adjust:100%}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2.5px solid var(--focus);outline-offset:2px;border-radius:6px}
+.wrap{max-width:880px;margin:0 auto;padding:0 16px}
+
+/* ---------- testata ---------- */
+.masthead{background:var(--head);color:var(--head-ink);padding:calc(16px + env(safe-area-inset-top)) 0 54px}
+.brand{display:flex;align-items:center;gap:12px}
+.flame{width:38px;height:38px;flex:none}
+.brand h1{margin:0;font-size:21px;line-height:1.15;font-weight:700;letter-spacing:-.2px}
+.brand p{margin:1px 0 0;font-size:13.5px;opacity:.7}
+.brand .grow{flex:1}
+.ghost{background:transparent;border:1px solid rgba(255,255,255,.22);color:var(--head-ink);border-radius:var(--r-md);padding:8px 12px;font-size:14px;font-weight:600}
+.ghost:hover{background:rgba(255,255,255,.08)}
+
+/* ---------- ricerca (sovrapposta alla testata) ---------- */
+.searchbox{position:relative;margin-top:-34px;z-index:3}
+.searchbox .field{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:0 8px 0 16px;box-shadow:0 6px 24px rgba(16,28,44,.12)}
+.searchbox .field:focus-within{border-color:var(--focus)}
+.searchbox svg{flex:none;color:var(--ink-3)}
+.searchbox input{flex:1;min-width:0;border:0;background:none;outline:none;padding:16px 0;font-size:18px}
+.searchbox input::placeholder{color:var(--ink-3)}
+.searchbox input::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
+.clear{border:0;background:var(--line-2);border-radius:999px;width:30px;height:30px;font-size:15px;color:var(--ink-2)}
+.opts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:none;border-radius:999px;padding:5px 12px;font-size:13.5px;color:var(--ink-2);font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.opts select{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 10px;font-size:13.5px;color:var(--ink-2);font-weight:600}
+
+/* ---------- schede per tipo ---------- */
+.tabs{position:sticky;top:0;z-index:4;background:var(--bg);margin-top:14px;padding:8px 0 0;border-bottom:1px solid var(--line)}
+.tabs .wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.tabs .wrap::-webkit-scrollbar{display:none}
+.tab{flex:none;border:0;background:none;padding:10px 14px 11px;font-size:15px;font-weight:650;color:var(--ink-2);
+  border-bottom:3px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:8px}
+.tab .n{font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--line-2);color:var(--ink-2)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.tab[data-t="ODG"][aria-selected="true"]{border-bottom-color:var(--odg)}
+.tab[data-t="DDS"][aria-selected="true"]{border-bottom-color:var(--dds)}
+.tab[data-t="COMUNICAZIONE"][aria-selected="true"]{border-bottom-color:var(--com)}
+.tab[data-t="ODG"] .n{background:var(--odg-soft);color:var(--odg)}
+.tab[data-t="DDS"] .n{background:var(--dds-soft);color:var(--dds)}
+.tab[data-t="COMUNICAZIONE"] .n{background:var(--com-soft);color:var(--com)}
+.tab:disabled{opacity:.45;cursor:default}
+
+/* ---------- risultati ---------- */
+main.wrap{padding-top:22px;padding-bottom:64px}
+.short{display:none}
+.info{font-size:14px;color:var(--ink-2);margin:0 2px 14px}
+.group{margin-bottom:28px}
+.ghead{display:flex;align-items:baseline;gap:10px;margin:0 2px 10px}
+.ghead h2{margin:0;font-size:18px;font-weight:750;letter-spacing:-.1px}
+.ghead .count{font-size:14px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.ghead .bar{width:4px;height:18px;border-radius:2px;align-self:center}
+.g-ODG .bar{background:var(--odg)} .g-DDS .bar{background:var(--dds)} .g-COMUNICAZIONE .bar{background:var(--com)} .g-ALTRO .bar{background:var(--alt)}
+
+.list{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.doc{display:grid;grid-template-columns:76px 1fr;width:100%;text-align:left;border:0;background:none;padding:0;border-top:1px solid var(--line-2)}
+.doc:first-child{border-top:0}
+.doc:hover{background:color-mix(in srgb,var(--line-2) 55%,transparent)}
+.num{padding:14px 0 14px 16px;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.num b{font-size:26px;line-height:1;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.num small{font-size:11.5px;font-weight:700;letter-spacing:.3px}
+.t-ODG .num b,.t-ODG .num small{color:var(--odg)}
+.t-DDS .num b,.t-DDS .num small{color:var(--dds)}
+.t-COMUNICAZIONE .num b,.t-COMUNICAZIONE .num small{color:var(--com)}
+.t-ALTRO .num b,.t-ALTRO .num small{color:var(--alt)}
+.body{padding:13px 16px 14px 4px;min-width:0}
+.dtitle{font-size:16px;font-weight:620;line-height:1.38;overflow-wrap:anywhere}
+.date{font-size:13px;color:var(--ink-3);margin-top:3px;font-variant-numeric:tabular-nums}
+.snip{font-size:14px;color:var(--ink-2);margin-top:6px;line-height:1.45;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 1px}
+.seeall{display:block;width:100%;border:0;border-top:1px solid var(--line-2);background:none;padding:12px 16px;
+  text-align:left;font-size:14.5px;font-weight:650}
+.g-ODG .seeall{color:var(--odg)} .g-DDS .seeall{color:var(--dds)} .g-COMUNICAZIONE .seeall{color:var(--com)} .g-ALTRO .seeall{color:var(--alt)}
+.seeall:hover{background:color-mix(in srgb,var(--line-2) 55%,transparent)}
+.more{display:block;margin:16px auto 0;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-md);padding:10px 18px;font-weight:650;font-size:14.5px}
+.nores{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r-lg);padding:32px 20px;text-align:center;color:var(--ink-2)}
+.nores strong{display:block;color:var(--ink);font-size:17px;margin-bottom:4px}
+
+/* ---------- archivio vuoto ---------- */
+.welcome{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px 22px}
+.welcome h2{margin:0 0 6px;font-size:21px}
+.welcome p{margin:0 0 16px;color:var(--ink-2);max-width:60ch}
+.drop{border:2px dashed var(--line);border-radius:var(--r-md);padding:22px;text-align:center}
+.drop.over{border-color:var(--dds);background:var(--dds-soft)}
+.primary{background:var(--ink);color:var(--surface);border:0;border-radius:var(--r-md);padding:12px 20px;font-weight:700;font-size:15px}
+.drop .hint{display:block;margin-top:8px;font-size:13.5px;color:var(--ink-3)}
+.steps{margin:20px 0 0;padding-left:22px;color:var(--ink-2);font-size:14.5px;max-width:62ch}
+.steps li{margin-bottom:6px}
+.steps b{color:var(--ink)}
+
+/* ---------- dettaglio ---------- */
+dialog{border:0;padding:0;background:var(--surface);color:var(--ink);width:min(780px,100vw);max-width:100vw;
+  max-height:min(88vh,100dvh);border-radius:18px;overflow:hidden;display:none;flex-direction:column}
+dialog[open]{display:flex}
+dialog::backdrop{background:rgba(10,16,24,.55)}
+.sheet-band{height:6px;flex:none}
+.d-ODG .sheet-band{background:var(--odg)} .d-DDS .sheet-band{background:var(--dds)} .d-COMUNICAZIONE .sheet-band{background:var(--com)} .d-ALTRO .sheet-band{background:var(--alt)}
+.dhead{padding:16px 20px 14px;border-bottom:1px solid var(--line-2);flex:none}
+.dtop{display:flex;align-items:center;gap:10px}
+.dtag{font-weight:750;font-size:14px;font-variant-numeric:tabular-nums}
+.d-ODG .dtag{color:var(--odg)} .d-DDS .dtag{color:var(--dds)} .d-COMUNICAZIONE .dtag{color:var(--com)} .d-ALTRO .dtag{color:var(--alt)}
+.dtop .date{margin:0}
+.dtop .grow{flex:1}
+.x{border:0;background:var(--line-2);border-radius:999px;width:34px;height:34px;font-size:16px;color:var(--ink-2)}
+.dhead h3{margin:10px 0 0;font-size:20px;line-height:1.3;font-weight:700;overflow-wrap:anywhere}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.actions a,.actions button{border:1px solid var(--line);background:var(--surface);border-radius:var(--r-sm);padding:7px 12px;font-size:14px;font-weight:600;color:var(--ink);text-decoration:none}
+.actions a:hover,.actions button:hover{border-color:var(--ink-3)}
+.dbody{padding:18px 20px 28px;overflow-y:auto;white-space:pre-wrap;font-size:15.5px;line-height:1.62;overflow-wrap:anywhere}
+.dbody .none{color:var(--ink-3);font-style:italic;white-space:normal}
+.dbody.help{white-space:normal}
+.esrc{font-size:13px;color:var(--ink-3);margin-top:6px}
+.warn{margin-top:10px;font-size:13.5px;line-height:1.4;padding:8px 11px;border-radius:var(--r-sm);background:var(--odg-soft);color:var(--odg)}
+.att{display:inline-block;font-size:12px;font-weight:650;color:var(--ink-2);background:var(--line-2);border-radius:5px;padding:1px 7px;margin-left:6px;vertical-align:1px}
+
+@media (max-width:640px){
+  .masthead{padding-bottom:50px}
+  .brand h1{font-size:19px}
+  .searchbox input{font-size:17px;padding:14px 0}
+  .doc{grid-template-columns:64px 1fr}
+  .tab{padding:10px 10px 11px;font-size:14.5px;gap:6px}
+  .full{display:none}.short{display:inline}
+  .num{padding-left:13px}
+  .num b{font-size:22px}
+  dialog{margin:auto 0 0;border-radius:18px 18px 0 0;max-height:92dvh}
+}
+@media (prefers-reduced-motion:no-preference){
+  dialog[open]{animation:rise .22s ease-out}
+  @keyframes rise{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
+}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--surface);
+  padding:11px 16px;border-radius:var(--r-md);font-size:14.5px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100vw - 32px);z-index:20}
+.toast.show{opacity:1}
+.menu{position:absolute;right:16px;top:64px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-md);
+  box-shadow:0 10px 30px rgba(10,16,24,.18);padding:6px;z-index:10;min-width:250px;display:none}
+.menu.open{display:block}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:10px 12px;border-radius:7px;font-size:15px}
+.menu button:hover{background:var(--line-2)}
+.menu hr{border:0;border-top:1px solid var(--line-2);margin:5px 0}
+.menu .danger{color:var(--odg)}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap brand">
+    <svg class="flame" viewBox="0 0 40 40" aria-hidden="true">
+      <rect width="40" height="40" rx="10" fill="#C1121F"/>
+      <path d="M20.5 8c1.2 4.2-1.6 6.4-3.5 8.9-1.6 2.1-2.5 4.1-2.5 6.3 0 4 3 6.8 6 6.8s6-2.6 6-6.6c0-2.6-1.3-4.4-2.4-5.8.1 1.9-.6 3.2-1.8 3.8.6-3.9-.5-9.6-1.8-13.4Z" fill="#fff"/>
+    </svg>
+    <div class="grow">
+      <h1>Archivio ODG</h1>
+      <p id="status">Comando VVF Sondrio · consultabile anche offline</p>
+    </div>
+    <button class="ghost" id="menuBtn" aria-haspopup="true" aria-expanded="false">Dati</button>
+  </div>
+  <div class="menu" id="menu" role="menu">
+    <button id="mImport" role="menuitem">Importa aggiornamento…</button>
+    <button id="mExport" role="menuitem">Salva una copia di backup</button>
+    <button id="mHelp" role="menuitem">Come aggiornare l’archivio</button>
+    <button id="mTheme" role="menuitem">Cambia tema chiaro/scuro</button>
+    <hr>
+    <button id="mClear" class="danger" role="menuitem">Svuota archivio su questo dispositivo</button>
+  </div>
+</header>
+
+<div class="wrap searchbox">
+  <label class="field">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+    <input id="q" type="search" placeholder="Cerca un corso, una sede, un nome…" autocomplete="off" enterkeyhint="search" aria-label="Cerca nei documenti">
+    <button class="clear" id="clear" type="button" aria-label="Cancella ricerca" hidden>✕</button>
+  </label>
+  <div class="opts">
+    <div class="seg" role="group" aria-label="Dove cercare">
+      <button data-field="tutto" aria-pressed="true">Oggetto e testo</button>
+      <button data-field="titolo" aria-pressed="false">Solo oggetto</button>
+      <button data-field="testo" aria-pressed="false">Solo testo</button>
+    </div>
+    <select id="anno" aria-label="Anno"><option value="">Tutti gli anni</option></select>
+    <select id="ordine" aria-label="Ordina">
+      <option value="data">Più recenti prima</option>
+      <option value="rilevanza">Più pertinenti prima</option>
+    </select>
+  </div>
+</div>
+
+<nav class="tabs" aria-label="Tipo di documento">
+  <div class="wrap" role="tablist" id="tabs">
+    <button class="tab" role="tab" data-t="" aria-selected="true">Tutti <span class="n" id="n-all">0</span></button>
+    <button class="tab" role="tab" data-t="ODG" aria-selected="false">ODG <span class="n" id="n-ODG">0</span></button>
+    <button class="tab" role="tab" data-t="DDS" aria-selected="false">DDS <span class="n" id="n-DDS">0</span></button>
+    <button class="tab" role="tab" data-t="COMUNICAZIONE" aria-selected="false"><span class="full">Comunicazioni</span><span class="short">Com.</span> <span class="n" id="n-COMUNICAZIONE">0</span></button>
+  </div>
+</nav>
+
+<main class="wrap" id="main" aria-live="polite"></main>
+
+<dialog id="dlg" aria-labelledby="dTitle">
+  <div class="sheet-band"></div>
+  <div class="dhead">
+    <div class="dtop"><span class="dtag" id="dTag"></span><span class="date" id="dDate"></span><span class="grow"></span>
+      <button class="x" id="dClose" aria-label="Chiudi">✕</button></div>
+    <h3 id="dTitle"></h3>
+    <div class="esrc" id="dSrc"></div>
+    <div class="actions" id="dActions"></div>
+  </div>
+  <div class="dbody" id="dBody"></div>
+</dialog>
+
+<input type="file" id="file" hidden>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ===== archivio locale (IndexedDB) ===== */
+const DB_NAME="odg-archivio", STORE="kv";
+let idb=null;
+function openIdb(){return new Promise(res=>{try{const r=indexedDB.open(DB_NAME,1);
+  r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
+function idbGet(k){return new Promise(res=>{if(!idb)return res(null);try{const r=idb.transaction(STORE).objectStore(STORE).get(k);
+  r.onsuccess=()=>res(r.result||null);r.onerror=()=>res(null);}catch(e){res(null);}});}
+function idbSet(k,v){return new Promise(res=>{if(!idb)return res(false);try{const tx=idb.transaction(STORE,"readwrite");
+  tx.objectStore(STORE).put(v,k);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);}catch(e){res(false);}});}
+
+/* ===== stato ===== */
+const TIPI=["ODG","DDS","COMUNICAZIONE","ALTRO"];
+const NOMI={ODG:"Ordini del giorno",DDS:"Disposizioni di servizio",COMUNICAZIONE:"Comunicazioni",ALTRO:"Altri documenti"};
+const SIGLE={ODG:"ODG",DDS:"DDS",COMUNICAZIONE:"COM",ALTRO:"DOC"};
+const PREVIEW=5, PAGE=40;
+let docs=[], index=[], meta={aggiornato:null};
+const state={q:"",field:"tutto",tab:"",anno:"",ordine:"data",shown:PAGE};
+let lastTerms=[];
+
+const $=id=>document.getElementById(id);
+const norm=s=>String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[’`']/g,"'").replace(/\s+/g," ");
+const esc=s=>String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const MESI=["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+function fmtData(d){ if(!d) return ""; const p=String(d).slice(0,10).split("-"); if(p.length!==3) return d;
+  return (+p[2])+" "+MESI[(+p[1])-1]+" "+p[0]; }
+const tipoOf=d=>TIPI.includes(d.tipo)?d.tipo:"ALTRO";
+
+function buildIndex(){
+  index=docs.map(d=>({t:norm((d.titolo||"")+" "+(d.tipo||"")+" "+(d.numero??"")+" "+(d.file||"")),x:norm(d.testo)}));
+  const anni=[...new Set(docs.map(d=>(d.data||"").slice(0,4)).filter(Boolean))].sort().reverse();
+  const sel=$("anno"),cur=state.anno;
+  sel.innerHTML='<option value="">Tutti gli anni</option>'+anni.map(a=>`<option${a===cur?" selected":""}>${a}</option>`).join("");
+}
+
+/* ===== ricerca ===== */
+function parseQuery(q){const out=[],re=/"([^"]+)"|(\S+)/g;let m;while((m=re.exec(q))){const t=norm(m[1]||m[2]).trim();if(t)out.push(t);}return out;}
+function count(h,n){let c=0,p=0;while((p=h.indexOf(n,p))!==-1&&c<20){c++;p+=n.length;}return c;}
+function cmpData(a,b){return (b.data||"").localeCompare(a.data||"")||(b.numero||0)-(a.numero||0);}
+
+function search(){
+  const terms=parseQuery(state.q), hits=[];
+  for(let i=0;i<docs.length;i++){
+    const d=docs[i],ix=index[i];
+    if(state.anno&&(d.data||"").slice(0,4)!==state.anno) continue;
+    let score=0,ok=true;
+    for(const t of terms){
+      const inT=state.field!=="testo"&&ix.t.includes(t);
+      const inX=state.field!=="titolo"&&ix.x.includes(t);
+      if(!inT&&!inX){ok=false;break;}
+      score+=(inT?10:0)+(inX?1+Math.min(5,count(ix.x,t)):0);
+    }
+    if(ok) hits.push({i,score});
+  }
+  if(state.ordine==="rilevanza"&&terms.length) hits.sort((a,b)=>b.score-a.score||cmpData(docs[a.i],docs[b.i]));
+  else hits.sort((a,b)=>cmpData(docs[a.i],docs[b.i]));
+  const groups={ODG:[],DDS:[],COMUNICAZIONE:[],ALTRO:[]};
+  for(const h of hits) groups[tipoOf(docs[h.i])].push(h);
+  return {terms,hits,groups};
+}
+
+/* ===== evidenziazione senza accenti ===== */
+function highlight(text,terms){
+  text=String(text||""); if(!terms.length) return esc(text);
+  let n="",map=[];
+  for(let i=0;i<text.length;i++){const c=norm(text[i]);for(let k=0;k<c.length;k++){n+=c[k];map.push(i);}}
+  const r=[];
+  for(const t of terms){let p=0;while((p=n.indexOf(t,p))!==-1){r.push([map[p],map[p+t.length-1]+1]);p+=t.length;}}
+  if(!r.length) return esc(text);
+  r.sort((a,b)=>a[0]-b[0]); const m=[];
+  for(const x of r){const l=m[m.length-1];if(l&&x[0]<=l[1])l[1]=Math.max(l[1],x[1]);else m.push(x.slice());}
+  let h="",last=0; for(const[s,e] of m){h+=esc(text.slice(last,s))+"<mark>"+esc(text.slice(s,e))+"</mark>";last=e;}
+  return h+esc(text.slice(last));
+}
+function snippet(d,terms){
+  const t=String(d.testo||"").replace(/\s+/g," ").trim(); if(!t) return "";
+  if(!terms.length) return esc(t.slice(0,200));
+  const nt=norm(t); let pos=-1;
+  for(const x of terms){const p=nt.indexOf(x);if(p!==-1&&(pos===-1||p<pos))pos=p;}
+  if(pos===-1) return esc(t.slice(0,200));
+  const s=Math.max(0,pos-60),e=Math.min(t.length,pos+200);
+  return (s>0?"…":"")+highlight(t.slice(s,e),terms)+(e<t.length?"…":"");
+}
+
+/* ===== disegno ===== */
+function docRow(h,terms){
+  const d=docs[h.i],t=tipoOf(d);
+  const sn=d.testo?snippet(d,terms):"";
+  return `<button class="doc t-${t}" data-i="${h.i}">
+    <span class="num"><small>${SIGLE[t]}</small><b>${d.numero!=null?esc(d.numero):"–"}</b></span>
+    <span class="body"><span class="dtitle">${highlight(d.titolo||d.file,terms)}</span>
+      <span class="date" style="display:block">${fmtData(d.data)}${d.allegatoDi?'<span class="att">allegato</span>':""}</span>
+      ${sn?`<span class="snip" style="display:-webkit-box">${sn}</span>`:""}</span>
+  </button>`;
+}
+
+function render(reset){
+  if(reset) state.shown=PAGE;
+  const main=$("main");
+  updateClear();
+  if(!docs.length){ setCounts(null); main.innerHTML=welcomeHtml(); bindWelcome(); return; }
+  const {terms,hits,groups}=search(); lastTerms=terms;
+  setCounts(groups,hits.length);
+
+  const what=state.q.trim()?`per “${esc(state.q.trim())}”`:"";
+  let html="";
+
+  if(!state.tab){
+    const ordine=["ODG","DDS","COMUNICAZIONE","ALTRO"].filter(t=>groups[t].length);
+    if(!hits.length){ main.innerHTML=noResults(); return; }
+    html+=`<p class="info">${hits.length} ${hits.length===1?"documento trovato":"documenti trovati"} ${what}</p>`;
+    for(const t of ordine){
+      const g=groups[t];
+      html+=`<section class="group g-${t}" aria-label="${NOMI[t]}">
+        <div class="ghead"><span class="bar"></span><h2>${NOMI[t]}</h2><span class="count">${g.length}</span></div>
+        <div class="list">${g.slice(0,PREVIEW).map(h=>docRow(h,terms)).join("")}
+        ${g.length>PREVIEW&&t!=="ALTRO"?`<button class="seeall" data-go="${t}">Vedi tutti i ${g.length} ${t==="COMUNICAZIONE"?"documenti":t}</button>`:""}
+        ${g.length>PREVIEW&&t==="ALTRO"?g.slice(PREVIEW).map(h=>docRow(h,terms)).join(""):""}
+        </div></section>`;
+    }
+  }else{
+    const g=groups[state.tab];
+    if(!g.length){ main.innerHTML=noResults(NOMI[state.tab].toLowerCase()); return; }
+    html+=`<section class="group g-${state.tab}">
+      <div class="ghead"><span class="bar"></span><h2>${NOMI[state.tab]}</h2><span class="count">${g.length} ${what}</span></div>
+      <div class="list">${g.slice(0,state.shown).map(h=>docRow(h,terms)).join("")}</div>
+      ${g.length>state.shown?`<button class="more" id="more">Mostra altri ${Math.min(PAGE,g.length-state.shown)}</button>`:""}
+    </section>`;
+  }
+  main.innerHTML=html;
+  const more=$("more"); if(more) more.onclick=()=>{state.shown+=PAGE;render(false);};
+}
+
+function noResults(cosa){
+  const filtri=[];
+  if(state.anno) filtri.push("l’anno "+state.anno);
+  if(state.field!=="tutto") filtri.push("la ricerca solo nell’"+(state.field==="titolo"?"oggetto":"testo"));
+  return `<div class="nores"><strong>Nessun ${cosa?"risultato tra le "+cosa.replace(/^ordini del giorno$/,"ODG"):"documento trovato"}</strong>
+    ${filtri.length?"Prova a togliere "+filtri.join(" e ")+", oppure usa meno parole.":"Prova con meno parole o con un termine diverso."}</div>`;
+}
+
+function setCounts(groups,total){
+  $("n-all").textContent=groups?total:0;
+  for(const t of ["ODG","DDS","COMUNICAZIONE"]){
+    const n=groups?groups[t].length:0; $("n-"+t).textContent=n;
+  }
+  document.querySelectorAll(".tab").forEach(b=>b.disabled=!docs.length);
+}
+
+function welcomeHtml(){
+  return `<div class="welcome">
+    <h2>Carica il tuo archivio</h2>
+    <p>Qui trovi ODG, DDS e comunicazioni del Comando, cercando per parola nell’oggetto o nel testo. Per iniziare importa il file <b>odg_database.json</b> dalla cartella Drive “ODG Archivio”.</p>
+    <div class="drop" id="drop"><button class="primary" id="eImport">Scegli il file…</button><span class="hint">oppure trascinalo qui</span></div>
+    ${stepsHtml()}
+  </div>`;
+}
+function stepsHtml(){
+  return `<ol class="steps">
+    <li>Lo script <b>ODG_estrattore</b> in Google aggiorna ogni ora il file <b>odg_database.json</b> nella cartella Drive “ODG Archivio”.</li>
+    <li>Quando sei online scarica quel file (sul telefono: app Drive, menu ⋮, Scarica).</li>
+    <li>In questa pagina tocca <b>Dati</b> e poi <b>Importa aggiornamento</b>. I documenti nuovi si aggiungono, quelli già presenti non si duplicano.</li>
+    <li>Fatto: la ricerca funziona anche senza connessione.</li></ol>`;
+}
+function bindWelcome(){ $("eImport").onclick=()=>$("file").click(); setupDrop($("drop")); }
+
+function openDoc(i){
+  const d=docs[i],t=tipoOf(d),dlg=$("dlg");
+  dlg.className="d-"+t;
+  $("dTag").textContent=SIGLE[t]+(d.numero!=null?" "+d.numero:"");
+  $("dDate").textContent=fmtData(d.data);
+  $("dTitle").innerHTML=highlight(d.titolo||d.file,lastTerms);
+  const info=[];
+  if(d.pagine) info.push("PDF di "+d.pagine+(d.pagine===1?" pagina":" pagine"));
+  if(d.allegatoDi) info.push("allegato contenuto in "+d.allegatoDi);
+  if(d.oggettoEmail) info.push("arrivato con l’email “"+d.oggettoEmail+"”");
+  $("dSrc").textContent=info.length?info.join(", ").replace(/^./,c=>c.toUpperCase()):"";
+  const old=document.querySelector(".dhead .warn"); if(old) old.remove();
+  if(d.testo&&d.testoCompleto===false){ const w=document.createElement("div"); w.className="warn";
+    w.textContent="Il testo di questo PDF è stato letto solo in parte: la ricerca potrebbe non trovare tutto. Apri il PDF originale per leggerlo per intero.";
+    $("dActions").after(w); }
+  $("dActions").innerHTML=
+    (d.pdf?`<a href="${esc(d.pdf)}" target="_blank" rel="noopener">Apri il PDF</a>`:"")+
+    (d.gmail?`<a href="${esc(d.gmail)}" target="_blank" rel="noopener">Apri l’email</a>`:"")+
+    (d.testo?`<button id="dCopy">Copia il testo</button>`:"");
+  const body=$("dBody"); body.classList.remove("help");
+  body.innerHTML=d.testo?highlight(d.testo,lastTerms):`<p class="none">Il testo di questo documento non è ancora nell’archivio. Quando sei online puoi aprire il PDF o l’email originale.</p>`;
+  const c=$("dCopy"); if(c) c.onclick=()=>{try{navigator.clipboard.writeText((d.titolo||"")+"\n\n"+d.testo).then(()=>toast("Testo copiato"));}catch(e){}};
+  showDlg(); body.scrollTop=0;
+  const m=body.querySelector("mark"); if(m) setTimeout(()=>m.scrollIntoView({block:"center"}),60);
+}
+function showHelp(){
+  const dlg=$("dlg"); dlg.className="d-DDS";
+  $("dTag").textContent="Guida"; $("dDate").textContent=""; $("dTitle").textContent="Come aggiornare l’archivio";
+  $("dSrc").textContent=""; $("dActions").innerHTML="";
+  const b=$("dBody"); b.classList.add("help"); b.innerHTML=stepsHtml(); showDlg();
+}
+function showDlg(){const d=$("dlg");if(d.showModal)d.showModal();else d.setAttribute("open","");}
+function closeDlg(){const d=$("dlg");if(d.close)d.close();else d.removeAttribute("open");}
+
+/* ===== import / export ===== */
+function keyOf(d){return d.id||((d.tipo||"")+"|"+(d.numero??"")+"|"+(d.data||"")+"|"+(d.titolo||d.file||""));}
+async function importText(txt){
+  let data; try{data=JSON.parse(txt);}catch(e){toast("Questo file non è un archivio valido: scegli odg_database.json");return;}
+  const arr=Array.isArray(data)?data:(data.documenti||[]);
+  if(!arr.length){toast("Il file non contiene documenti");return;}
+  const map=new Map(docs.map(d=>[keyOf(d),d])); let nuovi=0,agg=0;
+  for(const raw of arr){
+    const d={id:raw.id,tipo:String(raw.tipo||"ALTRO").toUpperCase(),numero:raw.numero??null,data:raw.data||"",
+      titolo:raw.titolo||raw.file||"",file:raw.file||"",testo:raw.testo||"",oggettoEmail:raw.oggettoEmail||"",
+      dataEmail:raw.dataEmail||"",gmail:raw.gmail||"",pdf:raw.pdf||"",
+      pagine:raw.pagine??null,testoCompleto:raw.testoCompleto??null,allegatoDi:raw.allegatoDi||""};
+    const k=keyOf(d),old=map.get(k);
+    if(!old){map.set(k,d);nuovi++;} else if((!old.testo&&d.testo)||(old.testoCompleto===false&&d.testoCompleto!==false&&d.testo)){map.set(k,d);agg++;}
+  }
+  docs=[...map.values()].sort(cmpData);
+  meta.aggiornato=(data&&data.aggiornato)||new Date().toISOString();
+  buildIndex(); const ok=await idbSet("docs",docs); await idbSet("meta",meta);
+  updateStatus(); render(true);
+  toast(`Importati ${nuovi} documenti nuovi${agg?`, ${agg} completati col testo`:""}${ok?"":". Attenzione: questo browser non li salva"}`);
+}
+function readFile(f){if(!f)return;const r=new FileReader();r.onload=()=>importText(r.result);r.readAsText(f,"utf-8");}
+function setupDrop(el){
+  ["dragenter","dragover"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();el.classList.add("over");}));
+  ["dragleave","drop"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();el.classList.remove("over");}));
+  el.addEventListener("drop",e=>readFile(e.dataTransfer.files[0]));
+}
+function exportBackup(){
+  const blob=new Blob([JSON.stringify({formato:"odg-archivio-1",aggiornato:meta.aggiornato,documenti:docs})],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="odg_database_backup.json";a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000); toast("Copia di backup salvata");
+}
+function updateStatus(){
+  $("status").textContent=docs.length
+    ?`${docs.length} documenti${meta.aggiornato?", aggiornato al "+fmtData(meta.aggiornato):""}`
+    :"Comando VVF Sondrio · consultabile anche offline";
+  if(!idb) $("status").textContent="Questo browser non salva l’archivio: usa Chrome, Safari o Firefox";
+}
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("show"),3400);}
+function updateClear(){$("clear").hidden=!$("q").value;}
+
+/* ===== eventi ===== */
+let deb;
+$("q").addEventListener("input",e=>{updateClear();clearTimeout(deb);deb=setTimeout(()=>{state.q=e.target.value;render(true);},120);});
+$("clear").onclick=()=>{$("q").value="";state.q="";render(true);$("q").focus();};
+document.querySelector(".seg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return; state.field=b.dataset.field;
+  document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); render(true);
+});
+function setTab(t){
+  state.tab=t; document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.t===t)));
+  render(true); const top=document.querySelector(".tabs").offsetTop; if(window.scrollY>top) window.scrollTo({top});
+}
+$("tabs").addEventListener("click",e=>{const b=e.target.closest(".tab"); if(b&&!b.disabled) setTab(b.dataset.t);});
+$("anno").onchange=e=>{state.anno=e.target.value;render(true);};
+$("ordine").onchange=e=>{state.ordine=e.target.value;render(true);};
+$("main").addEventListener("click",e=>{
+  const go=e.target.closest(".seeall"); if(go){setTab(go.dataset.go);return;}
+  const d=e.target.closest(".doc"); if(d) openDoc(+d.dataset.i);
+});
+$("dClose").onclick=closeDlg;
+$("dlg").addEventListener("click",e=>{if(e.target===$("dlg"))closeDlg();});
+$("file").onchange=e=>{readFile(e.target.files[0]);e.target.value="";};
+const menu=$("menu");
+function toggleMenu(open){menu.classList.toggle("open",open);$("menuBtn").setAttribute("aria-expanded",String(open));}
+$("menuBtn").onclick=e=>{e.stopPropagation();toggleMenu(!menu.classList.contains("open"));};
+document.addEventListener("click",e=>{if(!menu.contains(e.target))toggleMenu(false);});
+$("mImport").onclick=()=>{toggleMenu(false);$("file").click();};
+$("mExport").onclick=()=>{toggleMenu(false);docs.length?exportBackup():toast("L’archivio è vuoto");};
+$("mHelp").onclick=()=>{toggleMenu(false);showHelp();};
+$("mTheme").onclick=()=>{toggleMenu(false);const r=document.documentElement;
+  const dark=r.dataset.theme?r.dataset.theme==="dark":matchMedia("(prefers-color-scheme: dark)").matches;
+  r.dataset.theme=dark?"light":"dark";try{localStorage.setItem("odg-theme",r.dataset.theme);}catch(e){}};
+$("mClear").onclick=async()=>{toggleMenu(false);
+  if(!confirm("Vuoi cancellare tutti i documenti salvati su questo dispositivo? Potrai reimportarli dal file di Drive."))return;
+  docs=[];index=[];meta={aggiornato:null};await idbSet("docs",[]);await idbSet("meta",meta);updateStatus();render(true);toast("Archivio svuotato");};
+document.addEventListener("keydown",e=>{
+  if(e.key==="/"&&document.activeElement!==$("q")&&!$("dlg").open){e.preventDefault();$("q").focus();}
+  if(e.key==="Escape"){toggleMenu(false);}
+});
+
+/* ===== avvio ===== */
+/* ===== uso offline: service worker + archivio persistente ===== */
+if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){
+  window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
+}
+try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+
+(async function init(){
+  try{const t=localStorage.getItem("odg-theme");if(t)document.documentElement.dataset.theme=t;}catch(e){}
+  idb=await openIdb();
+  docs=(await idbGet("docs"))||[]; meta=(await idbGet("meta"))||{aggiornato:null};
+  buildIndex(); updateStatus(); render(true);
+})();
+})();
+</script>
+</body>
+</html>
