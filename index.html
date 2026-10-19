@@ -130,6 +130,12 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 1px}
 .drop{border:2px dashed var(--line);border-radius:var(--r-md);padding:22px;text-align:center}
 .drop.over{border-color:var(--dds);background:var(--dds-soft)}
 .primary{background:var(--ink);color:var(--surface);border:0;border-radius:var(--r-md);padding:12px 20px;font-weight:700;font-size:15px}
+.linkform label{display:block;font-weight:650;margin:0 0 6px}
+.linkform input{width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:12px;font-size:15px;background:var(--surface);color:var(--ink)}
+.linkform .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.linkform .ghostbtn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r-md);padding:12px 16px;font-weight:650}
+.linkform .note{font-size:13.5px;color:var(--ink-2);margin-top:12px}
+.welcome .alt{margin-top:12px}
 .demo{margin:14px 0 0;font-size:14.5px;color:var(--ink-2);text-align:center}
 .link{border:0;background:none;padding:0;color:var(--dds);font-weight:650;text-decoration:underline;text-underline-offset:3px}
 .drop .hint{display:block;margin-top:8px;font-size:13.5px;color:var(--ink-3)}
@@ -204,7 +210,9 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
     <button class="ghost" id="menuBtn" aria-haspopup="true" aria-expanded="false">Dati</button>
   </div>
   <div class="menu" id="menu" role="menu">
-    <button id="mImport" role="menuitem">Importa aggiornamento…</button>
+    <button id="mSync" role="menuitem">Scarica aggiornamento da Google</button>
+    <button id="mLink" role="menuitem">Collega a Google…</button>
+    <button id="mImport" role="menuitem">Importa da file…</button>
     <button id="mExport" role="menuitem">Salva una copia di backup</button>
     <button id="mHelp" role="menuitem">Come aggiornare l’archivio</button>
     <button id="mTheme" role="menuitem">Cambia tema chiaro/scuro</button>
@@ -414,20 +422,21 @@ function setCounts(groups,total){
 function welcomeHtml(){
   return `<div class="welcome">
     <h2>Carica il tuo archivio</h2>
-    <p>Qui trovi ODG, DDS e comunicazioni del Comando, cercando per parola nell’oggetto o nel testo. Per iniziare importa il file <b>odg_database.json</b> dalla cartella Drive “ODG Archivio”.</p>
-    <div class="drop" id="drop"><button class="primary" id="eImport">Scegli il file…</button><span class="hint">oppure trascinalo qui</span></div>
+    <p>Qui trovi ODG, DDS e comunicazioni del Comando, cercando per parola nell’oggetto o nel testo. Collega l’app al tuo script Google: da lì in poi si aggiorna da sola ogni volta che la apri con internet.</p>
+    <button class="primary" id="eLink">Collega a Google</button>
+    <div class="drop alt" id="drop"><button class="ghostbtn link" id="eImport">Oppure scegli il file odg_database.json</button><span class="hint">anche trascinandolo qui</span></div>
     <p class="demo">Vuoi solo vedere come funziona? <button class="link" id="eDemo">Prova con documenti di esempio</button></p>
     ${stepsHtml()}
   </div>`;
 }
 function stepsHtml(){
   return `<ol class="steps">
-    <li>Lo script <b>ODG_estrattore</b> in Google aggiorna ogni ora il file <b>odg_database.json</b> nella cartella Drive “ODG Archivio”.</li>
-    <li>Quando sei online scarica quel file (sul telefono: app Drive, menu ⋮, Scarica).</li>
-    <li>In questa pagina tocca <b>Dati</b> e poi <b>Importa aggiornamento</b>. I documenti nuovi si aggiungono, quelli già presenti non si duplicano.</li>
-    <li>Fatto: la ricerca funziona anche senza connessione.</li></ol>`;
+    <li>Lo script <b>ODG_estrattore</b> in Google legge ogni ora le email e aggiorna l’archivio.</li>
+    <li>Una volta sola: tocca <b>Dati → Collega a Google</b> e incolla il link dell’app web dello script (finisce con <b>/exec</b>). Le istruzioni sono su <a href="script.html" target="_blank" rel="noopener">questa pagina</a>.</li>
+    <li>Da quel momento, ogni volta che apri l’app con internet, i documenti nuovi arrivano da soli. Puoi anche toccare <b>Dati → Scarica aggiornamento da Google</b>.</li>
+    <li>Senza connessione la ricerca funziona con l’ultimo archivio scaricato.</li></ol>`;
 }
-function bindWelcome(){ $("eImport").onclick=()=>$("file").click(); setupDrop($("drop"));
+function bindWelcome(){ $("eImport").onclick=()=>$("file").click(); setupDrop($("drop")); $("eLink").onclick=showCollega;
   $("eDemo").onclick=()=>fetch("odg_esempio.json").then(r=>r.text()).then(importText)
     .catch(()=>toast("Per caricare l’esempio serve la connessione la prima volta")); }
 
@@ -467,10 +476,10 @@ function closeDlg(){const d=$("dlg");if(d.close)d.close();else d.removeAttribute
 
 /* ===== import / export ===== */
 function keyOf(d){return d.id||((d.tipo||"")+"|"+(d.numero??"")+"|"+(d.data||"")+"|"+(d.titolo||d.file||""));}
-async function importText(txt){
-  let data; try{data=JSON.parse(txt);}catch(e){toast("Questo file non è un archivio valido: scegli odg_database.json");return;}
+async function importText(txt,quiet){
+  let data; try{data=JSON.parse(txt);}catch(e){toast("Questo file non è un archivio valido: scegli odg_database.json");return null;}
   const arr=Array.isArray(data)?data:(data.documenti||[]);
-  if(!arr.length){toast("Il file non contiene documenti");return;}
+  if(!arr.length){ if(!quiet) toast("L’archivio non contiene ancora documenti: lo script li sta preparando"); return {nuovi:0,agg:0}; }
   const map=new Map(docs.map(d=>[keyOf(d),d])); let nuovi=0,agg=0;
   for(const raw of arr){
     const d={id:raw.id,tipo:String(raw.tipo||"ALTRO").toUpperCase(),numero:raw.numero??null,data:raw.data||"",
@@ -484,7 +493,56 @@ async function importText(txt){
   meta.aggiornato=(data&&data.aggiornato)||new Date().toISOString();
   buildIndex(); const ok=await idbSet("docs",docs); await idbSet("meta",meta);
   updateStatus(); render(true);
-  toast(`Importati ${nuovi} documenti nuovi${agg?`, ${agg} completati col testo`:""}${ok?"":". Attenzione: questo browser non li salva"}`);
+  if(!quiet||nuovi||agg)
+    toast(nuovi||agg ? `${nuovi===1?"1 documento nuovo":nuovi+" documenti nuovi"}${agg?`, ${agg} completati col testo`:""}${ok?"":". Attenzione: questo browser non li salva"}`
+                     : "Archivio già aggiornato");
+  return {nuovi,agg};
+}
+
+/* ===== collegamento allo script Google ===== */
+let linkGoogle=null, scaricando=false;
+const LINK_RE=/^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[\w-]{20,}\/exec\b/;
+function conTimeout(pr,ms){return new Promise((ok,ko)=>{const t=setTimeout(()=>ko(new Error("timeout")),ms);pr.then(r=>{clearTimeout(t);ok(r);},e=>{clearTimeout(t);ko(e);});});}
+async function scaricaDaGoogle(quiet){
+  if(!linkGoogle){ if(!quiet) showCollega(); return false; }
+  if(scaricando) return false;
+  if(!navigator.onLine){ if(!quiet) toast("Sei offline: l’aggiornamento si scarica quando torna la connessione"); return false; }
+  scaricando=true; const prima=$("status").textContent; $("status").textContent="Scarico l’aggiornamento…";
+  try{
+    const r=await conTimeout(fetch(linkGoogle,{cache:"no-store",redirect:"follow"}),90000);
+    const txt=await r.text();
+    if(!r.ok||/^\s*</.test(txt)) throw new Error("risposta non valida");
+    const esito=await importText(txt,quiet);
+    if(esito===null) throw new Error("json");
+    return true;
+  }catch(e){
+    if(!quiet) toast("Non riesco a scaricare: controlla il link e che l’app web sia “Chiunque”");
+    return false;
+  }finally{ scaricando=false; if($("status").textContent==="Scarico l’aggiornamento…"){ updateStatus(); if(!docs.length) $("status").textContent=prima; } }
+}
+function showCollega(){
+  const dlg=$("dlg"); dlg.className="d-DDS";
+  $("dTag").textContent="Collegamento"; $("dDate").textContent=""; $("dTitle").textContent="Collega a Google";
+  $("dSrc").textContent=""; $("dActions").innerHTML="";
+  const old=document.querySelector(".dhead .warn"); if(old) old.remove();
+  const b=$("dBody"); b.classList.add("help");
+  b.innerHTML=`<div class="linkform">
+    <label for="linkIn">Link dell’app web dello script (finisce con /exec)</label>
+    <input id="linkIn" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
+      placeholder="https://script.google.com/macros/s/…/exec" value="${esc(linkGoogle||"")}">
+    <div class="row"><button class="primary" id="linkOk">Collega e scarica</button>
+      ${linkGoogle?'<button class="ghostbtn" id="linkOff">Scollega</button>':""}</div>
+    <p class="note">Il link è privato: con questo l’app scarica l’archivio direttamente da Google. Come ottenerlo: <a href="script.html" target="_blank" rel="noopener">istruzioni</a>.</p>
+  </div>`;
+  $("linkOk").onclick=async()=>{
+    const v=$("linkIn").value.trim();
+    if(!LINK_RE.test(v)){ toast("Questo non sembra il link giusto: deve iniziare con script.google.com e finire con /exec"); return; }
+    linkGoogle=v; await idbSet("link",v); closeDlg();
+    const ok=await scaricaDaGoogle(false);
+    if(ok) toast("Collegato: l’archivio si aggiornerà da solo"); 
+  };
+  const off=$("linkOff"); if(off) off.onclick=async()=>{ linkGoogle=null; await idbSet("link",null); closeDlg(); toast("Scollegato da Google"); };
+  showDlg(); setTimeout(()=>$("linkIn").focus(),80);
 }
 function readFile(f){if(!f)return;const r=new FileReader();r.onload=()=>importText(r.result);r.readAsText(f,"utf-8");}
 function setupDrop(el){
@@ -533,6 +591,8 @@ function toggleMenu(open){menu.classList.toggle("open",open);$("menuBtn").setAtt
 $("menuBtn").onclick=e=>{e.stopPropagation();toggleMenu(!menu.classList.contains("open"));};
 document.addEventListener("click",e=>{if(!menu.contains(e.target))toggleMenu(false);});
 $("mImport").onclick=()=>{toggleMenu(false);$("file").click();};
+$("mSync").onclick=()=>{toggleMenu(false);scaricaDaGoogle(false);};
+$("mLink").onclick=()=>{toggleMenu(false);showCollega();};
 $("mExport").onclick=()=>{toggleMenu(false);docs.length?exportBackup():toast("L’archivio è vuoto");};
 $("mHelp").onclick=()=>{toggleMenu(false);showHelp();};
 $("mTheme").onclick=()=>{toggleMenu(false);const r=document.documentElement;
@@ -563,7 +623,10 @@ try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(
   try{const t=localStorage.getItem("odg-theme");if(t)document.documentElement.dataset.theme=t;}catch(e){}
   idb=await openIdb();
   docs=(await idbGet("docs"))||[]; meta=(await idbGet("meta"))||{aggiornato:null};
+  linkGoogle=await idbGet("link");
   buildIndex(); updateStatus(); render(true);
+  if(linkGoogle) scaricaDaGoogle(true);
+  window.addEventListener("online",()=>{ if(linkGoogle) scaricaDaGoogle(true); });
 })();
 })();
 </script>

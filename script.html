@@ -24,13 +24,19 @@ small{color:var(--ink-2)}
 <button class="copy" id="copy">Copia lo script</button>
 <ol>
 <li>Tocca <b>Copia lo script</b> qui sopra.</li>
-<li>Apri <b>script.google.com</b> (da computer è più comodo), accedi con l’account Gmail che riceve gli ODG e premi <b>Nuovo progetto</b>.</li>
-<li>Cancella tutto il testo già presente nell’editor e <b>incolla</b> (su PC: Ctrl+V; su iPhone/iPad: tieni premuto → Incolla).</li>
-<li>Premi l’icona del dischetto per <b>salvare</b>.</li>
-<li>A sinistra, accanto a <b>Servizi</b>, premi <b>+</b> → scegli <b>Drive API</b> → <b>Aggiungi</b>.</li>
-<li>In alto scegli la funzione <b>aggiorna</b> → <b>Esegui</b> → autorizza gli accessi richiesti.</li>
-<li>Poi scegli <b>installaAggiornamentoAutomatico</b> → <b>Esegui</b>. Fatto: lavora da solo ogni ora.</li>
+<li>Apri il tuo progetto su <b>script.google.com</b> (oppure <b>Nuovo progetto</b> se è la prima volta).</li>
+<li>Nell’editor: tieni premuto → <b>Seleziona tutto</b> → <b>Incolla</b> (su PC: Ctrl+A, Ctrl+V). Salva con il dischetto.</li>
+<li>Solo la prima volta: accanto a <b>Servizi</b> premi <b>+</b> → <b>Drive API</b> → <b>Aggiungi</b>; poi esegui <b>aggiorna</b> e <b>installaAggiornamentoAutomatico</b>.</li>
 </ol>
+<h2 style="font-size:18px;margin:22px 0 6px">Collegare l’app (una volta sola)</h2>
+<ol>
+<li>In alto premi <b>Esegui il deployment</b> → <b>Nuovo deployment</b>.</li>
+<li>Accanto a “Seleziona tipo” premi l’<b>ingranaggio</b> → <b>App web</b>.</li>
+<li><b>Esegui come:</b> Me · <b>Chi ha accesso:</b> Chiunque → <b>Esegui il deployment</b> (autorizza se richiesto).</li>
+<li>Copia l’<b>URL app web</b> (finisce con <b>/exec</b>) con il pulsante <b>Copia</b>.</li>
+<li>Apri l’app Archivio ODG dall’icona → <b>Dati</b> → <b>Collega a Google</b> → incolla → <b>Collega e scarica</b>.</li>
+</ol>
+<p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può scaricare l’archivio. Non condividerlo.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
  * ODG ARCHIVIO – Estrattore da Gmail (v2: testo integrale dei PDF)
@@ -53,6 +59,9 @@ small{color:var(--ink-2)}
  *     Autorizza l&#x27;accesso (Gmail, Drive, connessione esterna) quando richiesto.
  *  5. Scegli la funzione &quot;installaAggiornamentoAutomatico&quot; e premi Esegui:
  *     da quel momento lo script gira da solo ogni ora.
+ *  6. (Per l&#x27;app) &quot;Esegui il deployment&quot; → &quot;Nuovo deployment&quot; → tipo &quot;App web&quot;,
+ *     Esegui come: Me, Chi ha accesso: Chiunque → copia l&#x27;&quot;URL app web&quot; (/exec)
+ *     e incollalo nell&#x27;app: Dati → Collega a Google.
  *
  * Se avevi già usato la versione precedente: esegui una volta &quot;azzeraDatabase&quot;,
  * poi &quot;aggiorna&quot;, così tutti i documenti vengono riletti per intero.
@@ -141,6 +150,21 @@ async function aggiorna() {
   console.log(&#x27;Nuovi documenti: &#x27; + nuovi + &#x27; – totale: &#x27; + db.documenti.length +
               &#x27; – con testo incompleto: &#x27; + incompleti +
               (interrotto ? &#x27; (continua alla prossima esecuzione)&#x27; : &#x27; (archivio completo)&#x27;));
+}
+
+/**
+ * Link privato per l&#x27;app: restituisce l&#x27;archivio (odg_database.json) così l&#x27;app
+ * lo scarica da sola, senza passare dall&#x27;app File.
+ * Si attiva con: Esegui il deployment → Nuovo deployment → App web
+ * (Esegui come: Me · Chi ha accesso: Chiunque). L&#x27;indirizzo /exec che ottieni è
+ * lungo e casuale: chi non lo conosce non può scaricare niente. Non condividerlo.
+ */
+function doGet(e) {
+  const it = cartellaPrincipale_().getFilesByName(CONFIG.FILE_DB);
+  const testo = it.hasNext()
+    ? it.next().getBlob().getDataAsString(&#x27;UTF-8&#x27;)
+    : JSON.stringify({ formato: &#x27;odg-archivio-1&#x27;, aggiornato: null, documenti: [] });
+  return ContentService.createTextOutput(testo).setMimeType(ContentService.MimeType.JSON);
 }
 
 /** Crea il trigger che esegue &quot;aggiorna&quot; ogni ora. */
