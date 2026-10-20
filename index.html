@@ -603,8 +603,10 @@ async function aggiungiPdf(files){
     const it={file:f.name, ...datiDaNome(f.name,f.lastModified), testo:"", pagine:null, errore:"", buf:null,
               doppione:docs.some(d=>d.file===f.name)};
     try{ it.buf=await f.arrayBuffer(); const r=await leggiTestoPdf(it.buf); it.testo=r.testo; it.pagine=r.pagine; }
-    catch(e){ console.warn("PDF non letto:",f.name,e); it.errore=/password|encrypt/i.test(String(e))?"PDF protetto da password":"Non riesco a leggere questo PDF"; }
-    it.scelto=!it.doppione&&!!it.buf&&!it.errore;
+    catch(e){ console.warn("PDF non letto:",f.name,e);
+      it.protetto=/password|encrypt/i.test(String(e));
+      it.errore=it.protetto?"PDF protetto da password: non si può leggere né aprire":"non riesco a leggerne il testo su questo dispositivo"; }
+    it.scelto=!it.doppione&&!!it.buf&&!it.protetto;
     inRevisione.push(it);
   }
   updateStatus(); mostraRevisione();
@@ -617,12 +619,13 @@ function mostraRevisione(){
   $("dActions").innerHTML=""; const old=document.querySelector(".dhead .warn"); if(old) old.remove();
   const b=$("dBody"); b.classList.add("help");
   b.innerHTML=`<div class="rev">${inRevisione.map((it,i)=>{
-    const stato=it.errore?`<div class="stato ko">${esc(it.errore)}</div>`
+    const stato=it.errore&&it.protetto?`<div class="stato ko">${esc(it.errore)}</div>`
+      : it.errore?`<div class="stato ko">${it.doppione?"Già presente nell’archivio · ":""}PDF aggiungibile, ma ${esc(it.errore)}: ${linkGoogle&&!meta.solaLettura?"Google ne leggerà il testo dopo l’invio":"si troverà cercando le parole dell’oggetto"}</div>`
       : it.doppione?`<div class="stato ko">Già presente nell’archivio</div>`
       : it.testo?`<div class="stato ok">${it.pagine} ${it.pagine===1?"pagina":"pagine"} · testo letto, si potrà cercare dentro</div>`
       : `<div class="stato ko">${it.pagine===1?"1 pagina":(it.pagine||"?")+" pagine"} · PDF scansionato: ${linkGoogle&&!meta.solaLettura?"il testo lo leggerà Google dopo l’invio":"si troverà solo per oggetto"}</div>`;
     return `<div class="card${it.scelto?"":" off"}" data-i="${i}">
-      <div class="top"><input type="checkbox" ${it.scelto?"checked":""} ${it.buf&&!it.errore?"":"disabled"} aria-label="Aggiungi questo PDF">
+      <div class="top"><input type="checkbox" ${it.scelto?"checked":""} ${it.buf&&!it.protetto?"":"disabled"} aria-label="Aggiungi questo PDF">
         <div><div class="fname">${esc(it.file)}</div>${stato}</div></div>
       <div class="grid">
         <div><label>Tipo</label><select data-f="tipo">${["ODG","DDS","COMUNICAZIONE","ALTRO"].map(t=>`<option value="${t}"${t===it.tipo?" selected":""}>${t==="COMUNICAZIONE"?"Comunicazione":t==="ALTRO"?"Altro":t}</option>`).join("")}</select></div>

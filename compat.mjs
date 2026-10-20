@@ -29,3 +29,21 @@ if (typeof globalThis.Iterator === "undefined") {
   const IterProto = Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]()));
   function Iterator() {} Iterator.prototype = IterProto; globalThis.Iterator = Iterator;
 }
+
+// Safari: i flussi di dati (ReadableStream) non si possono ancora leggere con "for await"
+if (typeof ReadableStream !== "undefined") {
+  const valori = function ({ preventCancel = false } = {}) {
+    const reader = this.getReader();
+    return {
+      next() { return reader.read(); },
+      return(v) {
+        const fine = () => ({ done: true, value: v });
+        if (preventCancel) { reader.releaseLock(); return Promise.resolve(fine()); }
+        return reader.cancel(v).then(() => { reader.releaseLock(); return fine(); });
+      },
+      [Symbol.asyncIterator]() { return this; }
+    };
+  };
+  def(ReadableStream.prototype, "values", valori);
+  def(ReadableStream.prototype, Symbol.asyncIterator, valori);
+}
