@@ -235,7 +235,7 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
     <button id="mPdf" role="menuitem">Aggiungi PDF dal dispositivo…</button>
     <button id="mSync" role="menuitem">Scarica aggiornamento da Google</button>
     <button id="mLink" role="menuitem">Collega a Google…</button>
-    <button id="mImport" role="menuitem">Importa da file…</button>
+    <button id="mImport" role="menuitem">Importa archivio (.json)…</button>
     <button id="mExport" role="menuitem">Salva una copia di backup</button>
     <button id="mHelp" role="menuitem">Come aggiornare l’archivio</button>
     <button id="mTheme" role="menuitem">Cambia tema chiaro/scuro</button>
@@ -287,7 +287,7 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
   <div class="dbody" id="dBody"></div>
 </dialog>
 
-<input type="file" id="file" hidden>
+<input type="file" id="file" multiple hidden>
 <input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple hidden>
 <div class="toast" id="toast" role="status"></div>
 
@@ -450,7 +450,7 @@ function welcomeHtml(){
     <h2>Carica il tuo archivio</h2>
     <p>Qui trovi ODG, DDS e comunicazioni del Comando, cercando per parola nell’oggetto o nel testo. Collega l’app al tuo script Google: da lì in poi si aggiorna da sola ogni volta che la apri con internet.</p>
     <button class="primary" id="eLink">Collega a Google</button>
-    <div class="drop alt" id="drop"><button class="ghostbtn link" id="eImport">Oppure scegli il file odg_database.json</button><span class="hint">anche trascinandolo qui</span></div>
+    <div class="drop alt" id="drop"><button class="ghostbtn link" id="eImport">Oppure scegli dei PDF o il file odg_database.json</button><span class="hint">anche trascinandoli qui</span></div>
     <p class="demo">Hai dei PDF già scaricati? <button class="link" id="ePdf">Aggiungi PDF dal dispositivo</button></p>
     <p class="demo">Vuoi solo vedere come funziona? <button class="link" id="eDemo">Prova con documenti di esempio</button></p>
     ${stepsHtml()}
@@ -592,7 +592,7 @@ async function leggiTestoPdf(buf){
 }
 let inRevisione=[];
 async function aggiungiPdf(files){
-  files=[...files].filter(f=>/\.pdf$/i.test(f.name)||f.type==="application/pdf");
+  files=[...files];
   if(!files.length){ toast("Scegli uno o più file PDF"); return; }
   inRevisione=[];
   for(let i=0;i<files.length;i++){
@@ -815,10 +815,27 @@ function showCollega(){
   showDlg(); setTimeout(()=>$("linkIn").focus(),80);
 }
 function readFile(f){if(!f)return;const r=new FileReader();r.onload=()=>importText(r.result);r.readAsText(f,"utf-8");}
+/* Qualunque file scelto: i PDF vanno nell'archivio come documenti, il .json come archivio */
+async function scegliFile(lista){
+  const files=[...(lista||[])]; if(!files.length) return;
+  const pdf=[], json=[], altri=[];
+  for(const f of files){
+    const nome=f.name.toLowerCase();
+    if(nome.endsWith(".pdf")||f.type==="application/pdf") pdf.push(f);
+    else if(nome.endsWith(".json")||f.type==="application/json") json.push(f);
+    else{ // nome senza estensione: guarda i primi byte
+      const t=await f.slice(0,5).text().catch(()=>"");
+      if(t.startsWith("%PDF")) pdf.push(f); else if(/^\s*[\[{]/.test(t)) json.push(f); else altri.push(f);
+    }
+  }
+  if(json.length) readFile(json[0]);
+  if(pdf.length) aggiungiPdf(pdf);
+  if(!pdf.length&&!json.length) toast("Scegli dei PDF oppure il file odg_database.json");
+}
 function setupDrop(el){
   ["dragenter","dragover"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();el.classList.add("over");}));
   ["dragleave","drop"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();el.classList.remove("over");}));
-  el.addEventListener("drop",e=>readFile(e.dataTransfer.files[0]));
+  el.addEventListener("drop",e=>scegliFile(e.dataTransfer.files));
 }
 function exportBackup(){
   const blob=new Blob([JSON.stringify({formato:"odg-archivio-1",aggiornato:meta.aggiornato,documenti:docs})],{type:"application/json"});
@@ -855,7 +872,7 @@ $("main").addEventListener("click",e=>{
 });
 $("dClose").onclick=closeDlg;
 $("dlg").addEventListener("click",e=>{if(e.target===$("dlg"))closeDlg();});
-$("file").onchange=e=>{readFile(e.target.files[0]);e.target.value="";};
+$("file").onchange=e=>{const fs=[...e.target.files];e.target.value="";scegliFile(fs);};
 const menu=$("menu");
 function toggleMenu(open){menu.classList.toggle("open",open);$("menuBtn").setAttribute("aria-expanded",String(open));}
 $("menuBtn").onclick=e=>{e.stopPropagation();toggleMenu(!menu.classList.contains("open"));};
@@ -863,7 +880,7 @@ document.addEventListener("click",e=>{if(!menu.contains(e.target))toggleMenu(fal
 $("mImport").onclick=()=>{toggleMenu(false);$("file").click();};
 $("mSync").onclick=async()=>{toggleMenu(false);await scaricaDaGoogle(false);await inviaInSospeso(false);};
 $("mPdf").onclick=()=>{toggleMenu(false);$("pdfIn").click();};
-$("pdfIn").onchange=e=>{ const fs=[...e.target.files]; e.target.value=""; if(fs.length) aggiungiPdf(fs); };
+$("pdfIn").onchange=e=>{ const fs=[...e.target.files]; e.target.value=""; scegliFile(fs); };
 $("mLink").onclick=()=>{toggleMenu(false);showCollega();};
 $("mExport").onclick=()=>{toggleMenu(false);docs.length?exportBackup():toast("L’archivio è vuoto");};
 $("mHelp").onclick=()=>{toggleMenu(false);showHelp();};
