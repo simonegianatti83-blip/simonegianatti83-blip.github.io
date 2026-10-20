@@ -2,11 +2,12 @@
    Online: la pagina viene sempre presa fresca dal sito (così gli aggiornamenti arrivano subito).
    Offline: si usa la copia salvata sul dispositivo.
    Per pubblicare una nuova versione dell'app, cambia il numero qui sotto. */
-const VERSIONE = "archivio-odg-v8";
+const VERSIONE = "archivio-odg-v10";
 const FILE_APP = [
   "./", "./index.html", "./manifest.webmanifest",
   "./apple-touch-icon.png", "./icona-192.png",
-  "./icona-512.png", "./icona-maskable-512.png", "./odg_esempio.json"
+  "./icona-512.png", "./icona-maskable-512.png", "./odg_esempio.json",
+  "./compat.mjs", "./pdf.min.mjs", "./pdf.worker.app.mjs", "./pdf.worker.min.mjs"
 ];
 const ATTESA_RETE_MS = 3500;   // oltre questo tempo senza risposta si usa la copia salvata
 
