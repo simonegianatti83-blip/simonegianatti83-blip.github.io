@@ -98,7 +98,7 @@ function prova() {
   const json = JSON.stringify(documenti.map(pulito_));
   console.log(&#x27;OK: i colleghi vedranno &#x27; + documenti.length + &#x27; documenti (&#x27; +
               Math.round(json.length / 1024) + &#x27; KB). Archivio aggiornato al &#x27; + db.aggiornato + &#x27;.&#x27;);
-  console.log(&#x27;Account che esegue lo script: &#x27; + Session.getEffectiveUser().getEmail());
+  try { console.log(&#x27;Proprietario della cartella: &#x27; + DriveApp.getFoldersByName(LETTURA.CARTELLA).next().getOwner().getEmail()); } catch (e) {}
 }
 
 /** Nessuna scrittura: qualunque richiesta di modifica viene rifiutata. */
