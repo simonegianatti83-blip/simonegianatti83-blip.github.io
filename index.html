@@ -388,7 +388,7 @@ function docRow(h,terms){
   return `<button class="doc t-${t}" data-i="${h.i}">
     <span class="num"><small>${SIGLE[t]}</small><b>${d.numero!=null?esc(d.numero):"–"}</b></span>
     <span class="body"><span class="dtitle">${highlight(d.titolo||d.file,terms)}</span>
-      <span class="date" style="display:block">${fmtData(d.data)}${d.allegatoDi?'<span class="att">allegato</span>':""}${d.origine==="dispositivo"?'<span class="att wait">da inviare</span>':d.origine==="caricato"?'<span class="att dev">caricato</span>':""}</span>
+      <span class="date" style="display:block">${fmtData(d.data)}${d.allegatoDi?'<span class="att">allegato</span>':""}${d.origine==="dispositivo"?(meta.solaLettura?'<span class="att wait">solo su questo dispositivo</span>':'<span class="att wait">da inviare</span>'):d.origine==="caricato"?'<span class="att dev">caricato</span>':""}</span>
       ${sn?`<span class="snip" style="display:-webkit-box">${sn}</span>`:""}</span>
   </button>`;
 }
@@ -489,7 +489,7 @@ function openDoc(i){
     (d.pdf&&!d.pdfKey&&!linkGoogle?`<a href="${esc(d.pdf)}" target="_blank" rel="noopener">Apri il PDF</a>`:"")+
     (d.oggettoEmail||d.gmail?`<button id="dMail">Vedi l’email</button>`:"")+
     (d.testo?`<button id="dCopy">Copia il testo</button>`:"")+
-    (d.origine==="dispositivo"||d.origine==="caricato"?`<button id="dDel">Elimina</button>`:"");
+    (d.origine==="dispositivo"||(d.origine==="caricato"&&!meta.solaLettura)?`<button id="dDel">Elimina</button>`:"");
   const body=$("dBody"); body.classList.remove("help");
   body.innerHTML=d.testo?highlight(d.testo,lastTerms):`<p class="none">${
     d.origine==="dispositivo" ? "Questo PDF è una scansione (un’immagine): il telefono non ne legge il testo. Quando l’app lo invia a Google (con internet), Google lo leggerà entro un’ora. Intanto si trova cercando le parole dell’oggetto."
@@ -533,7 +533,7 @@ async function importText(txt,quiet){
     const k=keyOf(d),old=map.get(k);
     const piuTesto=(!old?false:(!old.testo&&d.testo)||(old.testoCompleto===false&&d.testoCompleto!==false&&d.testo));
     if(!old){map.set(k,d);nuovi++;}
-    else if(piuTesto||d.origine==="caricato"){ d.pdfKey=d.pdfKey||old.pdfKey; map.set(k,d); if(piuTesto) agg++; }
+    else if(piuTesto||d.origine==="caricato"||d.origine==="condiviso"){ d.pdfKey=d.pdfKey||old.pdfKey; map.set(k,d); if(piuTesto) agg++; }
   }
   let rimossi=0;
   if(data&&Array.isArray(data.eliminati)&&data.eliminati.length){
@@ -545,6 +545,7 @@ async function importText(txt,quiet){
   meta.aggiornato=(data&&data.aggiornato)||new Date().toISOString();
   if(data&&data.account) meta.account=data.account;
   if(data&&data.versioneScript) meta.versioneScript=data.versioneScript;
+  if(data&&!Array.isArray(data)&&data.documenti) meta.solaLettura=!!data.solaLettura;
   if(data&&data.email&&typeof data.email==="object") meta.email=Object.assign(meta.email||{},data.email);
   buildIndex(); const ok=await idbSet("docs",docs); await idbSet("meta",meta);
   updateStatus(); render(true);
@@ -619,7 +620,7 @@ function mostraRevisione(){
     const stato=it.errore?`<div class="stato ko">${esc(it.errore)}</div>`
       : it.doppione?`<div class="stato ko">Già presente nell’archivio</div>`
       : it.testo?`<div class="stato ok">${it.pagine} ${it.pagine===1?"pagina":"pagine"} · testo letto, si potrà cercare dentro</div>`
-      : `<div class="stato ko">${it.pagine===1?"1 pagina":(it.pagine||"?")+" pagine"} · PDF scansionato: ${linkGoogle?"il testo lo leggerà Google dopo l’invio":"si troverà solo per oggetto"}</div>`;
+      : `<div class="stato ko">${it.pagine===1?"1 pagina":(it.pagine||"?")+" pagine"} · PDF scansionato: ${linkGoogle&&!meta.solaLettura?"il testo lo leggerà Google dopo l’invio":"si troverà solo per oggetto"}</div>`;
     return `<div class="card${it.scelto?"":" off"}" data-i="${i}">
       <div class="top"><input type="checkbox" ${it.scelto?"checked":""} ${it.buf&&!it.errore?"":"disabled"} aria-label="Aggiungi questo PDF">
         <div><div class="fname">${esc(it.file)}</div>${stato}</div></div>
@@ -654,8 +655,8 @@ async function salvaRevisione(){
   }
   inRevisione=[]; docs.sort(cmpData); buildIndex(); await idbSet("docs",docs);
   closeDlg(); updateStatus(); render(true);
-  toast(`${salvati===1?"1 PDF aggiunto":salvati+" PDF aggiunti"} all’archivio${pdfOk?"":" (il file non è stato salvato: spazio insufficiente)"}${linkGoogle?"":". Collega l’app a Google per averli anche sugli altri dispositivi"}`);
-  if(linkGoogle) setTimeout(()=>inviaInSospeso(false),1200);
+  toast(`${salvati===1?"1 PDF aggiunto":salvati+" PDF aggiunti"} all’archivio${pdfOk?"":" (il file non è stato salvato: spazio insufficiente)"}${meta.solaLettura?" (solo su questo dispositivo: l’archivio condiviso è in sola lettura)":linkGoogle?"":". Collega l’app a Google per averli anche sugli altri dispositivi"}`);
+  if(linkGoogle&&!meta.solaLettura) setTimeout(()=>inviaInSospeso(false),1200);
 }
 
 /* ===== sincronizzazione dei PDF aggiunti con gli altri dispositivi ===== */
@@ -671,6 +672,7 @@ async function chiamaScript(oggetto,ms){
   return j;
 }
 async function inviaInSospeso(quiet){
+  if(meta.solaLettura) return;
   const pend=docs.filter(d=>d.origine==="dispositivo"&&d.pdfKey);
   if(!pend.length||inviando) return;
   if(!linkGoogle){ if(!quiet) toast("Collega l’app a Google per inviare i PDF agli altri dispositivi"); return; }
@@ -756,7 +758,7 @@ async function eliminaDoc(d){
     if(!confirm("Eliminare questo PDF da tutti i dispositivi?")) return;
     try{ await chiamaScript({azione:"elimina",id:d.id},60000); }
     catch(e){ toast(e.vecchio?"Per eliminare aggiorna lo script Google (vedi istruzioni)":"Eliminazione non riuscita, riprova"); return; }
-  } else if(!confirm("Eliminare questo PDF? Non era ancora stato inviato agli altri dispositivi.")) return;
+  } else if(!confirm(meta.solaLettura?"Eliminare questo PDF da questo dispositivo?":"Eliminare questo PDF? Non era ancora stato inviato agli altri dispositivi.")) return;
   docs=docs.filter(x=>x!==d);
   if(d.pdfKey) await idbDel("pdf:"+d.pdfKey);
   const fid=idDaUrl(d.pdf); if(fid) await idbDel("pdfc:"+fid);
@@ -863,7 +865,7 @@ function exportBackup(){
 }
 function updateStatus(){
   $("status").textContent=docs.length
-    ?`${docs.length} documenti${meta.aggiornato?", aggiornato al "+fmtData(meta.aggiornato):""}`
+    ?`${docs.length} documenti${meta.aggiornato?", aggiornato al "+fmtData(meta.aggiornato):""}${meta.solaLettura?" · sola lettura":""}`
     :"Comando VVF Sondrio · consultabile anche offline";
   if(!idb) $("status").textContent="Questo browser non salva l’archivio: usa Chrome, Safari o Firefox";
 }

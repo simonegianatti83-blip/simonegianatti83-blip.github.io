@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Accesso colleghi</title>
+<style>
+:root{--bg:#EEF1F5;--surface:#fff;--ink:#16212F;--ink-2:#4A5767;--line:#D6DDE6;--ok:#2E7A4E;--btn:#16212F;--btn-ink:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#0F1620;--surface:#18212D;--ink:#E7ECF2;--ink-2:#AEB9C6;--line:#2A3544;--ok:#4FB57B;--btn:#E7ECF2;--btn-ink:#0F1620}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Avenir Next","Segoe UI",Roboto,system-ui,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 6px}
+p{color:var(--ink-2);margin:0 0 16px}
+.copy{width:100%;border:0;border-radius:12px;padding:16px;font-size:18px;font-weight:700;background:var(--btn);color:var(--btn-ink);cursor:pointer}
+.copy.done{background:var(--ok);color:#fff}
+ol{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 16px 16px 36px;margin:18px 0}
+li{margin-bottom:8px} b{color:var(--ink)}
+textarea{width:100%;height:260px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);
+  font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:12px}
+small{color:var(--ink-2)}
+</style></head><body><div class="wrap">
+<h1>Accesso in sola lettura per i colleghi</h1>
+<p>Un secondo script, separato dal tuo: i colleghi vedono e cercano l’archivio ODG, ma non la tua posta, non gli altri file del tuo Drive e non possono modificare niente.</p>
+<button class="copy" id="copy">Copia lo script</button>
+<h2 style="font-size:18px;margin:22px 0 6px">Da fare una volta sola (con il tuo account)</h2>
+<ol>
+<li>Tocca <b>Copia lo script</b> qui sopra.</li>
+<li>Apri <b>script.google.com</b> → <b>Nuovo progetto</b> (un progetto <b>nuovo</b>, non quello che usi già).</li>
+<li>Nell’editor: tieni premuto → <b>Seleziona tutto</b> → <b>Incolla</b>. Salva con il dischetto. Tocca “Progetto senza titolo” e chiamalo <b>ODG lettura colleghi</b>.</li>
+<li><b>Esegui il deployment</b> → <b>Nuovo deployment</b> → ingranaggio → <b>App web</b>.</li>
+<li><b>Esegui come:</b> Me · <b>Chi ha accesso:</b> Chiunque → <b>Esegui il deployment</b> → autorizza.</li>
+<li>Copia l’<b>URL app web</b> (finisce con /exec): è il <b>link per i colleghi</b>. È diverso dal tuo: il tuo non darlo a nessuno.</li>
+</ol>
+<h2 style="font-size:18px;margin:22px 0 6px">Cosa fa il collega</h2>
+<ol>
+<li>Apre <b>simonegianatti83-blip.github.io</b> in Safari → Condividi → <b>Aggiungi alla schermata Home</b>.</li>
+<li>Apre l’app dall’icona → <b>Collega a Google</b> → incolla il link colleghi → <b>Collega e scarica</b>.</li>
+</ol>
+<h2 style="font-size:18px;margin:22px 0 6px">Togliere l’accesso</h2>
+<p>Nel progetto “ODG lettura colleghi”: <b>Esegui il deployment</b> → <b>Gestisci deployment</b> → <b>Archivia</b>. Il link smette di funzionare per tutti; se vuoi, crei un nuovo deployment e dai il nuovo link solo a chi vuoi.</p>
+<small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
+<textarea id="code" readonly spellcheck="false">/**
+ * ODG ARCHIVIO – Accesso in SOLA LETTURA per i colleghi
+ * ------------------------------------------------------------
+ * Progetto separato da ODG_estrattore. Il suo link (/exec) si può dare ai
+ * colleghi: con questo vedono e cercano gli ODG/DDS/Comunicazioni, ma
+ *  - NON possono leggere la tua posta (lo script non usa Gmail);
+ *  - NON possono aprire nessun altro file del tuo Drive: solo l&#x27;archivio e i
+ *    PDF che ne fanno parte;
+ *  - NON possono aggiungere, modificare o eliminare niente.
+ * Dall&#x27;archivio vengono tolti i dati delle email (oggetto, testo, link Gmail)
+ * e l&#x27;indirizzo del tuo account.
+ *
+ * INSTALLAZIONE (una volta sola, ~3 minuti, con il TUO account Google):
+ *  1. script.google.com → Nuovo progetto → incolla questo file → salva.
+ *     Rinomina il progetto in &quot;ODG lettura colleghi&quot;.
+ *  2. Esegui il deployment → Nuovo deployment → ingranaggio → App web.
+ *     Esegui come: Me · Chi ha accesso: Chiunque → Esegui il deployment
+ *     → autorizza (serve solo per leggere la cartella &quot;ODG Archivio&quot;).
+ *  3. Copia l&#x27;URL app web (/exec): è il link da dare ai colleghi.
+ *
+ * Per togliere l&#x27;accesso a tutti: Gestisci deployment → Archivia.
+ * Poi puoi crearne uno nuovo e dare il nuovo link solo a chi vuoi.
+ */
+
+const LETTURA = {
+  CARTELLA: &#x27;ODG Archivio&#x27;,
+  FILE_DB: &#x27;odg_database.json&#x27;,
+  INCLUDI_CARICATI: true   // false = i colleghi non vedono i PDF che hai aggiunto a mano
+};
+
+function doGet(e) {
+  const p = (e &amp;&amp; e.parameter) || {};
+  try {
+    const db = leggiArchivio_();
+    const documenti = db.documenti.filter(d =&gt; LETTURA.INCLUDI_CARICATI || d.origine !== &#x27;caricato&#x27;);
+    if (p.pdf) return risposta_(pdfConsentito_(String(p.pdf), documenti));
+    return risposta_({
+      formato: db.formato || &#x27;odg-archivio-1&#x27;,
+      aggiornato: db.aggiornato || null,
+      solaLettura: true,
+      versioneScript: &#x27;lettura-1&#x27;,
+      eliminati: db.eliminati || [],
+      documenti: documenti.map(pulito_)
+    });
+  } catch (err) {
+    return risposta_({ ok: false, errore: &#x27;Archivio non disponibile&#x27; });
+  }
+}
+
+/** Nessuna scrittura: qualunque richiesta di modifica viene rifiutata. */
+function doPost() {
+  return risposta_({ ok: false, solaLettura: true, errore: &#x27;Accesso in sola lettura&#x27; });
+}
+
+/** Solo i campi del documento: niente dati dell&#x27;email né dell&#x27;account. */
+function pulito_(d) {
+  return {
+    id: d.id, tipo: d.tipo, numero: d.numero, data: d.data, titolo: d.titolo,
+    file: d.file, allegatoDi: d.allegatoDi || &#x27;&#x27;, testo: d.testo || &#x27;&#x27;,
+    pagine: d.pagine || null, testoCompleto: d.testoCompleto,
+    pdf: d.pdf || &#x27;&#x27;, daOcr: !!d.daOcr,
+    origine: d.origine === &#x27;caricato&#x27; ? &#x27;condiviso&#x27; : &#x27;&#x27;
+  };
+}
+
+/** Restituisce un PDF solo se fa parte dei documenti dell&#x27;archivio. */
+function pdfConsentito_(id, documenti) {
+  const ammessi = new Set(documenti.map(d =&gt; idDaUrl_(d.pdf)).filter(Boolean));
+  if (!ammessi.has(id)) return { ok: false, errore: &#x27;Documento non disponibile&#x27; };
+  const f = DriveApp.getFileById(id);
+  if (f.isTrashed()) return { ok: false, errore: &#x27;Documento non disponibile&#x27; };
+  return { ok: true, nome: f.getName(), base64: Utilities.base64Encode(f.getBlob().getBytes()) };
+}
+
+function leggiArchivio_() {
+  const cartelle = DriveApp.getFoldersByName(LETTURA.CARTELLA);
+  if (!cartelle.hasNext()) throw new Error(&#x27;cartella mancante&#x27;);
+  const it = cartelle.next().getFilesByName(LETTURA.FILE_DB);
+  if (!it.hasNext()) return { documenti: [], eliminati: [] };
+  const db = JSON.parse(it.next().getBlob().getDataAsString(&#x27;UTF-8&#x27;));
+  db.documenti = db.documenti || [];
+  return db;
+}
+
+function idDaUrl_(url) { return (String(url || &#x27;&#x27;).match(/[-\w]{25,}/) || [])[0]; }
+
+function risposta_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+</textarea>
+</div>
+<script>
+const b=document.getElementById("copy"),t=document.getElementById("code");
+b.onclick=async()=>{
+  try{ await navigator.clipboard.writeText(t.value); }
+  catch(e){ t.focus(); t.select(); t.setSelectionRange(0,t.value.length); document.execCommand("copy"); }
+  b.textContent="Copiato ✓  Ora incollalo in Google Apps Script"; b.classList.add("done");
+};
+</script></body></html>
