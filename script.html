@@ -41,7 +41,7 @@ small{color:var(--ink-2)}
 <p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può leggere o aggiungere documenti. Non condividerlo.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Estrattore da Gmail (v3: testo integrale + PDF caricati dall&#x27;app)
+ * ODG ARCHIVIO – Estrattore da Gmail (v4: testo integrale + PDF caricati dall&#x27;app)
  * ------------------------------------------------------------
  * Legge le email dell&#x27;Ufficio Informatica VVF Sondrio, prende ogni PDF
  * allegato (ODG, DDS, COMUNICAZIONI) e anche i PDF dentro gli allegati .zip,
@@ -94,6 +94,8 @@ const CONFIG = {
 };
 // ==========================================================
 
+const VERSIONE_SCRIPT = 4;   // l&#x27;app la usa per capire se lo script è aggiornato
+
 const MESI = { gen:1, feb:2, mar:3, apr:4, mag:5, giu:6, lug:7, ago:8, set:9, ott:10, nov:11, dic:12 };
 
 async function aggiorna() {
@@ -140,7 +142,7 @@ async function aggiorna() {
           if (gia) {
             modifica(gia.id, { oggettoEmail: msg.getSubject(),
               dataEmail: Utilities.formatDate(msg.getDate(), &#x27;Europe/Rome&#x27;, &quot;yyyy-MM-dd&#x27;T&#x27;HH:mm&quot;),
-              gmail: &#x27;https://mail.google.com/mail/u/0/#all/&#x27; + msg.getId() });
+              gmail: linkEmail_(msg.getId()) });
             visti.add(id); continue;
           }
           if (Date.now() - inizio &gt; CONFIG.TEMPO_MAX_MS) { interrotto = true; break; }
@@ -166,7 +168,7 @@ async function aggiorna() {
             testoCompleto: estratto.completo,
             oggettoEmail: msg.getSubject(),
             dataEmail: Utilities.formatDate(msg.getDate(), &#x27;Europe/Rome&#x27;, &quot;yyyy-MM-dd&#x27;T&#x27;HH:mm&quot;),
-            gmail: &#x27;https://mail.google.com/mail/u/0/#all/&#x27; + msg.getId(),
+            gmail: linkEmail_(msg.getId()),
             pdf: pdfUrl
           });
           visti.add(id);
@@ -196,11 +198,10 @@ async function aggiorna() {
 function doGet(e) {
   const p = (e &amp;&amp; e.parameter) || {};
   if (p.pdf) return json_(pdfPerApp_(p.pdf));
-  const it = cartellaPrincipale_().getFilesByName(CONFIG.FILE_DB);
-  const testo = it.hasNext()
-    ? it.next().getBlob().getDataAsString(&#x27;UTF-8&#x27;)
-    : JSON.stringify({ formato: &#x27;odg-archivio-1&#x27;, aggiornato: null, documenti: [] });
-  return ContentService.createTextOutput(testo).setMimeType(ContentService.MimeType.JSON);
+  const db = leggiDb_(cartellaPrincipale_());
+  db.versioneScript = VERSIONE_SCRIPT;
+  db.account = accountGoogle_();
+  return json_(db);
 }
 
 /** Riceve dall&#x27;app i PDF caricati dal dispositivo (e le eliminazioni). */
@@ -279,9 +280,9 @@ function pdfPerApp_(id) {
       const nonni = g.getParents();
       while (nonni.hasNext()) if (nonni.next().getId() === radice) dentro = true;
     }
-    if (!dentro) return { ok: false, errore: &#x27;Il file non fa parte dell\&#x27;archivio&#x27; };
+    if (!dentro) return { ok: false, errore: &#x27;Il file non fa parte della cartella ODG Archivio&#x27; };
     return { ok: true, nome: f.getName(), base64: Utilities.base64Encode(f.getBlob().getBytes()) };
-  } catch (err) { return { ok: false, errore: String(err) }; }
+  } catch (err) { return { ok: false, errore: &#x27;PDF non trovato su Drive (&#x27; + String(err).slice(0, 120) + &#x27;)&#x27; }; }
 }
 
 function json_(o) {
@@ -513,6 +514,16 @@ function salvaUnendo_(cartella, aggiunti, modifiche, completo) {
     scriviDb_(cartella, db);
     return db;
   } finally { lock.releaseLock(); }
+}
+
+/** Indirizzo Gmail del proprietario dell&#x27;archivio (serve per aprire l&#x27;email giusta). */
+function accountGoogle_() {
+  try { return cartellaPrincipale_().getOwner().getEmail(); } catch (e) { return &#x27;&#x27;; }
+}
+let ACCOUNT_CACHE_ = null;
+function linkEmail_(idMsg) {
+  if (ACCOUNT_CACHE_ === null) ACCOUNT_CACHE_ = accountGoogle_();
+  return &#x27;https://mail.google.com/mail/&#x27; + (ACCOUNT_CACHE_ ? &#x27;?authuser=&#x27; + encodeURIComponent(ACCOUNT_CACHE_) : &#x27;u/0/&#x27;) + &#x27;#all/&#x27; + idMsg;
 }
 
 function idDaUrl_(url) { return (String(url || &#x27;&#x27;).match(/[-\w]{25,}/) || [])[0]; }

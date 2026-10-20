@@ -181,6 +181,10 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
 .rev input,.rev select{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:15px;background:var(--surface);color:var(--ink)}
 .rev .wide{grid-column:1/-1}
 .rev .bar{position:sticky;bottom:-28px;background:var(--surface);padding:12px 0 4px;display:flex;gap:10px;flex-wrap:wrap}
+.mailbox .mlab{margin:0;font-size:13px;color:var(--ink-3)}
+.mailbox .mval{margin:2px 0 14px;font-size:16px;font-weight:600}
+.mailbox .list{margin-top:6px}
+.mailbox .mnote{font-size:13.5px;color:var(--ink-2);margin-top:14px}
 .pdfview{display:flex;flex-direction:column;gap:10px;align-items:center;white-space:normal}
 .pdfview canvas{width:100%;height:auto;background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .pdfview .pn{font-size:12.5px;color:var(--ink-3)}
@@ -482,7 +486,7 @@ function openDoc(i){
   $("dActions").innerHTML=
     (d.pdfKey||(d.pdf&&linkGoogle)?`<button id="dPdfLoc">Apri il PDF</button>`:"")+
     (d.pdf&&!d.pdfKey&&!linkGoogle?`<a href="${esc(d.pdf)}" target="_blank" rel="noopener">Apri il PDF</a>`:"")+
-    (d.gmail?`<a href="${esc(d.gmail)}" target="_blank" rel="noopener">Apri l’email</a>`:"")+
+    (d.oggettoEmail||d.gmail?`<button id="dMail">Vedi l’email</button>`:"")+
     (d.testo?`<button id="dCopy">Copia il testo</button>`:"")+
     (d.origine==="dispositivo"||d.origine==="caricato"?`<button id="dDel">Elimina</button>`:"");
   const body=$("dBody"); body.classList.remove("help");
@@ -492,6 +496,7 @@ function openDoc(i){
     : d.origine==="caricato" ? "Il testo di questa scansione non è leggibile: si trova cercando le parole dell’oggetto. Tocca “Apri il PDF” per vederlo."
     : "Il testo di questo documento non è ancora nell’archivio. Quando sei online puoi aprire il PDF o l’email originale."}</p>`;
   const pl=$("dPdfLoc"); if(pl) pl.onclick=()=>mostraPdf(d,i);
+  const ml=$("dMail"); if(ml) ml.onclick=()=>mostraEmail(d);
   const dl=$("dDel"); if(dl) dl.onclick=()=>eliminaDoc(d);
   const c=$("dCopy"); if(c) c.onclick=()=>{try{navigator.clipboard.writeText((d.titolo||"")+"\n\n"+d.testo).then(()=>toast("Testo copiato"));}catch(e){}};
   showDlg(); body.scrollTop=0;
@@ -537,6 +542,8 @@ async function importText(txt,quiet){
   }
   docs=[...map.values()].sort(cmpData);
   meta.aggiornato=(data&&data.aggiornato)||new Date().toISOString();
+  if(data&&data.account) meta.account=data.account;
+  if(data&&data.versioneScript) meta.versioneScript=data.versioneScript;
   buildIndex(); const ok=await idbSet("docs",docs); await idbSet("meta",meta);
   updateStatus(); render(true);
   if(!quiet||nuovi||agg)
@@ -695,9 +702,34 @@ async function ottieniPdf(d){
   if(!linkGoogle) throw new Error("Collega l’app a Google per aprire qui i PDF.");
   if(!navigator.onLine) throw new Error("Serve internet la prima volta che apri questo PDF: dopo resta disponibile anche offline.");
   const r=await conTimeout(fetch(linkGoogle+(linkGoogle.includes("?")?"&":"?")+"pdf="+encodeURIComponent(fid),{cache:"no-store"}),90000);
-  let j; try{ j=JSON.parse(await r.text()); }catch(e){ throw new Error("Per aprire qui i PDF aggiorna lo script Google (vedi istruzioni)."); }
-  if(!j.ok) throw new Error("Non riesco a scaricare il PDF da Google.");
+  const SCRIPT_VECCHIO="Il link punta ancora alla versione precedente dello script. In Apps Script: Esegui il deployment → Gestisci deployment → matita → Versione: Nuova versione → Esegui il deployment.";
+  let j; try{ j=JSON.parse(await r.text()); }catch(e){ throw new Error(SCRIPT_VECCHIO); }
+  if(j.ok===undefined&&Array.isArray(j.documenti)) throw new Error(SCRIPT_VECCHIO);
+  if(!j.ok) throw new Error("Google non ha inviato il PDF: "+(j.errore||"errore sconosciuto")+".");
   const buf=b64ToAb(j.base64); await idbSet("pdfc:"+fid,buf); return buf;
+}
+function linkGmail(d){
+  const m=String(d.gmail||"").match(/#all\/([0-9a-f]+)$/i);
+  if(m&&meta.account) return "https://mail.google.com/mail/?authuser="+encodeURIComponent(meta.account)+"#all/"+m[1];
+  return d.gmail||"";
+}
+function mostraEmail(d){
+  const msg=String(d.id||"").split("|")[0];
+  const stessi=d.gmail&&msg?docs.filter(x=>String(x.id||"").split("|")[0]===msg):[d];
+  stessi.sort((a,b)=>(TIPI.indexOf(tipoOf(a))-TIPI.indexOf(tipoOf(b)))||((a.numero||0)-(b.numero||0)));
+  const quando=d.dataEmail?fmtData(d.dataEmail)+" alle "+d.dataEmail.slice(11,16):"";
+  const b=$("dBody"); b.classList.add("help");
+  $("dActions").innerHTML=`<button id="dBack">Torna al documento</button>`+(d.gmail?`<a href="${esc(linkGmail(d))}" target="_blank" rel="noopener">Apri in Gmail</a>`:"");
+  $("dBack").onclick=()=>openDoc(docs.indexOf(d));
+  b.innerHTML=`<div class="mailbox">
+    <p class="mlab">Oggetto</p><p class="mval">${esc(d.oggettoEmail||"—")}</p>
+    ${quando?`<p class="mlab">Ricevuta</p><p class="mval">${esc(quando)}</p>`:""}
+    <p class="mlab">${stessi.length===1?"Documento allegato":stessi.length+" documenti allegati"}</p>
+    <div class="list">${stessi.map(x=>docRow({i:docs.indexOf(x)},[])).join("")}</div>
+    ${d.gmail?`<p class="mnote">“Apri in Gmail” apre l’email nel browser con l’account ${esc(meta.account||"Google")}. Sull’iPhone l’app Gmail a volte apre solo la posta in arrivo: in quel caso cerca l’oggetto qui sopra.</p>`:""}
+  </div>`;
+  b.querySelectorAll(".doc").forEach(el=>el.onclick=()=>openDoc(+el.dataset.i));
+  b.scrollTop=0;
 }
 async function eliminaDoc(d){
   if(d.origine==="caricato"){
