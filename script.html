@@ -22,24 +22,26 @@ small{color:var(--ink-2)}
 <h1>Script per l’Archivio ODG</h1>
 <p>Copia lo script e incollalo in Google Apps Script. Basta farlo una volta.</p>
 <button class="copy" id="copy">Copia lo script</button>
+<h2 style="font-size:18px;margin:22px 0 6px">Hai già lo script? Aggiornalo così</h2>
 <ol>
 <li>Tocca <b>Copia lo script</b> qui sopra.</li>
-<li>Apri il tuo progetto su <b>script.google.com</b> (oppure <b>Nuovo progetto</b> se è la prima volta).</li>
-<li>Nell’editor: tieni premuto → <b>Seleziona tutto</b> → <b>Incolla</b> (su PC: Ctrl+A, Ctrl+V). Salva con il dischetto.</li>
-<li>Solo la prima volta: accanto a <b>Servizi</b> premi <b>+</b> → <b>Drive API</b> → <b>Aggiungi</b>; poi esegui <b>aggiorna</b> e <b>installaAggiornamentoAutomatico</b>.</li>
+<li>Apri il tuo progetto su <b>script.google.com</b>. Nell’editor: tieni premuto → <b>Seleziona tutto</b> → <b>Incolla</b> (su PC: Ctrl+A, Ctrl+V). Salva con il dischetto.</li>
+<li>Premi <b>Esegui il deployment</b> → <b>Gestisci deployment</b>.</li>
+<li>Premi la <b>matita</b> (Modifica) → in <b>Versione</b> scegli <b>Nuova versione</b> → <b>Esegui il deployment</b>.</li>
+<li>Fatto: il link /exec resta lo stesso, non serve ricollegare l’app.</li>
 </ol>
-<h2 style="font-size:18px;margin:22px 0 6px">Collegare l’app (una volta sola)</h2>
+<h2 style="font-size:18px;margin:22px 0 6px">Prima installazione</h2>
 <ol>
-<li>In alto premi <b>Esegui il deployment</b> → <b>Nuovo deployment</b>.</li>
-<li>Accanto a “Seleziona tipo” premi l’<b>ingranaggio</b> → <b>App web</b>.</li>
-<li><b>Esegui come:</b> Me · <b>Chi ha accesso:</b> Chiunque → <b>Esegui il deployment</b> (autorizza se richiesto).</li>
-<li>Copia l’<b>URL app web</b> (finisce con <b>/exec</b>) con il pulsante <b>Copia</b>.</li>
-<li>Apri l’app Archivio ODG dall’icona → <b>Dati</b> → <b>Collega a Google</b> → incolla → <b>Collega e scarica</b>.</li>
+<li>Su <b>script.google.com</b> premi <b>Nuovo progetto</b>, incolla lo script e salva.</li>
+<li>Accanto a <b>Servizi</b> premi <b>+</b> → <b>Drive API</b> → <b>Aggiungi</b>.</li>
+<li>Esegui <b>aggiorna</b> (autorizza gli accessi), poi <b>installaAggiornamentoAutomatico</b>.</li>
+<li><b>Esegui il deployment</b> → <b>Nuovo deployment</b> → ingranaggio → <b>App web</b> · Esegui come: <b>Me</b> · Chi ha accesso: <b>Chiunque</b>.</li>
+<li>Copia l’<b>URL app web</b> (finisce con <b>/exec</b>) e incollalo nell’app: <b>Dati → Collega a Google</b>.</li>
 </ol>
-<p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può scaricare l’archivio. Non condividerlo.</p>
+<p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può leggere o aggiungere documenti. Non condividerlo.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Estrattore da Gmail (v2: testo integrale dei PDF)
+ * ODG ARCHIVIO – Estrattore da Gmail (v3: testo integrale + PDF caricati dall&#x27;app)
  * ------------------------------------------------------------
  * Legge le email dell&#x27;Ufficio Informatica VVF Sondrio, prende ogni PDF
  * allegato (ODG, DDS, COMUNICAZIONI) e anche i PDF dentro gli allegati .zip,
@@ -63,6 +65,10 @@ small{color:var(--ink-2)}
  *     Esegui come: Me, Chi ha accesso: Chiunque → copia l&#x27;&quot;URL app web&quot; (/exec)
  *     e incollalo nell&#x27;app: Dati → Collega a Google.
  *
+ * AGGIORNARE LO SCRIPT SENZA CAMBIARE IL LINK DELL&#x27;APP:
+ *  incolla la nuova versione, salva, poi &quot;Esegui il deployment&quot; → &quot;Gestisci
+ *  deployment&quot; → matita → Versione: &quot;Nuova versione&quot; → &quot;Esegui il deployment&quot;.
+ *
  * Se avevi già usato la versione precedente: esegui una volta &quot;azzeraDatabase&quot;,
  * poi &quot;aggiorna&quot;, così tutti i documenti vengono riletti per intero.
  *
@@ -83,6 +89,7 @@ const CONFIG = {
   MAX_BYTE_BLOCCO: 1.9 * 1024 * 1024,// limite OCR di Google Drive (2 MB)
   TEMPO_MAX_MS: 4.5 * 60 * 1000,     // si ferma prima del limite di 6 minuti
   BLOCCO_THREAD: 50,
+  CARTELLA_CARICATI: &#x27;Caricati dall\&#x27;app&#x27;,  // PDF aggiunti dai dispositivi
   PDF_LIB: &#x27;https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js&#x27;
 };
 // ==========================================================
@@ -95,8 +102,28 @@ async function aggiorna() {
   const cartellaPdf = CONFIG.SALVA_PDF ? sottocartella_(cartella, &#x27;PDF&#x27;) : null;
   const db = leggiDb_(cartella);
   const visti = new Set(db.documenti.map(d =&gt; d.id));
-  let nuovi = 0, interrotto = false;
+  const caricatiPerNome = {};
+  db.documenti.forEach(d =&gt; { if (d.origine === &#x27;caricato&#x27; &amp;&amp; d.file) caricatiPerNome[d.file] = d; });
+  const aggiunti = [], modifiche = {};
+  const modifica = (id, campi) =&gt; { modifiche[id] = Object.assign(modifiche[id] || {}, campi); };
+  let nuovi = 0, letti = 0, interrotto = false;
 
+  // 1) PDF caricati dall&#x27;app senza testo (scansioni): li legge Google con l&#x27;OCR
+  for (const d of db.documenti) {
+    if (!d.daOcr) continue;
+    if (Date.now() - inizio &gt; CONFIG.TEMPO_MAX_MS) { interrotto = true; break; }
+    try {
+      const blob = DriveApp.getFileById(idDaUrl_(d.pdf)).getBlob();
+      const r = await estraiTestoCompleto_(blob, d.file);
+      modifica(d.id, { testo: r.testo, pagine: r.pagine || d.pagine, testoCompleto: r.completo, daOcr: false });
+      letti++;
+    } catch (e) {
+      console.warn(&#x27;OCR non riuscito: &#x27; + d.file + &#x27; – &#x27; + e);
+      modifica(d.id, { daOcr: false, testoCompleto: false });
+    }
+  }
+
+  // 2) Email nuove
   for (let start = 0; !interrotto; start += CONFIG.BLOCCO_THREAD) {
     const threads = GmailApp.search(CONFIG.QUERY, start, CONFIG.BLOCCO_THREAD);
     if (!threads.length) break;
@@ -108,6 +135,14 @@ async function aggiorna() {
         for (const voce of pdfDelMessaggio_(msg)) {
           const id = msg.getId() + &#x27;|&#x27; + voce.chiave;
           if (visti.has(id)) continue;
+          // Stesso PDF già caricato a mano dall&#x27;app: aggiunge solo i dati dell&#x27;email
+          const gia = caricatiPerNome[voce.nome];
+          if (gia) {
+            modifica(gia.id, { oggettoEmail: msg.getSubject(),
+              dataEmail: Utilities.formatDate(msg.getDate(), &#x27;Europe/Rome&#x27;, &quot;yyyy-MM-dd&#x27;T&#x27;HH:mm&quot;),
+              gmail: &#x27;https://mail.google.com/mail/u/0/#all/&#x27; + msg.getId() });
+            visti.add(id); continue;
+          }
           if (Date.now() - inizio &gt; CONFIG.TEMPO_MAX_MS) { interrotto = true; break; }
 
           const meta = analizzaNome_(voce.nome, msg, voce.zip);
@@ -118,7 +153,7 @@ async function aggiorna() {
           let pdfUrl = &#x27;&#x27;;
           if (cartellaPdf) pdfUrl = salvaPdf_(cartellaPdf, voce.blob, voce.nome);
 
-          db.documenti.push({
+          aggiunti.push({
             id: id,
             tipo: meta.tipo,
             numero: meta.numero,
@@ -143,11 +178,10 @@ async function aggiorna() {
     }
   }
 
-  db.aggiornato = new Date().toISOString();
-  db.completo = !interrotto;
-  scriviDb_(cartella, db);
-  const incompleti = db.documenti.filter(d =&gt; d.testoCompleto === false).length;
-  console.log(&#x27;Nuovi documenti: &#x27; + nuovi + &#x27; – totale: &#x27; + db.documenti.length +
+  const finale = salvaUnendo_(cartella, aggiunti, modifiche, !interrotto);
+  const incompleti = finale.documenti.filter(d =&gt; d.testoCompleto === false).length;
+  if (letti) console.log(&#x27;PDF caricati dall\&#x27;app letti con OCR: &#x27; + letti);
+  console.log(&#x27;Nuovi documenti: &#x27; + nuovi + &#x27; – totale: &#x27; + finale.documenti.length +
               &#x27; – con testo incompleto: &#x27; + incompleti +
               (interrotto ? &#x27; (continua alla prossima esecuzione)&#x27; : &#x27; (archivio completo)&#x27;));
 }
@@ -160,11 +194,98 @@ async function aggiorna() {
  * lungo e casuale: chi non lo conosce non può scaricare niente. Non condividerlo.
  */
 function doGet(e) {
+  const p = (e &amp;&amp; e.parameter) || {};
+  if (p.pdf) return json_(pdfPerApp_(p.pdf));
   const it = cartellaPrincipale_().getFilesByName(CONFIG.FILE_DB);
   const testo = it.hasNext()
     ? it.next().getBlob().getDataAsString(&#x27;UTF-8&#x27;)
     : JSON.stringify({ formato: &#x27;odg-archivio-1&#x27;, aggiornato: null, documenti: [] });
   return ContentService.createTextOutput(testo).setMimeType(ContentService.MimeType.JSON);
+}
+
+/** Riceve dall&#x27;app i PDF caricati dal dispositivo (e le eliminazioni). */
+function doPost(e) {
+  let req;
+  try { req = JSON.parse(e.postData.contents); }
+  catch (x) { return json_({ ok: false, errore: &#x27;Richiesta non valida&#x27; }); }
+  try {
+    if (req.azione === &#x27;carica&#x27;) return json_(caricaDaApp_(req));
+    if (req.azione === &#x27;elimina&#x27;) return json_(eliminaDaApp_(req));
+    return json_({ ok: false, errore: &#x27;Azione sconosciuta&#x27; });
+  } catch (err) {
+    return json_({ ok: false, errore: String(err) });
+  }
+}
+
+function caricaDaApp_(r) {
+  let nome = String(r.nome || &#x27;documento.pdf&#x27;).replace(/[\\/]/g, &#x27;_&#x27;);
+  if (!/\.pdf$/i.test(nome)) nome += &#x27;.pdf&#x27;;
+  const cartella = cartellaPrincipale_();
+  const blob = Utilities.newBlob(Utilities.base64Decode(r.base64), &#x27;application/pdf&#x27;, nome);
+  const url = salvaPdf_(sottocartella_(cartella, CONFIG.CARTELLA_CARICATI), blob, nome);
+  const testo = pulisci_(r.testo || &#x27;&#x27;);
+  const doc = {
+    id: &#x27;caricato|&#x27; + nome,
+    tipo: [&#x27;ODG&#x27;, &#x27;DDS&#x27;, &#x27;COMUNICAZIONE&#x27;, &#x27;ALTRO&#x27;].indexOf(r.tipo) &gt;= 0 ? r.tipo : &#x27;ALTRO&#x27;,
+    numero: (r.numero === null || r.numero === &#x27;&#x27; || isNaN(r.numero)) ? null : Number(r.numero),
+    data: /^\d{4}-\d{2}-\d{2}$/.test(r.data || &#x27;&#x27;) ? r.data : Utilities.formatDate(new Date(), &#x27;Europe/Rome&#x27;, &#x27;yyyy-MM-dd&#x27;),
+    titolo: String(r.titolo || nome.replace(/\.pdf$/i, &#x27;&#x27;)),
+    file: nome, allegatoDi: &#x27;&#x27;, testo: testo, pagine: r.pagine || null,
+    testoCompleto: testo ? true : null, daOcr: !testo, origine: &#x27;caricato&#x27;,
+    oggettoEmail: &#x27;&#x27;, dataEmail: &#x27;&#x27;, gmail: &#x27;&#x27;, pdf: url,
+    caricatoIl: new Date().toISOString()
+  };
+  const lock = LockService.getScriptLock(); lock.waitLock(60000);
+  try {
+    const db = leggiDb_(cartella);
+    const esistente = db.documenti.find(d =&gt; d.id === doc.id || d.file === nome);
+    if (esistente) return { ok: true, doc: esistente, gia: true };
+    db.documenti.push(doc);
+    db.eliminati = (db.eliminati || []).filter(id =&gt; id !== doc.id);
+    db.aggiornato = new Date().toISOString();
+    scriviDb_(cartella, db);
+    return { ok: true, doc: doc };
+  } finally { lock.releaseLock(); }
+}
+
+function eliminaDaApp_(r) {
+  const cartella = cartellaPrincipale_();
+  const lock = LockService.getScriptLock(); lock.waitLock(60000);
+  try {
+    const db = leggiDb_(cartella);
+    const d = db.documenti.find(x =&gt; x.id === r.id);
+    if (!d) return { ok: true };
+    if (d.origine !== &#x27;caricato&#x27;) return { ok: false, errore: &#x27;Si possono eliminare solo i PDF caricati dall\&#x27;app&#x27; };
+    db.documenti = db.documenti.filter(x =&gt; x !== d);
+    db.eliminati = db.eliminati || [];
+    if (db.eliminati.indexOf(d.id) &lt; 0) db.eliminati.push(d.id);
+    db.aggiornato = new Date().toISOString();
+    scriviDb_(cartella, db);
+    try { DriveApp.getFileById(idDaUrl_(d.pdf)).setTrashed(true); } catch (e) {}
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
+/** Invia all&#x27;app un PDF dell&#x27;archivio (solo file dentro la cartella &quot;ODG Archivio&quot;). */
+function pdfPerApp_(id) {
+  try {
+    const f = DriveApp.getFileById(id);
+    const radice = cartellaPrincipale_().getId();
+    let dentro = false;
+    const genitori = f.getParents();
+    while (genitori.hasNext() &amp;&amp; !dentro) {
+      const g = genitori.next();
+      if (g.getId() === radice) dentro = true;
+      const nonni = g.getParents();
+      while (nonni.hasNext()) if (nonni.next().getId() === radice) dentro = true;
+    }
+    if (!dentro) return { ok: false, errore: &#x27;Il file non fa parte dell\&#x27;archivio&#x27; };
+    return { ok: true, nome: f.getName(), base64: Utilities.base64Encode(f.getBlob().getBytes()) };
+  } catch (err) { return { ok: false, errore: String(err) }; }
+}
+
+function json_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 
 /** Crea il trigger che esegue &quot;aggiorna&quot; ogni ora. */
@@ -188,20 +309,20 @@ async function rileggiIncompleti() {
   const inizio = Date.now();
   const cartella = cartellaPrincipale_();
   const db = leggiDb_(cartella);
+  const modifiche = {};
   let sistemati = 0;
   for (const d of db.documenti) {
     if (d.testoCompleto !== false || !d.pdf) continue;
     if (Date.now() - inizio &gt; CONFIG.TEMPO_MAX_MS) break;
     try {
-      const idFile = (d.pdf.match(/[-\w]{25,}/) || [])[0];
-      const blob = DriveApp.getFileById(idFile).getBlob();
+      const blob = DriveApp.getFileById(idDaUrl_(d.pdf)).getBlob();
       const e = await estraiTestoCompleto_(blob, d.file);
       if (e.testo.length &gt;= (d.testo || &#x27;&#x27;).length) {
-        d.testo = e.testo; d.pagine = e.pagine; d.testoCompleto = e.completo; sistemati++;
+        modifiche[d.id] = { testo: e.testo, pagine: e.pagine, testoCompleto: e.completo }; sistemati++;
       }
     } catch (err) { console.warn(&#x27;Non riletto: &#x27; + d.file + &#x27; – &#x27; + err); }
   }
-  scriviDb_(cartella, db);
+  salvaUnendo_(cartella, [], modifiche);
   console.log(&#x27;Documenti riletti: &#x27; + sistemati);
 }
 
@@ -378,12 +499,34 @@ function sottocartella_(padre, nome) {
   return it.hasNext() ? it.next() : padre.createFolder(nome);
 }
 
+/** Scrive il database rileggendolo un attimo prima, così non si perde ciò che
+ *  l&#x27;app ha caricato nel frattempo. Un blocco evita scritture contemporanee. */
+function salvaUnendo_(cartella, aggiunti, modifiche, completo) {
+  const lock = LockService.getScriptLock(); lock.waitLock(60000);
+  try {
+    const db = leggiDb_(cartella);
+    const ids = new Set(db.documenti.map(d =&gt; d.id));
+    for (const d of aggiunti) if (!ids.has(d.id)) db.documenti.push(d);
+    for (const d of db.documenti) if (modifiche[d.id]) Object.assign(d, modifiche[d.id]);
+    db.aggiornato = new Date().toISOString();
+    if (completo !== undefined) db.completo = completo;
+    scriviDb_(cartella, db);
+    return db;
+  } finally { lock.releaseLock(); }
+}
+
+function idDaUrl_(url) { return (String(url || &#x27;&#x27;).match(/[-\w]{25,}/) || [])[0]; }
+
 function leggiDb_(cartella) {
   const it = cartella.getFilesByName(CONFIG.FILE_DB);
   if (it.hasNext()) {
-    try { return JSON.parse(it.next().getBlob().getDataAsString(&#x27;UTF-8&#x27;)); } catch (e) {}
+    try {
+      const db = JSON.parse(it.next().getBlob().getDataAsString(&#x27;UTF-8&#x27;));
+      db.documenti = db.documenti || []; db.eliminati = db.eliminati || [];
+      return db;
+    } catch (e) {}
   }
-  return { formato: &#x27;odg-archivio-1&#x27;, aggiornato: null, completo: false, documenti: [] };
+  return { formato: &#x27;odg-archivio-1&#x27;, aggiornato: null, completo: false, documenti: [], eliminati: [] };
 }
 
 /** Scrive il database come file (anche oltre 10 MB, con il testo integrale). */
