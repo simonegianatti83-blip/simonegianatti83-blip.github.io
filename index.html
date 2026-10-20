@@ -485,7 +485,7 @@ function openDoc(i){
     w.textContent="Il testo di questo PDF è stato letto solo in parte: la ricerca potrebbe non trovare tutto. Apri il PDF originale per leggerlo per intero.";
     $("dActions").after(w); }
   $("dActions").innerHTML=
-    (d.pdfKey||(d.pdf&&linkGoogle)?`<button id="dPdfLoc">Apri il PDF</button>`:"")+
+    (d.pdfKey||(d.pdf&&linkGoogle)?`<button id="dPdfLoc">Apri il PDF</button><button id="dPdfDl">Scarica il PDF</button>`:"")+
     (d.pdf&&!d.pdfKey&&!linkGoogle?`<a href="${esc(d.pdf)}" target="_blank" rel="noopener">Apri il PDF</a>`:"")+
     (d.oggettoEmail||d.gmail?`<button id="dMail">Vedi l’email</button>`:"")+
     (d.testo?`<button id="dCopy">Copia il testo</button>`:"")+
@@ -497,6 +497,7 @@ function openDoc(i){
     : d.origine==="caricato" ? "Il testo di questa scansione non è leggibile: si trova cercando le parole dell’oggetto. Tocca “Apri il PDF” per vederlo."
     : "Il testo di questo documento non è ancora nell’archivio. Quando sei online puoi aprire il PDF o l’email originale."}</p>`;
   const pl=$("dPdfLoc"); if(pl) pl.onclick=()=>mostraPdf(d,i);
+  const pd=$("dPdfDl"); if(pd) pd.onclick=()=>scaricaPdf(d,pd);
   const ml=$("dMail"); if(ml) ml.onclick=()=>mostraEmail(d);
   const dl=$("dDel"); if(dl) dl.onclick=()=>eliminaDoc(d);
   const c=$("dCopy"); if(c) c.onclick=()=>{try{navigator.clipboard.writeText((d.titolo||"")+"\n\n"+d.testo).then(()=>toast("Testo copiato"));}catch(e){}};
@@ -701,6 +702,38 @@ async function inviaInSospeso(quiet){
   if(inviati) toast(`${inviati===1?"1 PDF condiviso":inviati+" PDF condivisi"} con gli altri dispositivi`);
   if(errore&&!quiet) toast(errore.vecchio?"Per condividere i PDF aggiorna lo script Google (vedi istruzioni)":"Invio non riuscito: riproverò quando riapri l’app con internet");
 }
+/* Scarica il PDF sul dispositivo: su telefono/tablet con il menu Condividi ("Salva su File"),
+   su computer nella cartella Download. */
+let pdfPronto=null;
+function nomePdf(d){
+  let n=(d.file||d.titolo||"documento").replace(/[\\/:*?"<>|]+/g," ").trim();
+  return /\.pdf$/i.test(n)?n:n+".pdf";
+}
+async function scaricaPdf(d,btn){
+  const testo=btn?btn.textContent:"";
+  try{
+    let buf;
+    if(pdfPronto&&pdfPronto.d===d) buf=pdfPronto.buf;
+    else{ if(btn){btn.textContent="Preparo il PDF…";btn.disabled=true;} buf=await ottieniPdf(d); pdfPronto={d,buf}; }
+    const nome=nomePdf(d);
+    const file=new File([buf],nome,{type:"application/pdf"});
+    const touch=IOS||/Android/i.test(navigator.userAgent);
+    if(touch&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:nome}); }
+      catch(e){
+        if(e&&e.name==="AbortError") return;                 // menu chiuso dall'utente
+        if(e&&e.name==="NotAllowedError"){ toast("PDF pronto: tocca di nuovo “Scarica il PDF”"); return; }
+        throw e;
+      }
+    } else {
+      const url=URL.createObjectURL(new Blob([buf],{type:"application/pdf"}));
+      const a=document.createElement("a"); a.href=url; a.download=nome; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      toast("PDF scaricato: "+nome);
+    }
+  }catch(e){ toast(e&&e.message&&!/^[A-Z][a-z]+Error$/.test(e.name||"")?e.message:"Non riesco a scaricare il PDF"); }
+  finally{ if(btn){btn.textContent=testo;btn.disabled=false;} }
+}
 async function ottieniPdf(d){
   if(d.pdfKey){ const b=await idbGet("pdf:"+d.pdfKey); if(b) return b; }
   const fid=idDaUrl(d.pdf);
@@ -771,7 +804,8 @@ async function eliminaDoc(d){
 async function mostraPdf(d,i){
   const b=$("dBody"); b.classList.add("help");
   b.innerHTML=`<div class="pdfview"><p class="pn">Apro il PDF…</p></div>`;
-  $("dActions").innerHTML=`<button id="dBack">Torna al testo</button>`; $("dBack").onclick=()=>openDoc(docs.indexOf(d));
+  $("dActions").innerHTML=`<button id="dBack">Torna al testo</button><button id="dPdfDl2">Scarica il PDF</button>`; $("dBack").onclick=()=>openDoc(docs.indexOf(d));
+  $("dPdfDl2").onclick=()=>scaricaPdf(d,$("dPdfDl2"));
   try{
     let buf;
     try{ buf=await ottieniPdf(d); }
