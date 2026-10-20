@@ -802,12 +802,21 @@ async function scaricaDaGoogle(quiet){
   try{
     const r=await conTimeout(fetch(linkGoogle,{cache:"no-store",redirect:"follow"}),90000);
     const txt=await r.text();
-    if(!r.ok||/^\s*</.test(txt)) throw new Error("risposta non valida");
+    if(!r.ok||/^\s*</.test(txt)){
+      // Pagina HTML al posto dei dati: di solito accesso non "Chiunque" o autorizzazione mancante
+      const e=new Error("html"); e.dettaglio=/accesso|access|autorizz|authoriz|sign in|accedi/i.test(txt)
+        ? "Google chiede un accesso: nel deployment imposta “Chi ha accesso: Chiunque” e autorizza lo script"
+        : "Google non ha restituito l’archivio (risposta "+r.status+")"; throw e;
+    }
+    let dati=null; try{ dati=JSON.parse(txt); }catch(x){}
+    if(dati&&dati.ok===false&&!dati.documenti){
+      const e=new Error("script"); e.dettaglio="Lo script risponde: "+(dati.errore||"errore sconosciuto"); throw e;
+    }
     const esito=await importText(txt,quiet);
     if(esito===null) throw new Error("json");
     return true;
   }catch(e){
-    if(!quiet) toast("Non riesco a scaricare: controlla il link e che l’app web sia “Chiunque”");
+    if(!quiet) toast(e.dettaglio||(e.message==="timeout"?"Google non risponde: riprova tra poco":"Non riesco a scaricare: controlla il link e che l’app web sia “Chiunque”"));
     return false;
   }finally{ scaricando=false; if($("status").textContent==="Scarico l’aggiornamento…"){ updateStatus(); if(!docs.length) $("status").textContent=prima; } }
 }

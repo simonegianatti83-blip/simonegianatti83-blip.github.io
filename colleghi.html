@@ -25,7 +25,7 @@ small{color:var(--ink-2)}
 <h2 style="font-size:18px;margin:22px 0 6px">Da fare una volta sola (con il tuo account)</h2>
 <ol>
 <li>Tocca <b>Copia lo script</b> qui sopra.</li>
-<li>Apri <b>script.google.com</b> → <b>Nuovo progetto</b> (un progetto <b>nuovo</b>, non quello che usi già).</li>
+<li>Apri <b>script.google.com</b> con lo <b>stesso account Google dell’archivio</b> (controlla l’icona del profilo in alto a destra) → <b>Nuovo progetto</b> (un progetto <b>nuovo</b>, non quello che usi già).</li>
 <li>Nell’editor: tieni premuto → <b>Seleziona tutto</b> → <b>Incolla</b>. Salva con il dischetto. Tocca “Progetto senza titolo” e chiamalo <b>ODG lettura colleghi</b>.</li>
 <li><b>Esegui il deployment</b> → <b>Nuovo deployment</b> → ingranaggio → <b>App web</b>.</li>
 <li><b>Esegui come:</b> Me · <b>Chi ha accesso:</b> Chiunque → <b>Esegui il deployment</b> → autorizza.</li>
@@ -84,7 +84,7 @@ function doGet(e) {
       documenti: documenti.map(pulito_)
     });
   } catch (err) {
-    return risposta_({ ok: false, errore: &#x27;Archivio non disponibile&#x27; });
+    return risposta_({ ok: false, errore: String(err.message || err).slice(0, 200) });
   }
 }
 
@@ -115,9 +115,9 @@ function pdfConsentito_(id, documenti) {
 
 function leggiArchivio_() {
   const cartelle = DriveApp.getFoldersByName(LETTURA.CARTELLA);
-  if (!cartelle.hasNext()) throw new Error(&#x27;cartella mancante&#x27;);
+  if (!cartelle.hasNext()) throw new Error(&#x27;Cartella &quot;&#x27; + LETTURA.CARTELLA + &#x27;&quot; non trovata: crea questo script con lo stesso account Google che contiene l\&#x27;archivio (quello dello script principale)&#x27;);
   const it = cartelle.next().getFilesByName(LETTURA.FILE_DB);
-  if (!it.hasNext()) return { documenti: [], eliminati: [] };
+  if (!it.hasNext()) throw new Error(&#x27;Nella cartella &quot;&#x27; + LETTURA.CARTELLA + &#x27;&quot; manca il file &#x27; + LETTURA.FILE_DB + &#x27;: lo script principale non l\&#x27;ha ancora creato&#x27;);
   const db = JSON.parse(it.next().getBlob().getDataAsString(&#x27;UTF-8&#x27;));
   db.documenti = db.documenti || [];
   return db;
