@@ -30,6 +30,7 @@ small{color:var(--ink-2)}
 <li><b>Esegui il deployment</b> → <b>Nuovo deployment</b> → ingranaggio → <b>App web</b>.</li>
 <li><b>Esegui come:</b> Me · <b>Chi ha accesso:</b> Chiunque → <b>Esegui il deployment</b> → autorizza.</li>
 <li>Copia l’<b>URL app web</b> (finisce con /exec): è il <b>link per i colleghi</b>. È diverso dal tuo: il tuo non darlo a nessuno.</li>
+<li><b>Prova:</b> in alto, accanto a “Debug”, scegli la funzione <b>prova</b> → <b>Esegui</b>. Nel registro deve comparire “OK: i colleghi vedranno … documenti”.</li>
 </ol>
 <h2 style="font-size:18px;margin:22px 0 6px">Cosa fa il collega</h2>
 <ol>
@@ -58,6 +59,7 @@ small{color:var(--ink-2)}
  *     Esegui come: Me · Chi ha accesso: Chiunque → Esegui il deployment
  *     → autorizza (serve solo per leggere la cartella &quot;ODG Archivio&quot;).
  *  3. Copia l&#x27;URL app web (/exec): è il link da dare ai colleghi.
+ *  4. Prova: in alto scegli la funzione &quot;prova&quot; → Esegui → leggi il registro.
  *
  * Per togliere l&#x27;accesso a tutti: Gestisci deployment → Archivia.
  * Poi puoi crearne uno nuovo e dare il nuovo link solo a chi vuoi.
@@ -86,6 +88,17 @@ function doGet(e) {
   } catch (err) {
     return risposta_({ ok: false, errore: String(err.message || err).slice(0, 200) });
   }
+}
+
+/** PROVA: eseguila dall&#x27;editor (in alto scegli &quot;prova&quot; → Esegui).
+ *  Chiede l&#x27;autorizzazione se manca e scrive nel registro cosa vedranno i colleghi. */
+function prova() {
+  const db = leggiArchivio_();
+  const documenti = db.documenti.filter(d =&gt; LETTURA.INCLUDI_CARICATI || d.origine !== &#x27;caricato&#x27;);
+  const json = JSON.stringify(documenti.map(pulito_));
+  console.log(&#x27;OK: i colleghi vedranno &#x27; + documenti.length + &#x27; documenti (&#x27; +
+              Math.round(json.length / 1024) + &#x27; KB). Archivio aggiornato al &#x27; + db.aggiornato + &#x27;.&#x27;);
+  console.log(&#x27;Account che esegue lo script: &#x27; + Session.getEffectiveUser().getEmail());
 }
 
 /** Nessuna scrittura: qualunque richiesta di modifica viene rifiutata. */
