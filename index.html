@@ -216,6 +216,29 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
 .menu button:hover{background:var(--line-2)}
 .menu hr{border:0;border-top:1px solid var(--line-2);margin:5px 0}
 .menu .danger{color:var(--odg)}
+/* ---------- avviso documenti nuovi ---------- */
+.att.new{background:var(--odg);color:#fff}
+.novita{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:30;
+  width:min(440px,calc(100vw - 32px));background:var(--surface);color:var(--ink);border:1px solid var(--line);
+  border-radius:var(--r-lg);box-shadow:0 18px 50px rgba(10,16,24,.32);overflow:hidden;display:none}
+.novita.show{display:block}
+@media (prefers-reduced-motion:no-preference){ .novita.show{animation:scendi .28s ease-out}
+  @keyframes scendi{from{transform:translate(-50%,-18px);opacity:0}to{transform:translateX(-50%);opacity:1}} }
+.novita .nhead{display:flex;align-items:center;gap:11px;padding:14px 14px 10px 16px}
+.novita .bell{flex:none;width:36px;height:36px;border-radius:10px;background:var(--odg);color:#fff;display:grid;place-items:center}
+.novita h4{margin:0;font-size:16.5px;font-weight:750;line-height:1.25}
+.novita .nsub{margin:2px 0 0;font-size:13px;color:var(--ink-3)}
+.novita .nlist{max-height:min(46vh,330px);overflow-y:auto;border-top:1px solid var(--line-2)}
+.novita .nitem{display:grid;grid-template-columns:52px 1fr;gap:10px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line-2);
+  background:none;padding:10px 16px;color:var(--ink);font:inherit;cursor:pointer}
+.novita .nitem:hover{background:var(--line-2)}
+.novita .nitem .s{font-size:12px;font-weight:750;font-variant-numeric:tabular-nums;padding-top:2px}
+.novita .t-ODG .s{color:var(--odg)} .novita .t-DDS .s{color:var(--dds)} .novita .t-COMUNICAZIONE .s{color:var(--com)} .novita .t-ALTRO .s{color:var(--alt)}
+.novita .nitem .tt{font-size:14.5px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.novita .nitem .dd{font-size:12.5px;color:var(--ink-3);margin-top:2px}
+.novita .naltri{padding:9px 16px;font-size:13px;color:var(--ink-2)}
+.novita .nbar{display:flex;justify-content:flex-end;padding:10px 14px 12px;gap:8px}
+.novita .nbar button{border:0;border-radius:var(--r-sm);padding:9px 16px;font-size:14.5px;font-weight:650;background:var(--ink);color:var(--surface)}
 </style>
 </head>
 <body>
@@ -291,6 +314,15 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
 <input type="file" id="file" multiple hidden>
 <input type="file" id="pdfIn" accept="application/pdf,.pdf" multiple hidden>
 <div class="toast" id="toast" role="status"></div>
+<div class="novita" id="novita" role="alertdialog" aria-labelledby="nTit" aria-describedby="nSub">
+  <div class="nhead">
+    <span class="bell" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+    <div style="flex:1;min-width:0"><h4 id="nTit"></h4><p class="nsub" id="nSub"></p></div>
+    <button class="x" id="nClose" aria-label="Chiudi">✕</button>
+  </div>
+  <div class="nlist" id="nList"></div>
+  <div class="nbar"><button id="nOk">Ho capito</button></div>
+</div>
 
 <script>
 (function(){
@@ -388,7 +420,7 @@ function docRow(h,terms){
   return `<button class="doc t-${t}" data-i="${h.i}">
     <span class="num"><small>${SIGLE[t]}</small><b>${d.numero!=null?esc(d.numero):"–"}</b></span>
     <span class="body"><span class="dtitle">${highlight(d.titolo||d.file,terms)}</span>
-      <span class="date" style="display:block">${fmtData(d.data)}${d.allegatoDi?'<span class="att">allegato</span>':""}${d.origine==="dispositivo"?(meta.solaLettura?'<span class="att wait">solo su questo dispositivo</span>':'<span class="att wait">da inviare</span>'):d.origine==="caricato"?'<span class="att dev">caricato</span>':""}</span>
+      <span class="date" style="display:block">${fmtData(d.data)}${nuoviVisti[keyOf(d)]?'<span class="att new">nuovo</span>':""}${d.allegatoDi?'<span class="att">allegato</span>':""}${d.origine==="dispositivo"?(meta.solaLettura?'<span class="att wait">solo su questo dispositivo</span>':'<span class="att wait">da inviare</span>'):d.origine==="caricato"?'<span class="att dev">caricato</span>':""}</span>
       ${sn?`<span class="snip" style="display:-webkit-box">${sn}</span>`:""}</span>
   </button>`;
 }
@@ -471,6 +503,8 @@ function bindWelcome(){ $("eImport").onclick=()=>$("file").click(); setupDrop($(
 
 function openDoc(i){
   const d=docs[i],t=tipoOf(d),dlg=$("dlg");
+  if(nuoviVisti[keyOf(d)]){ delete nuoviVisti[keyOf(d)]; idbSet("nuovi",nuoviVisti);
+    const r=document.querySelector(`.doc[data-i="${i}"] .att.new`); if(r) r.remove(); }
   dlg.className="d-"+t;
   $("dTag").textContent=SIGLE[t]+(d.numero!=null?" "+d.numero:"");
   $("dDate").textContent=fmtData(d.data);
@@ -513,13 +547,41 @@ function showHelp(){
 function showDlg(){const d=$("dlg");if(d.showModal)d.showModal();else d.setAttribute("open","");}
 function closeDlg(){const d=$("dlg");if(d.close)d.close();else d.removeAttribute("open");}
 
+/* ===== avviso documenti nuovi ===== */
+let nuoviVisti={};          // chiave documento → quando è arrivato (etichetta "nuovo" finché non lo apri)
+let novitaInAttesa=null;
+const NUOVO_GIORNI=14;
+function pulisciNuovi(){
+  const presenti=new Set(docs.map(keyOf)), limite=Date.now()-NUOVO_GIORNI*864e5;
+  for(const k of Object.keys(nuoviVisti)) if(!presenti.has(k)||nuoviVisti[k]<limite) delete nuoviVisti[k];
+}
+function mostraNovita(lista){
+  // Se un documento è aperto, l'avviso aspetta che venga chiuso
+  if($("dlg").open){ novitaInAttesa=(novitaInAttesa||[]).concat(lista); return; }
+  const box=$("novita"), n=lista.length;
+  const conta={}; for(const d of lista){ const t=tipoOf(d); conta[t]=(conta[t]||0)+1; }
+  $("nTit").textContent=n===1?"È arrivato un documento nuovo":`Sono arrivati ${n} documenti nuovi`;
+  $("nSub").textContent=["ODG","DDS","COMUNICAZIONE","ALTRO"].filter(t=>conta[t])
+    .map(t=>conta[t]+" "+(t==="COMUNICAZIONE"?(conta[t]===1?"comunicazione":"comunicazioni"):t==="ALTRO"?"altri":t)).join(" · ")+" · tocca per aprire";
+  const MAX=8, ord=[...lista].sort(cmpData);
+  $("nList").innerHTML=ord.slice(0,MAX).map(d=>{ const t=tipoOf(d);
+    return `<button class="nitem t-${t}" data-k="${esc(keyOf(d))}"><span class="s">${SIGLE[t]}${d.numero!=null?" "+esc(d.numero):""}</span>
+      <span><span class="tt">${esc(d.titolo||d.file)}</span><span class="dd" style="display:block">${fmtData(d.data)}</span></span></button>`; }).join("")
+    +(n>MAX?`<div class="naltri">e altri ${n-MAX}: nell’elenco hanno l’etichetta <span class="att new" style="margin:0">nuovo</span></div>`:"");
+  box.classList.add("show"); $("nList").scrollTop=0;
+  try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
+}
+function chiudiNovita(){ $("novita").classList.remove("show"); }
+
 /* ===== import / export ===== */
 function keyOf(d){return d.id||((d.tipo||"")+"|"+(d.numero??"")+"|"+(d.data||"")+"|"+(d.titolo||d.file||""));}
 async function importText(txt,quiet){
   let data; try{data=JSON.parse(txt);}catch(e){toast("Questo file non è un archivio valido: scegli odg_database.json");return null;}
   const arr=Array.isArray(data)?data:(data.documenti||[]);
   if(!arr.length){ if(!quiet) toast("L’archivio non contiene ancora documenti: lo script li sta preparando"); return {nuovi:0,agg:0}; }
-  const map=new Map(docs.map(d=>[keyOf(d),d])); let nuovi=0,agg=0;
+  const map=new Map(docs.map(d=>[keyOf(d),d])); let nuovi=0,agg=0; const lista=[];
+  // Al primo scaricamento (archivio vuoto) non si avvisa: sarebbero tutti "nuovi"
+  const avvisa=docs.some(d=>d.origine!=="dispositivo");
   for(const raw of arr){
     const d={id:raw.id,tipo:String(raw.tipo||"ALTRO").toUpperCase(),numero:raw.numero??null,data:raw.data||"",
       titolo:raw.titolo||raw.file||"",file:raw.file||"",testo:raw.testo||"",oggettoEmail:raw.oggettoEmail||"",
@@ -527,13 +589,14 @@ async function importText(txt,quiet){
       pagine:raw.pagine??null,testoCompleto:raw.testoCompleto??null,allegatoDi:raw.allegatoDi||"",
       origine:raw.origine||"",pdfKey:raw.pdfKey||"",daOcr:!!raw.daOcr,caricatoIl:raw.caricatoIl||""};
     // Se lo stesso PDF era stato aggiunto a mano, lo sostituisce la versione arrivata da Google
+    let sostituito=false;
     if(d.origine!=="dispositivo"&&d.file){
       for(const [kk,dd] of map){ if(dd.origine==="dispositivo"&&dd.file===d.file){
-        map.delete(kk); d.pdfKey=dd.pdfKey; if(!d.testo) d.testo=dd.testo; break; } }
+        map.delete(kk); d.pdfKey=dd.pdfKey; if(!d.testo) d.testo=dd.testo; sostituito=true; break; } }
     }
     const k=keyOf(d),old=map.get(k);
     const piuTesto=(!old?false:(!old.testo&&d.testo)||(old.testoCompleto===false&&d.testoCompleto!==false&&d.testo));
-    if(!old){map.set(k,d);nuovi++;}
+    if(!old){map.set(k,d);nuovi++; if(avvisa&&!sostituito&&d.origine!=="dispositivo") lista.push(d);}
     else if(piuTesto||d.origine==="caricato"||d.origine==="condiviso"){ d.pdfKey=d.pdfKey||old.pdfKey; map.set(k,d); if(piuTesto) agg++; }
   }
   let rimossi=0;
@@ -548,9 +611,12 @@ async function importText(txt,quiet){
   if(data&&data.versioneScript) meta.versioneScript=data.versioneScript;
   if(data&&!Array.isArray(data)&&data.documenti) meta.solaLettura=!!data.solaLettura;
   if(data&&data.email&&typeof data.email==="object") meta.email=Object.assign(meta.email||{},data.email);
+  if(lista.length){ const ora=Date.now(); for(const d of lista) nuoviVisti[keyOf(d)]=ora; }
+  pulisciNuovi(); await idbSet("nuovi",nuoviVisti);
   buildIndex(); const ok=await idbSet("docs",docs); await idbSet("meta",meta);
   updateStatus(); render(true);
-  if(!quiet||nuovi||agg)
+  if(lista.length) mostraNovita(lista);
+  else if(!quiet||nuovi||agg)
     toast(nuovi||agg ? `${nuovi===1?"1 documento nuovo":nuovi+" documenti nuovi"}${agg?`, ${agg} completati col testo`:""}${ok?"":". Attenzione: questo browser non li salva"}`
                      : "Archivio già aggiornato");
   return {nuovi,agg};
@@ -1020,6 +1086,12 @@ $("main").addEventListener("click",e=>{
   const d=e.target.closest(".doc"); if(d) openDoc(+d.dataset.i);
 });
 $("dClose").onclick=closeDlg;
+$("dlg").addEventListener("close",()=>{ if(novitaInAttesa){ const l=novitaInAttesa; novitaInAttesa=null; setTimeout(()=>mostraNovita(l),250); } });
+$("nClose").onclick=chiudiNovita; $("nOk").onclick=chiudiNovita;
+$("nList").addEventListener("click",e=>{ const b=e.target.closest(".nitem"); if(!b) return;
+  const i=docs.findIndex(d=>keyOf(d)===b.dataset.k); if(i<0) return;
+  b.remove(); if(!$("nList").querySelector(".nitem")) chiudiNovita();
+  openDoc(i); });
 $("dlg").addEventListener("click",e=>{if(e.target===$("dlg"))closeDlg();});
 $("file").onchange=e=>{const fs=[...e.target.files];e.target.value="";scegliFile(fs);};
 const menu=$("menu");
@@ -1038,10 +1110,10 @@ $("mTheme").onclick=()=>{toggleMenu(false);const r=document.documentElement;
   r.dataset.theme=dark?"light":"dark";try{localStorage.setItem("odg-theme",r.dataset.theme);}catch(e){}};
 $("mClear").onclick=async()=>{toggleMenu(false);
   if(!confirm("Vuoi cancellare tutti i documenti salvati su questo dispositivo? Potrai reimportarli dal file di Drive."))return;
-  docs=[];index=[];meta={aggiornato:null};await idbSet("docs",[]);await idbSet("meta",meta);updateStatus();render(true);toast("Archivio svuotato");};
+  docs=[];index=[];meta={aggiornato:null};nuoviVisti={};await idbSet("nuovi",{});await idbSet("docs",[]);await idbSet("meta",meta);updateStatus();render(true);toast("Archivio svuotato");};
 document.addEventListener("keydown",e=>{
   if(e.key==="/"&&document.activeElement!==$("q")&&!$("dlg").open){e.preventDefault();$("q").focus();}
-  if(e.key==="Escape"){toggleMenu(false);}
+  if(e.key==="Escape"){toggleMenu(false);chiudiNovita();}
 });
 
 /* ===== avvio ===== */
@@ -1062,10 +1134,16 @@ try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(
   idb=await openIdb();
   docs=(await idbGet("docs"))||[]; meta=(await idbGet("meta"))||{aggiornato:null};
   linkGoogle=await idbGet("link"); tokenAccesso=await idbGet("token");
+  nuoviVisti=(await idbGet("nuovi"))||{};
   buildIndex(); updateStatus(); render(true);
-  const sincronizza=async()=>{ if(!linkGoogle) return; await scaricaDaGoogle(true); await inviaInSospeso(true); };
+  let ultimaSync=0;
+  const sincronizza=async()=>{ if(!linkGoogle) return; ultimaSync=Date.now(); await scaricaDaGoogle(true); await inviaInSospeso(true); };
   sincronizza();
   window.addEventListener("online",sincronizza);
+  // L'app spesso resta aperta in background (iPhone/iPad): quando torni a guardarla, o ogni 30 minuti
+  // se resta aperta, controlla se sono arrivati documenti nuovi.
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&Date.now()-ultimaSync>5*60e3) sincronizza(); });
+  setInterval(()=>{ if(document.visibilityState==="visible"&&Date.now()-ultimaSync>30*60e3) sincronizza(); },60e3);
 })();
 })();
 </script>
