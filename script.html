@@ -31,6 +31,16 @@ small{color:var(--ink-2)}
 <li>Scegli la funzione <b>aggiorna</b> e premi <b>Esegui</b> una volta: crea la cartella <b>Da importare</b> (vedi sotto).</li>
 <li>Fatto: il link /exec resta lo stesso, non serve ricollegare l’app.</li>
 </ol>
+<h2 style="font-size:18px;margin:22px 0 6px">Avviso sul telefono alle 9 e alle 18</h2>
+<ol>
+<li>Installa l’app gratuita <b>ntfy</b> (App Store o Google Play) e apri l’app una volta, consentendo le notifiche.</li>
+<li>Nello script scegli la funzione <b>attivaAvvisi</b> e premi <b>Esegui</b> (autorizza se richiesto).</li>
+<li>Nel <b>Registro di esecuzione</b> compare il nome del canale, tipo <b>odg-1a2b3c…</b>.</li>
+<li>Nell’app ntfy premi <b>+</b>, scrivi quel nome (server ntfy.sh) → <b>Iscriviti</b>. Ti arriva una notifica di prova (se l’hai persa, esegui <b>provaAvviso</b>).</li>
+<li>Da quel momento, verso le 9 e verso le 18, ti arriva una notifica solo se ci sono documenti nuovi, con tipo e numero (es. <i>ODG 474 · DDS 249</i>). Toccandola si apre l’archivio.</li>
+<li>Per spegnere gli avvisi: esegui <b>disattivaAvvisi</b>.</li>
+</ol>
+<p style="font-size:14px">Il nome del canale è casuale: non diffonderlo. La notifica non contiene titoli né testo dei documenti.</p>
 <h2 style="font-size:18px;margin:22px 0 6px">PDF degli anni passati (email cancellate)</h2>
 <ol>
 <li>Apri <b>drive.google.com</b> dal PC → cartella <b>ODG Archivio</b> → <b>Da importare</b>.</li>
@@ -50,8 +60,8 @@ small{color:var(--ink-2)}
 <p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può leggere o aggiungere documenti. Non condividerlo.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Estrattore da Gmail (v6: testo integrale, PDF caricati dall&#x27;app, email complete,
- *                                      cartella &quot;Da importare&quot; per i PDF degli anni passati)
+ * ODG ARCHIVIO – Estrattore da Gmail (v7: testo integrale, PDF caricati dall&#x27;app, email complete,
+ *   cartella &quot;Da importare&quot; per i PDF degli anni passati, avviso sul telefono alle 9 e alle 18)
  * ------------------------------------------------------------
  * Legge le email dell&#x27;Ufficio Informatica VVF Sondrio, prende ogni PDF
  * allegato (ODG, DDS, COMUNICAZIONI) e anche i PDF dentro gli allegati .zip,
@@ -88,6 +98,14 @@ small{color:var(--ink-2)}
  * presenti finiscono in &quot;Da importare/Già presenti&quot;, gli altri file in
  * &quot;Da importare/Non riconosciuti&quot;.
  *
+ * AVVISO SUL TELEFONO (alle 9 e alle 18, solo se ci sono documenti nuovi):
+ *  1. Installa l&#x27;app gratuita &quot;ntfy&quot; (App Store / Google Play).
+ *  2. Qui esegui la funzione &quot;attivaAvvisi&quot;: nel registro trovi il nome del
+ *     canale (es. odg-a1b2c3…). Nell&#x27;app ntfy premi + e scrivi quel nome.
+ *  3. Arriva subito una notifica di prova. Per spegnere: &quot;disattivaAvvisi&quot;.
+ *  La notifica dice solo quanti documenti sono arrivati e i loro numeri (non
+ *  i titoli né il testo); il nome del canale è casuale: non diffonderlo.
+ *
  * La prima esecuzione elabora i documenti a blocchi (Google limita ogni
  * esecuzione a 6 minuti): con il trigger orario l&#x27;archivio storico si
  * completa da solo. Puoi anche rilanciare &quot;aggiorna&quot; a mano.
@@ -107,11 +125,14 @@ const CONFIG = {
   BLOCCO_THREAD: 50,
   CARTELLA_CARICATI: &#x27;Caricati dall\&#x27;app&#x27;,  // PDF aggiunti dai dispositivi
   CARTELLA_IMPORTA: &#x27;Da importare&#x27;,         // trascina qui i PDF da aggiungere in blocco
+  AVVISI_ORE: [9, 18],                      // ore dell&#x27;avviso sul telefono (ora italiana)
+  NTFY_SERVER: &#x27;https://ntfy.sh&#x27;,
+  APP_URL: &#x27;https://simonegianatti83-blip.github.io/&#x27;,
   PDF_LIB: &#x27;https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js&#x27;
 };
 // ==========================================================
 
-const VERSIONE_SCRIPT = 6;   // l&#x27;app la usa per capire se lo script è aggiornato
+const VERSIONE_SCRIPT = 7;   // l&#x27;app la usa per capire se lo script è aggiornato
 
 const MESI = { gen:1, feb:2, mar:3, apr:4, mag:5, giu:6, lug:7, ago:8, set:9, ott:10, nov:11, dic:12 };
 
@@ -328,6 +349,79 @@ function installaAggiornamentoAutomatico() {
     .forEach(t =&gt; ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger(&#x27;aggiorna&#x27;).timeBased().everyHours(1).create();
   console.log(&#x27;Aggiornamento automatico attivo (ogni ora).&#x27;);
+}
+
+// ------------------------------------------------ avviso sul telefono (ntfy)
+
+/** Esegui una volta: crea il canale, programma gli avvisi delle 9 e delle 18 e manda una prova. */
+function attivaAvvisi() {
+  const pr = PropertiesService.getScriptProperties();
+  let canale = pr.getProperty(&#x27;ntfy_canale&#x27;);
+  if (!canale) {
+    canale = &#x27;odg-&#x27; + Utilities.getUuid().replace(/-/g, &#x27;&#x27;).slice(0, 20);
+    pr.setProperty(&#x27;ntfy_canale&#x27;, canale);
+  }
+  if (!pr.getProperty(&#x27;avviso_ultimo&#x27;)) pr.setProperty(&#x27;avviso_ultimo&#x27;, new Date().toISOString());
+  ScriptApp.getProjectTriggers().filter(t =&gt; t.getHandlerFunction() === &#x27;avvisaNuovi&#x27;)
+    .forEach(t =&gt; ScriptApp.deleteTrigger(t));
+  for (const h of CONFIG.AVVISI_ORE)
+    ScriptApp.newTrigger(&#x27;avvisaNuovi&#x27;).timeBased().atHour(h).nearMinute(0).everyDays(1)
+      .inTimezone(&#x27;Europe/Rome&#x27;).create();
+  inviaNtfy_(&#x27;Avvisi Archivio ODG attivi&#x27;, &#x27;Riceverai un avviso alle &#x27; + CONFIG.AVVISI_ORE.join(&#x27; e alle &#x27;) +
+    &#x27; solo quando arrivano documenti nuovi.&#x27;, []);
+  console.log(&#x27;AVVISI ATTIVI. Nell\&#x27;app ntfy premi &quot;+&quot; e iscriviti al canale:   &#x27; + canale +
+    &#x27;   (server: ntfy.sh). Ti è appena arrivata una notifica di prova.&#x27;);
+}
+
+/** Spegne gli avvisi sul telefono. */
+function disattivaAvvisi() {
+  ScriptApp.getProjectTriggers().filter(t =&gt; t.getHandlerFunction() === &#x27;avvisaNuovi&#x27;)
+    .forEach(t =&gt; ScriptApp.deleteTrigger(t));
+  console.log(&#x27;Avvisi disattivati.&#x27;);
+}
+
+/** Gira alle 9 e alle 18: legge le email arrivate e avvisa solo se ci sono documenti nuovi. */
+async function avvisaNuovi() {
+  const pr = PropertiesService.getScriptProperties();
+  if (!pr.getProperty(&#x27;ntfy_canale&#x27;)) return;
+  try { await aggiorna(); } catch (e) { console.warn(&#x27;Aggiornamento prima dell\&#x27;avviso non riuscito: &#x27; + e); }
+  const ultimo = pr.getProperty(&#x27;avviso_ultimo&#x27;) || new Date().toISOString();
+  const db = leggiDb_(cartellaPrincipale_());
+  const nuovi = db.documenti.filter(d =&gt; d.aggiuntoIl &amp;&amp; d.aggiuntoIl &gt; ultimo &amp;&amp; d.origine !== &#x27;caricato&#x27;);
+  // il prossimo avviso parte dall&#x27;ultimo documento visto qui (nessun doppione, nessun buco)
+  const visto = db.documenti.reduce((m, d) =&gt; (d.aggiuntoIl &amp;&amp; d.aggiuntoIl &gt; m ? d.aggiuntoIl : m), ultimo);
+  pr.setProperty(&#x27;avviso_ultimo&#x27;, visto);
+  if (!nuovi.length) { console.log(&#x27;Nessun documento nuovo: nessun avviso.&#x27;); return; }
+
+  const gruppi = {};
+  for (const d of nuovi) {
+    const t = d.tipo === &#x27;COMUNICAZIONE&#x27; ? &#x27;COM&#x27; : (d.tipo || &#x27;DOC&#x27;);
+    (gruppi[t] = gruppi[t] || new Set()).add(d.numero != null ? d.numero : &#x27;&#x27;);
+  }
+  const righe = [&#x27;ODG&#x27;, &#x27;DDS&#x27;, &#x27;COM&#x27;, &#x27;ALTRO&#x27;, &#x27;DOC&#x27;].filter(t =&gt; gruppi[t]).map(t =&gt; {
+    const n = [...gruppi[t]].filter(x =&gt; x !== &#x27;&#x27;).sort((a, b) =&gt; a - b);
+    return t + (n.length ? &#x27; &#x27; + n.join(&#x27;, &#x27;) : &#x27;&#x27;);
+  });
+  const tot = nuovi.filter(d =&gt; !d.allegatoDi).length || nuovi.length;
+  inviaNtfy_(tot === 1 ? &#x27;Archivio ODG: 1 documento nuovo&#x27; : &#x27;Archivio ODG: &#x27; + tot + &#x27; documenti nuovi&#x27;,
+             righe.join(&#x27; · &#x27;) + &#x27;\nTocca per aprire l\&#x27;archivio.&#x27;, [&#x27;bell&#x27;]);
+  console.log(&#x27;Avviso inviato: &#x27; + righe.join(&#x27; · &#x27;));
+}
+
+/** Prova manuale: manda subito una notifica. */
+function provaAvviso() {
+  inviaNtfy_(&#x27;Prova Archivio ODG&#x27;, &#x27;Se leggi questo messaggio gli avvisi funzionano.&#x27;, []);
+  console.log(&#x27;Notifica di prova inviata al canale &#x27; + PropertiesService.getScriptProperties().getProperty(&#x27;ntfy_canale&#x27;));
+}
+
+function inviaNtfy_(titolo, testo, tag) {
+  const canale = PropertiesService.getScriptProperties().getProperty(&#x27;ntfy_canale&#x27;);
+  if (!canale) throw new Error(&#x27;Esegui prima &quot;attivaAvvisi&quot;&#x27;);
+  const r = UrlFetchApp.fetch(CONFIG.NTFY_SERVER, {
+    method: &#x27;post&#x27;, contentType: &#x27;application/json&#x27;, muteHttpExceptions: true,
+    payload: JSON.stringify({ topic: canale, title: titolo, message: testo, tags: tag, click: CONFIG.APP_URL, priority: 3 })
+  });
+  if (r.getResponseCode() &gt;= 300) throw new Error(&#x27;ntfy ha risposto &#x27; + r.getResponseCode() + &#x27;: &#x27; + r.getContentText().slice(0, 200));
 }
 
 /** Ricomincia da zero (cancella il database, non i PDF salvati). */
@@ -624,7 +718,8 @@ function salvaUnendo_(cartella, aggiunti, modifiche, completo, nuoveEmail) {
   try {
     const db = leggiDb_(cartella);
     const ids = new Set(db.documenti.map(d =&gt; d.id));
-    for (const d of aggiunti) if (!ids.has(d.id)) db.documenti.push(d);
+    const ora = new Date().toISOString();
+    for (const d of aggiunti) if (!ids.has(d.id)) { if (!d.aggiuntoIl) d.aggiuntoIl = ora; db.documenti.push(d); }
     for (const d of db.documenti) if (modifiche[d.id]) Object.assign(d, modifiche[d.id]);
     if (nuoveEmail) Object.assign(db.email, nuoveEmail);
     db.aggiornato = new Date().toISOString();
