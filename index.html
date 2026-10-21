@@ -741,7 +741,7 @@ async function ottieniPdf(d){
   if(!fid) throw new Error("Il PDF non è disponibile su questo dispositivo.");
   if(!linkGoogle) throw new Error("Collega l’app a Google per aprire qui i PDF.");
   if(!navigator.onLine) throw new Error("Serve internet la prima volta che apri questo PDF: dopo resta disponibile anche offline.");
-  const r=await conTimeout(fetch(linkGoogle+(linkGoogle.includes("?")?"&":"?")+"pdf="+encodeURIComponent(fid),{cache:"no-store"}),90000);
+  const r=await conTimeout(fetch(urlScript({pdf:fid}),{cache:"no-store"}),90000);
   const SCRIPT_VECCHIO="Il link punta ancora alla versione precedente dello script. In Apps Script: Esegui il deployment → Gestisci deployment → matita → Versione: Nuova versione → Esegui il deployment.";
   let j; try{ j=JSON.parse(await r.text()); }catch(e){ throw new Error(SCRIPT_VECCHIO); }
   if(j.ok===undefined&&Array.isArray(j.documenti)) throw new Error(SCRIPT_VECCHIO);
@@ -828,7 +828,13 @@ async function mostraPdf(d,i){
 }
 
 /* ===== collegamento allo script Google ===== */
-let linkGoogle=null, scaricando=false;
+let linkGoogle=null, scaricando=false, tokenAccesso=null;
+/* Indirizzo dello script con eventuali parametri e la chiave di accesso del dispositivo */
+function urlScript(param){
+  const q=Object.entries(param||{}); if(tokenAccesso) q.push(["t",tokenAccesso]);
+  if(!q.length) return linkGoogle;
+  return linkGoogle+(linkGoogle.includes("?")?"&":"?")+q.map(([k,v])=>k+"="+encodeURIComponent(v)).join("&");
+}
 const LINK_RE=/^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[\w-]{20,}\/exec\b/;
 function conTimeout(pr,ms){return new Promise((ok,ko)=>{const t=setTimeout(()=>ko(new Error("timeout")),ms);pr.then(r=>{clearTimeout(t);ok(r);},e=>{clearTimeout(t);ko(e);});});}
 async function scaricaDaGoogle(quiet){
@@ -837,7 +843,7 @@ async function scaricaDaGoogle(quiet){
   if(!navigator.onLine){ if(!quiet) toast("Sei offline: l’aggiornamento si scarica quando torna la connessione"); return false; }
   scaricando=true; const prima=$("status").textContent; $("status").textContent="Scarico l’aggiornamento…";
   try{
-    const r=await conTimeout(fetch(linkGoogle,{cache:"no-store",redirect:"follow"}),90000);
+    const r=await conTimeout(fetch(urlScript(),{cache:"no-store",redirect:"follow"}),90000);
     const txt=await r.text();
     if(!r.ok||/^\s*</.test(txt)){
       // Pagina HTML al posto dei dati: di solito accesso non "Chiunque" o autorizzazione mancante
@@ -846,6 +852,11 @@ async function scaricaDaGoogle(quiet){
         : "Google non ha restituito l’archivio (risposta "+r.status+")"; throw e;
     }
     let dati=null; try{ dati=JSON.parse(txt); }catch(x){}
+    if(dati&&dati.ok===false&&dati.autorizzazione){
+      // Accesso riservato: serve (di nuovo) il codice. Se il dispositivo era autorizzato, l'accesso è stato revocato.
+      if(tokenAccesso){ await togliArchivioCondiviso(); tokenAccesso=null; await idbSet("token",null); toast("Accesso scaduto o revocato: conferma di nuovo la tua email"); }
+      mostraAccesso(); return false;
+    }
     if(dati&&dati.ok===false&&!dati.documenti){
       const e=new Error("script"); e.dettaglio="Lo script risponde: "+(dati.errore||"errore sconosciuto"); throw e;
     }
@@ -856,6 +867,73 @@ async function scaricaDaGoogle(quiet){
     if(!quiet) toast(e.dettaglio||(e.message==="timeout"?"Google non risponde: riprova tra poco":"Non riesco a scaricare: controlla il link e che l’app web sia “Chiunque”"));
     return false;
   }finally{ scaricando=false; if($("status").textContent==="Scarico l’aggiornamento…"){ updateStatus(); if(!docs.length) $("status").textContent=prima; } }
+}
+/* ===== accesso riservato con codice via email (link colleghi) ===== */
+function nomeDispositivo(){
+  const u=navigator.userAgent;
+  const d=/iPad/.test(u)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)?"iPad":/iPhone/.test(u)?"iPhone":/Android/.test(u)?"Android":/Windows/.test(u)?"PC Windows":/Mac/.test(u)?"Mac":"Dispositivo";
+  const b=/Edg\//.test(u)?"Edge":/CriOS|Chrome\//.test(u)?"Chrome":/Firefox|FxiOS/.test(u)?"Firefox":/Safari\//.test(u)?"Safari":"";
+  return d+(b?" · "+b:"");
+}
+async function togliArchivioCondiviso(){
+  const via=docs.filter(d=>d.origine!=="dispositivo");
+  for(const d of via){ const f=idDaUrl(d.pdf); if(f) await idbDel("pdfc:"+f); }
+  docs=docs.filter(d=>d.origine==="dispositivo"); meta={aggiornato:null};
+  buildIndex(); await idbSet("docs",docs); await idbSet("meta",meta); updateStatus(); render(true);
+}
+function mostraAccesso(emailNota){
+  const dlg=$("dlg"); dlg.className="d-DDS";
+  $("dTag").textContent="Accesso riservato"; $("dDate").textContent="";
+  $("dTitle").textContent="Conferma la tua email"; $("dSrc").textContent=""; $("dActions").innerHTML="";
+  const old=document.querySelector(".dhead .warn"); if(old) old.remove();
+  const b=$("dBody"); b.classList.add("help");
+  const passo1=()=>{
+    b.innerHTML=`<div class="linkform">
+      <p class="note" style="margin-top:0">L’archivio è riservato al personale. Inserisci la tua email di servizio: ti invieremo un codice di 6 cifre.</p>
+      <label for="accEmail">Email @vigilfuoco.it</label>
+      <input id="accEmail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="nome.cognome@vigilfuoco.it" value="${esc(emailNota||"")}">
+      <div class="row"><button class="primary" id="accInvia">Invia il codice</button></div>
+      <p class="note" id="accErr" role="alert"></p></div>`;
+    const invia=async()=>{
+      const email=$("accEmail").value.trim().toLowerCase();
+      if(!/^[a-z0-9._%+-]+@vigilfuoco\.it$/.test(email)){ $("accErr").textContent="Usa la tua email @vigilfuoco.it"; return; }
+      if(!navigator.onLine){ $("accErr").textContent="Serve la connessione per ricevere il codice"; return; }
+      $("accInvia").disabled=true; $("accInvia").textContent="Invio in corso…"; $("accErr").textContent="";
+      try{ await chiamaScript({azione:"richiediCodice",email},60000); passo2(email); }
+      catch(e){ $("accErr").textContent=e.vecchio?"Lo script dei colleghi va aggiornato all’ultima versione":e.message; $("accInvia").disabled=false; $("accInvia").textContent="Invia il codice"; }
+    };
+    $("accInvia").onclick=invia; $("accEmail").onkeydown=e=>{ if(e.key==="Enter") invia(); };
+    setTimeout(()=>$("accEmail").focus(),80);
+  };
+  const passo2=(email)=>{
+    $("dTitle").textContent="Inserisci il codice";
+    b.innerHTML=`<div class="linkform">
+      <p class="note" style="margin-top:0">Abbiamo inviato un codice di 6 cifre a <b>${esc(email)}</b>. Vale 15 minuti. Se non lo trovi, controlla nella posta indesiderata.</p>
+      <label for="accCod">Codice</label>
+      <input id="accCod" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="font-size:24px;letter-spacing:6px;text-align:center">
+      <div class="row"><button class="primary" id="accOk">Conferma</button><button class="ghostbtn" id="accIndietro">Cambia email o invia di nuovo</button></div>
+      <p class="note" id="accErr" role="alert"></p></div>`;
+    let inVerifica=false, ultimoProvato="";
+    const conferma=async()=>{
+      const codice=$("accCod").value.replace(/\D/g,"");
+      if(codice.length!==6){ $("accErr").textContent="Il codice ha 6 cifre"; return; }
+      if(inVerifica||codice===ultimoProvato) return;      // un solo tentativo per codice inserito
+      inVerifica=true; ultimoProvato=codice;
+      $("accOk").disabled=true; $("accErr").textContent="";
+      try{
+        const j=await chiamaScript({azione:"verificaCodice",email,codice,dispositivo:nomeDispositivo()},60000);
+        tokenAccesso=j.token; await idbSet("token",j.token); closeDlg();
+        toast("Accesso confermato: scarico l’archivio…");
+        await scaricaDaGoogle(false);
+      }catch(e){ $("accErr").textContent=e.message; $("accOk").disabled=false; }
+      finally{ inVerifica=false; }
+    };
+    $("accOk").onclick=conferma; $("accCod").onkeydown=e=>{ if(e.key==="Enter") conferma(); };
+    $("accCod").oninput=e=>{ if(e.target.value.replace(/\D/g,"").length===6) conferma(); };
+    $("accIndietro").onclick=()=>{ $("dTitle").textContent="Conferma la tua email"; passo1(); $("accEmail").value=email; };
+    setTimeout(()=>$("accCod").focus(),80);
+  };
+  passo1(); showDlg();
 }
 function showCollega(){
   const dlg=$("dlg"); dlg.className="d-DDS";
@@ -874,11 +952,15 @@ function showCollega(){
   $("linkOk").onclick=async()=>{
     const v=$("linkIn").value.trim();
     if(!LINK_RE.test(v)){ toast("Questo non sembra il link giusto: deve iniziare con script.google.com e finire con /exec"); return; }
+    if(v!==linkGoogle){ tokenAccesso=null; await idbSet("token",null); }
     linkGoogle=v; await idbSet("link",v); closeDlg();
     const ok=await scaricaDaGoogle(false);
     if(ok) toast("Collegato: l’archivio si aggiornerà da solo"); 
   };
-  const off=$("linkOff"); if(off) off.onclick=async()=>{ linkGoogle=null; await idbSet("link",null); closeDlg(); toast("Scollegato da Google"); };
+  const off=$("linkOff"); if(off) off.onclick=async()=>{
+    if(tokenAccesso){ if(!confirm("Scollegare questo dispositivo? L’archivio condiviso verrà tolto e per rientrare servirà un nuovo codice.")) return;
+      await togliArchivioCondiviso(); tokenAccesso=null; await idbSet("token",null); }
+    linkGoogle=null; await idbSet("link",null); closeDlg(); toast("Scollegato da Google"); };
   showDlg(); setTimeout(()=>$("linkIn").focus(),80);
 }
 function readFile(f){if(!f)return;const r=new FileReader();r.onload=()=>importText(r.result);r.readAsText(f,"utf-8");}
@@ -979,7 +1061,7 @@ try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(
   try{const t=localStorage.getItem("odg-theme");if(t)document.documentElement.dataset.theme=t;}catch(e){}
   idb=await openIdb();
   docs=(await idbGet("docs"))||[]; meta=(await idbGet("meta"))||{aggiornato:null};
-  linkGoogle=await idbGet("link");
+  linkGoogle=await idbGet("link"); tokenAccesso=await idbGet("token");
   buildIndex(); updateStatus(); render(true);
   const sincronizza=async()=>{ if(!linkGoogle) return; await scaricaDaGoogle(true); await inviaInSospeso(true); };
   sincronizza();
