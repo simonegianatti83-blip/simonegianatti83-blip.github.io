@@ -69,6 +69,11 @@ button{cursor:pointer}
 .seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px}
 .seg button{border:0;background:none;border-radius:999px;padding:5px 12px;font-size:13.5px;color:var(--ink-2);font-weight:600}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.seg button{white-space:nowrap}
+@media (max-width:640px){ .seg button{padding:6px 11px;font-size:13.5px} }
+.numhint{margin:8px 2px 0;font-size:13px;color:var(--ink-3)}
+.numhint b{color:var(--ink-2)}
+.num.hit b{background:var(--mark);border-radius:5px;padding:0 3px;margin-left:-3px}
 .opts select{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 10px;font-size:13.5px;color:var(--ink-2);font-weight:600}
 
 /* ---------- schede per tipo ---------- */
@@ -271,14 +276,15 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
 <div class="wrap searchbox">
   <label class="field">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-    <input id="q" type="search" placeholder="Cerca un corso, una sede, un nome…" autocomplete="off" enterkeyhint="search" aria-label="Cerca nei documenti">
+    <input id="q" type="search" placeholder="Cerca un corso, una sede, un nome, un numero…" autocomplete="off" enterkeyhint="search" aria-label="Cerca nei documenti">
     <button class="clear" id="clear" type="button" aria-label="Cancella ricerca" hidden>✕</button>
   </label>
   <div class="opts">
     <div class="seg" role="group" aria-label="Dove cercare">
-      <button data-field="tutto" aria-pressed="true">Oggetto e testo</button>
-      <button data-field="titolo" aria-pressed="false">Solo oggetto</button>
-      <button data-field="testo" aria-pressed="false">Solo testo</button>
+      <button data-field="tutto" aria-pressed="true"><span class="full">Oggetto e testo</span><span class="short">Tutto</span></button>
+      <button data-field="titolo" aria-pressed="false"><span class="full">Solo oggetto</span><span class="short">Oggetto</span></button>
+      <button data-field="testo" aria-pressed="false"><span class="full">Solo testo</span><span class="short">Testo</span></button>
+      <button data-field="numero" aria-pressed="false">Numero</button>
     </div>
     <select id="anno" aria-label="Anno"><option value="">Tutti gli anni</option></select>
     <select id="ordine" aria-label="Ordina">
@@ -369,7 +375,45 @@ function parseQuery(q){const out=[],re=/"([^"]+)"|(\S+)/g;let m;while((m=re.exec
 function count(h,n){let c=0,p=0;while((p=h.indexOf(n,p))!==-1&&c<20){c++;p+=n.length;}return c;}
 function cmpData(a,b){return (b.data||"").localeCompare(a.data||"")||(b.numero||0)-(a.numero||0);}
 
+/* ===== ricerca per numero =====
+   Accetta: 467 · ODG 467 · DDS 12 · n. 467 · 460-470 · 467/2026 · 467 468 470 */
+const TIPO_PAROLA=[[/^odg$|^dg$|^ordin/i,"ODG"],[/^dds$|^dispos/i,"DDS"],[/^com/i,"COMUNICAZIONE"]];
+function parseNumeri(q,forza){
+  const s=String(q||"").trim(); if(!s) return null;
+  const tipi=new Set(), numeri=[], intervalli=[]; let anno="";
+  const re=/(\d+)\s*[-–]\s*(\d+)|(\d+)\s*\/\s*(\d{4})|(\d+)|([a-zàèéìòù]+\.?)/gi; let m, altro=false;
+  while((m=re.exec(s))){
+    if(m[1]){ let a=+m[1],b=+m[2]; if(a>b)[a,b]=[b,a]; intervalli.push([a,b]); }
+    else if(m[3]){ numeri.push(+m[3]); anno=m[4]; }
+    else if(m[5]){ numeri.push(+m[5]); }
+    else { const w=m[6].replace(/\.$/,""); const tp=TIPO_PAROLA.find(([r])=>r.test(w));
+      if(tp) tipi.add(tp[1]); else if(!/^(n|nr|num|numero|del|n°)$/i.test(w)) altro=true; }
+  }
+  if(!numeri.length&&!intervalli.length) return null;
+  // Fuori dalla modalità "Numero" si riconosce solo una richiesta chiaramente numerica (es. "ODG 467", "n. 12", "467")
+  if(!forza&&(altro||intervalli.length||numeri.length>1)) return null;
+  return {tipi,numeri,intervalli,anno};
+}
+function numeroCorrisponde(d,nq){
+  if(d.numero==null||d.numero==="") return false;
+  const n=parseInt(d.numero,10); if(isNaN(n)) return false;
+  if(nq.tipi.size&&!nq.tipi.has(tipoOf(d))) return false;
+  if(nq.anno&&(d.data||"").slice(0,4)!==nq.anno) return false;
+  return nq.numeri.includes(n)||nq.intervalli.some(([a,b])=>n>=a&&n<=b);
+}
+
 function search(){
+  if(state.field==="numero"){
+    const nq=parseNumeri(state.q,true), hits=[];
+    for(let i=0;i<docs.length;i++){ const d=docs[i];
+      if(state.anno&&(d.data||"").slice(0,4)!==state.anno) continue;
+      if(!nq||numeroCorrisponde(d,nq)) hits.push({i,score:0,esatto:!!nq}); }
+    hits.sort((a,b)=>cmpData(docs[a.i],docs[b.i]));
+    const groups={ODG:[],DDS:[],COMUNICAZIONE:[],ALTRO:[]};
+    for(const h of hits) groups[tipoOf(docs[h.i])].push(h);
+    return {terms:[],hits,groups};
+  }
+  const nq=parseNumeri(state.q,false);
   const terms=parseQuery(state.q), hits=[];
   for(let i=0;i<docs.length;i++){
     const d=docs[i],ix=index[i];
@@ -381,7 +425,19 @@ function search(){
       if(!inT&&!inX){ok=false;break;}
       score+=(inT?10:0)+(inX?1+Math.min(5,count(ix.x,t)):0);
     }
-    if(ok) hits.push({i,score});
+    const esatto=!!nq&&numeroCorrisponde(d,nq);
+    if(ok||esatto) hits.push({i,score,esatto});
+  }
+  // "467" o "ODG 467": i documenti con quel numero vanno sempre in cima
+  if(nq&&hits.some(h=>h.esatto)){
+    if(nq.tipi.size){ for(let j=hits.length-1;j>=0;j--) if(!hits[j].esatto) hits.splice(j,1); }
+    const prima=hits.filter(h=>h.esatto).sort((a,b)=>cmpData(docs[a.i],docs[b.i]));
+    const dopo=hits.filter(h=>!h.esatto);
+    if(state.ordine==="rilevanza"&&terms.length) dopo.sort((a,b)=>b.score-a.score||cmpData(docs[a.i],docs[b.i]));
+    else dopo.sort((a,b)=>cmpData(docs[a.i],docs[b.i]));
+    const tutti=prima.concat(dopo), groups={ODG:[],DDS:[],COMUNICAZIONE:[],ALTRO:[]};
+    for(const h of tutti) groups[tipoOf(docs[h.i])].push(h);
+    return {terms:nq.tipi.size?[]:terms,hits:tutti,groups};
   }
   if(state.ordine==="rilevanza"&&terms.length) hits.sort((a,b)=>b.score-a.score||cmpData(docs[a.i],docs[b.i]));
   else hits.sort((a,b)=>cmpData(docs[a.i],docs[b.i]));
@@ -418,7 +474,7 @@ function docRow(h,terms){
   const d=docs[h.i],t=tipoOf(d);
   const sn=d.testo?snippet(d,terms):"";
   return `<button class="doc t-${t}" data-i="${h.i}">
-    <span class="num"><small>${SIGLE[t]}</small><b>${d.numero!=null?esc(d.numero):"–"}</b></span>
+    <span class="num${h.esatto?" hit":""}"><small>${SIGLE[t]}</small><b>${d.numero!=null?esc(d.numero):"–"}</b></span>
     <span class="body"><span class="dtitle">${highlight(d.titolo||d.file,terms)}</span>
       <span class="date" style="display:block">${fmtData(d.data)}${nuoviVisti[keyOf(d)]?'<span class="att new">nuovo</span>':""}${d.allegatoDi?'<span class="att">allegato</span>':""}${d.origine==="dispositivo"?(meta.solaLettura?'<span class="att wait">solo su questo dispositivo</span>':'<span class="att wait">da inviare</span>'):d.origine==="caricato"?'<span class="att dev">caricato</span>':""}</span>
       ${sn?`<span class="snip" style="display:-webkit-box">${sn}</span>`:""}</span>
@@ -465,6 +521,8 @@ function render(reset){
 function noResults(cosa){
   const filtri=[];
   if(state.anno) filtri.push("l’anno "+state.anno);
+  if(state.field==="numero") return `<div class="nores"><strong>Nessun documento con questo numero</strong>
+    Scrivi il numero (es. <b>467</b>), anche con il tipo (<b>ODG 467</b>, <b>DDS 12</b>), più numeri (<b>467 470</b>), un intervallo (<b>460-470</b>) o l’anno (<b>467/2026</b>).${filtri.length?" Prova anche a togliere "+filtri.join(" e ")+".":""}</div>`;
   if(state.field!=="tutto") filtri.push("la ricerca solo nell’"+(state.field==="titolo"?"oggetto":"testo"));
   return `<div class="nores"><strong>Nessun ${cosa?"risultato tra le "+cosa.replace(/^ordini del giorno$/,"ODG"):"documento trovato"}</strong>
     ${filtri.length?"Prova a togliere "+filtri.join(" e ")+", oppure usa meno parole.":"Prova con meno parole o con un termine diverso."}</div>`;
@@ -1072,7 +1130,9 @@ $("q").addEventListener("input",e=>{updateClear();clearTimeout(deb);deb=setTimeo
 $("clear").onclick=()=>{$("q").value="";state.q="";render(true);$("q").focus();};
 document.querySelector(".seg").addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b) return; state.field=b.dataset.field;
-  document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); render(true);
+  document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+  $("q").placeholder=state.field==="numero"?"Numero: 467 · ODG 467 · 460-470 · 467/2026":"Cerca un corso, una sede, un nome, un numero…";
+  render(true); if(state.field==="numero") $("q").focus();
 });
 function setTab(t){
   state.tab=t; document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.t===t)));
