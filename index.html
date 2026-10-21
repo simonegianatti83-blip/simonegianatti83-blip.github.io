@@ -221,6 +221,22 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
 .menu button:hover{background:var(--line-2)}
 .menu hr{border:0;border-top:1px solid var(--line-2);margin:5px 0}
 .menu .danger{color:var(--odg)}
+/* ---------- numeri mancanti ---------- */
+.manc{white-space:normal}
+.manc .intro{font-size:14px;color:var(--ink-2);margin:0 0 14px;line-height:1.5}
+.manc h4{margin:18px 0 8px;font-size:15px;font-weight:750;display:flex;align-items:center;gap:8px}
+.manc h4:first-of-type{margin-top:4px}
+.manc .riga{border:1px solid var(--line-2);border-radius:var(--r-md);padding:10px 12px;margin-bottom:8px;background:var(--surface)}
+.manc .rtop{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.manc .rtipo{font-weight:750;font-size:14px}
+.manc .t-ODG .rtipo{color:var(--odg)} .manc .t-DDS .rtipo{color:var(--dds)} .manc .t-COMUNICAZIONE .rtipo{color:var(--com)}
+.manc .rinfo{font-size:13px;color:var(--ink-3)}
+.manc .rok{font-size:13.5px;color:var(--com);font-weight:650;margin-left:auto}
+.manc .rnum{margin-top:6px;font-size:14.5px;line-height:1.55;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.manc .rnum .n{display:inline-block;background:var(--odg-soft);color:var(--odg);border-radius:5px;padding:0 6px;margin:2px 3px 2px 0;font-weight:650}
+.manc .rnota{font-size:12.5px;color:var(--ink-3);margin-top:6px}
+.manc .bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.manc .bar button{border:1px solid var(--line);background:var(--surface);border-radius:var(--r-sm);padding:8px 12px;font-size:14px;font-weight:600;color:var(--ink)}
 /* ---------- avviso documenti nuovi ---------- */
 .att.new{background:var(--odg);color:#fff}
 .novita{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:30;
@@ -266,6 +282,7 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
     <button id="mLink" role="menuitem">Collega a Google…</button>
     <button id="mImport" role="menuitem">Importa archivio (.json)…</button>
     <button id="mExport" role="menuitem">Salva una copia di backup</button>
+    <button id="mMancanti" role="menuitem">Numeri mancanti</button>
     <button id="mHelp" role="menuitem">Come aggiornare l’archivio</button>
     <button id="mTheme" role="menuitem">Cambia tema chiaro/scuro</button>
     <hr>
@@ -604,6 +621,58 @@ function showHelp(){
 }
 function showDlg(){const d=$("dlg");if(d.showModal)d.showModal();else d.setAttribute("open","");}
 function closeDlg(){const d=$("dlg");if(d.close)d.close();else d.removeAttribute("open");}
+
+/* ===== numeri mancanti: buchi nella numerazione per anno ===== */
+function intervalli(nums){ // [1,2,3,7,9,10] → [[1,3],[7,7],[9,10]]
+  const out=[]; for(const n of nums){ const l=out[out.length-1]; if(l&&n===l[1]+1) l[1]=n; else out.push([n,n]); } return out;
+}
+function calcolaMancanti(){
+  const per={}; // anno → tipo → Set numeri
+  for(const d of docs){
+    const t=tipoOf(d); if(t==="ALTRO") continue;
+    const n=parseInt(d.numero,10), a=(d.data||"").slice(0,4);
+    if(!(n>0)||!/^\d{4}$/.test(a)) continue;
+    ((per[a]=per[a]||{})[t]=per[a][t]||new Set()).add(n);
+  }
+  const anni=Object.keys(per).sort().reverse(), res=[];
+  for(const a of anni) for(const t of ["ODG","DDS","COMUNICAZIONE"]){
+    const set=per[a][t]; if(!set) continue;
+    const nums=[...set].sort((x,y)=>x-y);
+    // numeri "fuori scala" (es. letti male dal nome del file) non devono gonfiare i mancanti
+    let fine=nums.length; for(let k=1;k<nums.length;k++){ if(nums[k]-nums[k-1]>150){ fine=k; break; } }
+    const validi=nums.slice(0,fine), anomali=nums.slice(fine), max=validi[validi.length-1];
+    if(t==="COMUNICAZIONE"&&max<3) continue;
+    const manca=[]; for(let n=1;n<=max;n++) if(!set.has(n)) manca.push(n);
+    res.push({anno:a,tipo:t,presenti:validi.length,max,manca,anomali});
+  }
+  return res;
+}
+function mostraMancanti(){
+  const dlg=$("dlg"); dlg.className="d-ODG";
+  $("dTag").textContent="Controllo"; $("dDate").textContent=""; $("dTitle").textContent="Numeri mancanti";
+  $("dSrc").textContent=""; $("dActions").innerHTML="";
+  const b=$("dBody"); b.classList.remove("help");
+  const r=calcolaMancanti();
+  if(!r.length){ b.innerHTML=`<p class="none">Nell’archivio non ci sono ancora documenti numerati.</p>`; showDlg(); return; }
+  const fmt=x=>intervalli(x).map(([s,e])=>`<span class="n">${s===e?s:s+"–"+e}</span>`).join("");
+  let html=`<div class="manc"><p class="intro">Per ogni anno l’app guarda i numeri da 1 fino al più alto presente nell’archivio e ti mostra quelli che mancano: sono i PDF da cercare (per esempio nella casella @vigilfuoco.it)${meta.solaLettura?"":" e da aggiungere con <b>Dati → Aggiungi PDF dal dispositivo</b> oppure, se sono tanti, trascinandoli nella cartella Drive <b>ODG Archivio / Da importare</b>"}. I numeri successivi all’ultimo arrivato non si possono sapere.</p>`;
+  let annoPrec="", tot=0;
+  for(const x of r){
+    if(x.anno!==annoPrec){ html+=`<h4>${x.anno}</h4>`; annoPrec=x.anno; }
+    tot+=x.manca.length;
+    html+=`<div class="riga t-${x.tipo}"><div class="rtop"><span class="rtipo">${x.tipo==="COMUNICAZIONE"?"Comunicazioni":x.tipo}</span>
+      <span class="rinfo">${x.presenti} presenti, dal n. 1 al ${x.max}</span>
+      ${x.manca.length?`<span class="rinfo" style="margin-left:auto;color:var(--odg);font-weight:650">${x.manca.length===1?"manca 1":"mancano "+x.manca.length}</span>`:`<span class="rok">completo</span>`}</div>
+      ${x.manca.length?`<div class="rnum">${fmt(x.manca)}</div>`:""}
+      ${x.anomali.length?`<div class="rnota">Non considerati perché fuori sequenza: ${x.anomali.join(", ")}</div>`:""}</div>`;
+  }
+  html+=`<div class="bar"><button id="mancCopia">Copia l’elenco</button></div></div>`;
+  b.innerHTML=html; showDlg(); b.scrollTop=0;
+  $("mancCopia").onclick=()=>{
+    const txt=r.filter(x=>x.manca.length).map(x=>`${x.tipo==="COMUNICAZIONE"?"Comunicazioni":x.tipo} ${x.anno}: mancano ${intervalli(x.manca).map(([s,e])=>s===e?s:s+"-"+e).join(", ")}`).join("\n")||"Nessun numero mancante";
+    try{ navigator.clipboard.writeText(txt).then(()=>toast("Elenco copiato"),()=>toast("Non riesco a copiare")); }catch(e){ toast("Non riesco a copiare"); }
+  };
+}
 
 /* ===== avviso documenti nuovi ===== */
 let nuoviVisti={};          // chiave documento → quando è arrivato (etichetta "nuovo" finché non lo apri)
@@ -1165,6 +1234,7 @@ $("pdfIn").onchange=e=>{ const fs=[...e.target.files]; e.target.value=""; scegli
 $("mLink").onclick=()=>{toggleMenu(false);showCollega();};
 $("mExport").onclick=()=>{toggleMenu(false);docs.length?exportBackup():toast("L’archivio è vuoto");};
 $("mHelp").onclick=()=>{toggleMenu(false);showHelp();};
+$("mMancanti").onclick=()=>{toggleMenu(false);docs.length?mostraMancanti():toast("L’archivio è vuoto");};
 $("mTheme").onclick=()=>{toggleMenu(false);const r=document.documentElement;
   const dark=r.dataset.theme?r.dataset.theme==="dark":matchMedia("(prefers-color-scheme: dark)").matches;
   r.dataset.theme=dark?"light":"dark";try{localStorage.setItem("odg-theme",r.dataset.theme);}catch(e){}};

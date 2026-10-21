@@ -28,7 +28,16 @@ small{color:var(--ink-2)}
 <li>Apri il tuo progetto su <b>script.google.com</b>. Nell’editor: tieni premuto → <b>Seleziona tutto</b> → <b>Incolla</b> (su PC: Ctrl+A, Ctrl+V). Salva con il dischetto.</li>
 <li>Premi <b>Esegui il deployment</b> → <b>Gestisci deployment</b>.</li>
 <li>Premi la <b>matita</b> (Modifica) → in <b>Versione</b> scegli <b>Nuova versione</b> → <b>Esegui il deployment</b>.</li>
+<li>Scegli la funzione <b>aggiorna</b> e premi <b>Esegui</b> una volta: crea la cartella <b>Da importare</b> (vedi sotto).</li>
 <li>Fatto: il link /exec resta lo stesso, non serve ricollegare l’app.</li>
+</ol>
+<h2 style="font-size:18px;margin:22px 0 6px">PDF degli anni passati (email cancellate)</h2>
+<ol>
+<li>Apri <b>drive.google.com</b> dal PC → cartella <b>ODG Archivio</b> → <b>Da importare</b>.</li>
+<li>Trascina lì i PDF (anche tanti insieme, anche file <b>.zip</b>).</li>
+<li>Lo script li legge da solo a ogni giro orario e li aggiunge all’archivio; poi li sposta in <b>Caricati dall’app</b>. Per accelerare: esegui <b>aggiorna</b> a mano.</li>
+<li>Quelli già presenti finiscono in <b>Da importare/Già presenti</b>, i file che non sono PDF in <b>Non riconosciuti</b>.</li>
+<li>Con un nome come <i>ODG_123_del_5_mar_2023 - titolo.pdf</i> tipo, numero e data sono presi dal nome; altrimenti la data viene cercata nel testo del PDF.</li>
 </ol>
 <h2 style="font-size:18px;margin:22px 0 6px">Prima installazione</h2>
 <ol>
@@ -41,7 +50,8 @@ small{color:var(--ink-2)}
 <p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può leggere o aggiungere documenti. Non condividerlo.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Estrattore da Gmail (v5: testo integrale, PDF caricati dall&#x27;app, email complete)
+ * ODG ARCHIVIO – Estrattore da Gmail (v6: testo integrale, PDF caricati dall&#x27;app, email complete,
+ *                                      cartella &quot;Da importare&quot; per i PDF degli anni passati)
  * ------------------------------------------------------------
  * Legge le email dell&#x27;Ufficio Informatica VVF Sondrio, prende ogni PDF
  * allegato (ODG, DDS, COMUNICAZIONI) e anche i PDF dentro gli allegati .zip,
@@ -72,6 +82,12 @@ small{color:var(--ink-2)}
  * Se avevi già usato la versione precedente: esegui una volta &quot;azzeraDatabase&quot;,
  * poi &quot;aggiorna&quot;, così tutti i documenti vengono riletti per intero.
  *
+ * PDF DEGLI ANNI PASSATI (email cancellate): trascina i PDF (anche .zip) nella
+ * cartella Drive &quot;ODG Archivio/Da importare&quot;. A ogni giro lo script li legge,
+ * li aggiunge all&#x27;archivio e li sposta in &quot;Caricati dall&#x27;app&quot;. Quelli già
+ * presenti finiscono in &quot;Da importare/Già presenti&quot;, gli altri file in
+ * &quot;Da importare/Non riconosciuti&quot;.
+ *
  * La prima esecuzione elabora i documenti a blocchi (Google limita ogni
  * esecuzione a 6 minuti): con il trigger orario l&#x27;archivio storico si
  * completa da solo. Puoi anche rilanciare &quot;aggiorna&quot; a mano.
@@ -90,11 +106,12 @@ const CONFIG = {
   TEMPO_MAX_MS: 4.5 * 60 * 1000,     // si ferma prima del limite di 6 minuti
   BLOCCO_THREAD: 50,
   CARTELLA_CARICATI: &#x27;Caricati dall\&#x27;app&#x27;,  // PDF aggiunti dai dispositivi
+  CARTELLA_IMPORTA: &#x27;Da importare&#x27;,         // trascina qui i PDF da aggiungere in blocco
   PDF_LIB: &#x27;https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js&#x27;
 };
 // ==========================================================
 
-const VERSIONE_SCRIPT = 5;   // l&#x27;app la usa per capire se lo script è aggiornato
+const VERSIONE_SCRIPT = 6;   // l&#x27;app la usa per capire se lo script è aggiornato
 
 const MESI = { gen:1, feb:2, mar:3, apr:4, mag:5, giu:6, lug:7, ago:8, set:9, ott:10, nov:11, dic:12 };
 
@@ -185,7 +202,17 @@ async function aggiorna() {
     }
   }
 
+  // 3) PDF trascinati nella cartella &quot;Da importare&quot; (anni passati, email cancellate)
+  let importati = 0, imp = null;
+  if (!interrotto) {
+    imp = await importaDaCartella_(cartella, db, inizio);
+    importati = imp.aggiunti.length; aggiunti.push.apply(aggiunti, imp.aggiunti);
+    if (imp.interrotto) interrotto = true;
+  } else sottocartella_(cartella, CONFIG.CARTELLA_IMPORTA);
+
   const finale = salvaUnendo_(cartella, aggiunti, modifiche, !interrotto, nuoveEmail);
+  if (imp) for (const f of imp.spostare) { try { f.moveTo(imp.caricati); } catch (e) { console.warn(&#x27;Non spostato: &#x27; + f.getName()); } }
+  if (importati) console.log(&#x27;PDF importati dalla cartella &quot;&#x27; + CONFIG.CARTELLA_IMPORTA + &#x27;&quot;: &#x27; + importati);
   const incompleti = finale.documenti.filter(d =&gt; d.testoCompleto === false).length;
   if (letti) console.log(&#x27;PDF caricati dall\&#x27;app letti con OCR: &#x27; + letti);
   console.log(&#x27;Nuovi documenti: &#x27; + nuovi + &#x27; – totale: &#x27; + finale.documenti.length +
@@ -455,6 +482,89 @@ async function dividiPdf_(blob, nome) {
 
 // ------------------------------------------------------------------ helper
 
+/**
+ * Cartella &quot;Da importare&quot;: ogni PDF viene letto, aggiunto all&#x27;archivio come
+ * documento caricato e spostato in &quot;Caricati dall&#x27;app&quot;. Gli .zip vengono
+ * aperti e i PDF che contengono vengono rimessi nella cartella per il giro.
+ */
+async function importaDaCartella_(cartella, db, inizio) {
+  const da = sottocartella_(cartella, CONFIG.CARTELLA_IMPORTA);
+  const caricati = sottocartella_(cartella, CONFIG.CARTELLA_CARICATI);
+  const nomiPresenti = new Set(db.documenti.map(d =&gt; d.file).filter(Boolean));
+  const idPresenti = new Set(db.documenti.map(d =&gt; d.id));
+  const aggiunti = [], spostare = [];
+  let interrotto = false;
+
+  // prima gli zip: estrae i PDF nella stessa cartella
+  const zips = da.getFiles();
+  while (zips.hasNext()) {
+    const f = zips.next();
+    if (!/\.zip$/i.test(f.getName())) continue;
+    if (Date.now() - inizio &gt; CONFIG.TEMPO_MAX_MS) return { aggiunti, spostare, caricati, interrotto: true };
+    try {
+      const zipNome = f.getName();
+      for (const x of Utilities.unzip(f.getBlob().setContentType(&#x27;application/zip&#x27;))) {
+        const interno = (x.getName() || &#x27;&#x27;).split(&#x27;/&#x27;).pop();
+        if (!/\.pdf$/i.test(interno) || nomiPresenti.has(interno)) continue;
+        // il nome dello zip dà numero e data agli allegati (come per le email)
+        const m = analizzaNome_(interno, null, &#x27;&#x27;);
+        const nomeFinale = m.tipo === &#x27;ALTRO&#x27; &amp;&amp; analizzaNome_(zipNome.replace(/\.zip$/i, &#x27;.pdf&#x27;), null, &#x27;&#x27;).tipo !== &#x27;ALTRO&#x27;
+          ? zipNome.replace(/\.zip$/i, &#x27;&#x27;) + &#x27; [allegato] &#x27; + interno : interno;
+        da.createFile(x.setContentType(&#x27;application/pdf&#x27;).setName(nomeFinale));
+      }
+      f.moveTo(sottocartella_(da, &#x27;Zip elaborati&#x27;));
+    } catch (e) { console.warn(&#x27;Zip non leggibile: &#x27; + f.getName() + &#x27; – &#x27; + e); f.moveTo(sottocartella_(da, &#x27;Non riconosciuti&#x27;)); }
+  }
+
+  const files = da.getFiles();
+  while (files.hasNext()) {
+    const f = files.next();
+    const nome = f.getName();
+    if (!/\.pdf$/i.test(nome) &amp;&amp; f.getMimeType() !== &#x27;application/pdf&#x27;) {
+      if (!/\.zip$/i.test(nome)) f.moveTo(sottocartella_(da, &#x27;Non riconosciuti&#x27;));
+      continue;
+    }
+    const id = &#x27;caricato|&#x27; + nome;
+    if (nomiPresenti.has(nome) || idPresenti.has(id)) { f.moveTo(sottocartella_(da, &#x27;Già presenti&#x27;)); continue; }
+    if (Date.now() - inizio &gt; CONFIG.TEMPO_MAX_MS) { interrotto = true; break; }
+
+    let estratto = { testo: &#x27;&#x27;, pagine: null, completo: false };
+    try { estratto = await estraiTestoCompleto_(f.getBlob().setContentType(&#x27;application/pdf&#x27;), nome); }
+    catch (e) { console.warn(&#x27;Testo non estratto: &#x27; + nome + &#x27; – &#x27; + e); }
+    const meta = analizzaNome_(nome, null, &#x27;&#x27;);
+    const zip = nome.match(/^(.*) \[allegato\] /);
+    if (zip) { const mz = analizzaNome_(zip[1] + &#x27;.pdf&#x27;, null, &#x27;&#x27;);
+      if (mz.tipo !== &#x27;ALTRO&#x27;) { meta.tipo = mz.tipo; meta.numero = mz.numero; meta.data = mz.data; meta.dataSicura = true; meta.titolo = &#x27;Allegato: &#x27; + nome.slice(zip[0].length).replace(/\.pdf$/i, &#x27;&#x27;); } }
+    if (!meta.dataSicura) { const dt = dataDaTesto_(estratto.testo); if (dt) meta.data = dt;
+      else meta.data = Utilities.formatDate(f.getDateCreated(), &#x27;Europe/Rome&#x27;, &#x27;yyyy-MM-dd&#x27;); }
+
+    spostare.push(f);   // si sposta in &quot;Caricati dall&#x27;app&quot; solo dopo aver salvato l&#x27;archivio
+    aggiunti.push({
+      id: id, tipo: meta.tipo, numero: meta.numero, data: meta.data, titolo: meta.titolo,
+      file: nome, allegatoDi: zip ? zip[1] + &#x27;.zip&#x27; : &#x27;&#x27;, testo: estratto.testo, pagine: estratto.pagine,
+      testoCompleto: estratto.completo, daOcr: false, origine: &#x27;caricato&#x27;, importato: true,
+      oggettoEmail: &#x27;&#x27;, dataEmail: &#x27;&#x27;, gmail: &#x27;&#x27;, pdf: f.getUrl(), caricatoIl: new Date().toISOString()
+    });
+    nomiPresenti.add(nome); idPresenti.add(id);
+  }
+  return { aggiunti, spostare, caricati, interrotto };
+}
+
+/** Data del documento cercata nelle prime righe del testo (es. &quot;Sondrio, 12 marzo 2023&quot; o &quot;12/03/2023&quot;). */
+function dataDaTesto_(testo) {
+  const t = String(testo || &#x27;&#x27;).slice(0, 4000);
+  const MESI_LUNGHI = { gennaio:1, febbraio:2, marzo:3, aprile:4, maggio:5, giugno:6, luglio:7, agosto:8, settembre:9, ottobre:10, novembre:11, dicembre:12 };
+  const a = t.match(/\b(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+(20\d{2}|19\d{2})\b/i);
+  const b = t.match(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](20\d{2}|19\d{2})\b/);
+  const pa = a ? t.indexOf(a[0]) : Infinity, pb = b ? t.indexOf(b[0]) : Infinity;
+  let g, m, y;
+  if (pa &lt;= pb &amp;&amp; a) { g = +a[1]; m = MESI_LUNGHI[a[2].toLowerCase()]; y = +a[3]; }
+  else if (b) { g = +b[1]; m = +b[2]; y = +b[3]; }
+  else return &#x27;&#x27;;
+  if (!(m &gt;= 1 &amp;&amp; m &lt;= 12 &amp;&amp; g &gt;= 1 &amp;&amp; g &lt;= 31)) return &#x27;&#x27;;
+  return y + &#x27;-&#x27; + pad_(m) + &#x27;-&#x27; + pad_(g);
+}
+
 function analizzaNome_(nome, msg, zip) {
   const base = nome.replace(/\.pdf$/i, &#x27;&#x27;).trim();
   const re = /^(ODG|DDS|COMUNICAZIONE|COMUNICAZIONI|DG)[_\s]*(\d+)[_\s]*del[_\s]*(\d{1,2})[_\s]*([a-z]{3})[a-z]*[_\s]*(\d{4})\s*-?\s*(.*)$/i;
@@ -470,7 +580,8 @@ function analizzaNome_(nome, msg, zip) {
       tipo: tipo,
       numero: parseInt(m[2], 10),
       data: m[5] + &#x27;-&#x27; + pad_(mese) + &#x27;-&#x27; + pad_(parseInt(m[3], 10)),
-      titolo: titolo.replace(/&#x27;&#x27;/g, &#x27;&quot;&#x27;).trim()
+      titolo: titolo.replace(/&#x27;&#x27;/g, &#x27;&quot;&#x27;).trim(),
+      dataSicura: true
     };
   }
   const t = base.match(/\b(ODG|DDS|COMUNICAZ\w*)\b/i);
@@ -478,8 +589,9 @@ function analizzaNome_(nome, msg, zip) {
   return {
     tipo: t ? (t[1].toUpperCase().indexOf(&#x27;COMUNICAZ&#x27;) === 0 ? &#x27;COMUNICAZIONE&#x27; : t[1].toUpperCase()) : &#x27;ALTRO&#x27;,
     numero: n ? parseInt(n[1], 10) : null,
-    data: Utilities.formatDate(msg.getDate(), &#x27;Europe/Rome&#x27;, &#x27;yyyy-MM-dd&#x27;),
-    titolo: base.replace(/_/g, &#x27; &#x27;)
+    data: msg ? Utilities.formatDate(msg.getDate(), &#x27;Europe/Rome&#x27;, &#x27;yyyy-MM-dd&#x27;) : &#x27;&#x27;,
+    titolo: base.replace(/_/g, &#x27; &#x27;),
+    dataSicura: !!msg
   };
 }
 
