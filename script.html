@@ -31,16 +31,17 @@ small{color:var(--ink-2)}
 <li>Scegli la funzione <b>aggiorna</b> e premi <b>Esegui</b> una volta: crea la cartella <b>Da importare</b> (vedi sotto).</li>
 <li>Fatto: il link /exec resta lo stesso, non serve ricollegare l’app.</li>
 </ol>
-<h2 style="font-size:18px;margin:22px 0 6px">Avviso sul telefono alle 9 e alle 18</h2>
+<h2 style="font-size:18px;margin:22px 0 6px">Avviso su Telegram alle 9 e alle 18</h2>
 <ol>
-<li>Installa l’app gratuita <b>ntfy</b> (App Store o Google Play) e apri l’app una volta, consentendo le notifiche.</li>
-<li>Nello script scegli la funzione <b>attivaAvvisi</b> e premi <b>Esegui</b> (autorizza se richiesto).</li>
-<li>Nel <b>Registro di esecuzione</b> compare il nome del canale, tipo <b>odg-1a2b3c…</b>.</li>
-<li>Nell’app ntfy premi <b>+</b>, scrivi quel nome (server ntfy.sh) → <b>Iscriviti</b>. Ti arriva una notifica di prova (se l’hai persa, esegui <b>provaAvviso</b>).</li>
-<li>Da quel momento, verso le 9 e verso le 18, ti arriva una notifica solo se ci sono documenti nuovi, con tipo e numero (es. <i>ODG 474 · DDS 249</i>). Toccandola si apre l’archivio.</li>
-<li>Per spegnere gli avvisi: esegui <b>disattivaAvvisi</b>.</li>
+<li>In <b>Telegram</b> cerca <b>@BotFather</b> (spunta blu) → <b>Avvia</b> → scrivi <b>/newbot</b>.</li>
+<li>Scegli un nome (es. <i>Archivio ODG</i>) e poi un nome utente che finisce con <b>bot</b> (es. <i>archivio_odg_simone_bot</i>).</li>
+<li>BotFather ti risponde con un <b>token</b> (tipo <i>123456789:AAH…</i>): copialo. È la chiave del tuo bot, non darlo a nessuno.</li>
+<li>Nel messaggio di BotFather tocca il link al tuo bot (t.me/…) → <b>Avvia</b>.</li>
+<li>Nello script, in alto, incolla il token tra gli apici in <b>const TELEGRAM_TOKEN = '';</b> e salva.</li>
+<li>Scegli la funzione <b>attivaAvvisi</b> → <b>Esegui</b> (autorizza se richiesto): arriva subito un messaggio di prova nel bot.</li>
+<li>Da quel momento, verso le 9 e verso le 18, ricevi un messaggio solo se ci sono documenti nuovi (es. <i>ODG 474 · DDS 249</i>) con il pulsante <b>Apri l’archivio</b>. Per spegnere: <b>disattivaAvvisi</b>.</li>
 </ol>
-<p style="font-size:14px">Il nome del canale è casuale: non diffonderlo. La notifica non contiene titoli né testo dei documenti.</p>
+<p style="font-size:14px">Il token resta salvato: quando aggiorni lo script non serve reincollarlo. Il messaggio contiene solo tipo e numero dei documenti.</p>
 <h2 style="font-size:18px;margin:22px 0 6px">PDF degli anni passati (email cancellate)</h2>
 <ol>
 <li>Apri <b>drive.google.com</b> dal PC → cartella <b>ODG Archivio</b> → <b>Da importare</b>.</li>
@@ -60,8 +61,8 @@ small{color:var(--ink-2)}
 <p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può leggere o aggiungere documenti. Non condividerlo.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Estrattore da Gmail (v7: testo integrale, PDF caricati dall&#x27;app, email complete,
- *   cartella &quot;Da importare&quot; per i PDF degli anni passati, avviso sul telefono alle 9 e alle 18)
+ * ODG ARCHIVIO – Estrattore da Gmail (v8: testo integrale, PDF caricati dall&#x27;app, email complete,
+ *   cartella &quot;Da importare&quot; per i PDF degli anni passati, avviso Telegram alle 9 e alle 18)
  * ------------------------------------------------------------
  * Legge le email dell&#x27;Ufficio Informatica VVF Sondrio, prende ogni PDF
  * allegato (ODG, DDS, COMUNICAZIONI) e anche i PDF dentro gli allegati .zip,
@@ -98,13 +99,15 @@ small{color:var(--ink-2)}
  * presenti finiscono in &quot;Da importare/Già presenti&quot;, gli altri file in
  * &quot;Da importare/Non riconosciuti&quot;.
  *
- * AVVISO SUL TELEFONO (alle 9 e alle 18, solo se ci sono documenti nuovi):
- *  1. Installa l&#x27;app gratuita &quot;ntfy&quot; (App Store / Google Play).
- *  2. Qui esegui la funzione &quot;attivaAvvisi&quot;: nel registro trovi il nome del
- *     canale (es. odg-a1b2c3…). Nell&#x27;app ntfy premi + e scrivi quel nome.
- *  3. Arriva subito una notifica di prova. Per spegnere: &quot;disattivaAvvisi&quot;.
- *  La notifica dice solo quanti documenti sono arrivati e i loro numeri (non
- *  i titoli né il testo); il nome del canale è casuale: non diffonderlo.
+ * AVVISO SUL TELEFONO CON TELEGRAM (alle 9 e alle 18, solo se ci sono documenti nuovi):
+ *  1. In Telegram cerca @BotFather → Avvia → scrivi /newbot → dai un nome
+ *     (es. Archivio ODG) e un nome utente che finisce con &quot;bot&quot;. BotFather ti
+ *     risponde con un TOKEN (tipo 123456789:AAH...).
+ *  2. Incolla il token qui sotto in TELEGRAM_TOKEN, tra gli apici, e salva.
+ *  3. In Telegram apri il tuo nuovo bot (link nel messaggio di BotFather) e premi Avvia.
+ *  4. Qui esegui &quot;attivaAvvisi&quot;: arriva subito un messaggio di prova.
+ *  Dopo l&#x27;attivazione il token resta salvato: quando aggiorni lo script non
+ *  serve reinserirlo. Per spegnere: &quot;disattivaAvvisi&quot;.
  *
  * La prima esecuzione elabora i documenti a blocchi (Google limita ogni
  * esecuzione a 6 minuti): con il trigger orario l&#x27;archivio storico si
@@ -126,13 +129,15 @@ const CONFIG = {
   CARTELLA_CARICATI: &#x27;Caricati dall\&#x27;app&#x27;,  // PDF aggiunti dai dispositivi
   CARTELLA_IMPORTA: &#x27;Da importare&#x27;,         // trascina qui i PDF da aggiungere in blocco
   AVVISI_ORE: [9, 18],                      // ore dell&#x27;avviso sul telefono (ora italiana)
-  NTFY_SERVER: &#x27;https://ntfy.sh&#x27;,
   APP_URL: &#x27;https://simonegianatti83-blip.github.io/&#x27;,
   PDF_LIB: &#x27;https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js&#x27;
 };
 // ==========================================================
 
-const VERSIONE_SCRIPT = 7;   // l&#x27;app la usa per capire se lo script è aggiornato
+const VERSIONE_SCRIPT = 8;
+
+// Token del bot Telegram (vedi istruzioni in alto). Dopo &quot;attivaAvvisi&quot; resta salvato.
+const TELEGRAM_TOKEN = &#x27;&#x27;;   // l&#x27;app la usa per capire se lo script è aggiornato
 
 const MESI = { gen:1, feb:2, mar:3, apr:4, mag:5, giu:6, lug:7, ago:8, set:9, ott:10, nov:11, dic:12 };
 
@@ -351,29 +356,34 @@ function installaAggiornamentoAutomatico() {
   console.log(&#x27;Aggiornamento automatico attivo (ogni ora).&#x27;);
 }
 
-// ------------------------------------------------ avviso sul telefono (ntfy)
+// ------------------------------------------------ avviso sul telefono (Telegram)
 
-/** Esegui una volta: crea il canale, programma gli avvisi delle 9 e delle 18 e manda una prova. */
+/** Esegui una volta (dopo aver premuto Avvia nel bot): collega la chat, programma 9 e 18, manda una prova. */
 function attivaAvvisi() {
   const pr = PropertiesService.getScriptProperties();
-  let canale = pr.getProperty(&#x27;ntfy_canale&#x27;);
-  if (!canale) {
-    canale = &#x27;odg-&#x27; + Utilities.getUuid().replace(/-/g, &#x27;&#x27;).slice(0, 20);
-    pr.setProperty(&#x27;ntfy_canale&#x27;, canale);
-  }
+  const token = (TELEGRAM_TOKEN || &#x27;&#x27;).trim() || pr.getProperty(&#x27;tg_token&#x27;);
+  if (!token || !/^\d+:[\w-]{20,}$/.test(token))
+    throw new Error(&#x27;Incolla in TELEGRAM_TOKEN il token che ti ha dato @BotFather, salva e riesegui.&#x27;);
+  const me = telegram_(token, &#x27;getMe&#x27;, {});
+  const agg = telegram_(token, &#x27;getUpdates&#x27;, {});
+  const chat = (agg || []).map(u =&gt; (u.message || u.my_chat_member || {}).chat).filter(c =&gt; c &amp;&amp; c.type === &#x27;private&#x27;).pop();
+  if (!chat &amp;&amp; !pr.getProperty(&#x27;tg_chat&#x27;))
+    throw new Error(&#x27;Apri in Telegram il bot @&#x27; + me.username + &#x27;, premi &quot;Avvia&quot; (o scrivigli &quot;ciao&quot;) e poi riesegui attivaAvvisi.&#x27;);
+  pr.setProperty(&#x27;tg_token&#x27;, token);
+  if (chat) pr.setProperty(&#x27;tg_chat&#x27;, String(chat.id));
+  pr.deleteProperty(&#x27;ntfy_canale&#x27;);
   if (!pr.getProperty(&#x27;avviso_ultimo&#x27;)) pr.setProperty(&#x27;avviso_ultimo&#x27;, new Date().toISOString());
   ScriptApp.getProjectTriggers().filter(t =&gt; t.getHandlerFunction() === &#x27;avvisaNuovi&#x27;)
     .forEach(t =&gt; ScriptApp.deleteTrigger(t));
   for (const h of CONFIG.AVVISI_ORE)
     ScriptApp.newTrigger(&#x27;avvisaNuovi&#x27;).timeBased().atHour(h).nearMinute(0).everyDays(1)
       .inTimezone(&#x27;Europe/Rome&#x27;).create();
-  inviaNtfy_(&#x27;Avvisi Archivio ODG attivi&#x27;, &#x27;Riceverai un avviso alle &#x27; + CONFIG.AVVISI_ORE.join(&#x27; e alle &#x27;) +
-    &#x27; solo quando arrivano documenti nuovi.&#x27;, []);
-  console.log(&#x27;AVVISI ATTIVI. Nell\&#x27;app ntfy premi &quot;+&quot; e iscriviti al canale:   &#x27; + canale +
-    &#x27;   (server: ntfy.sh). Ti è appena arrivata una notifica di prova.&#x27;);
+  inviaAvviso_(&#x27;✅ Avvisi Archivio ODG attivi&#x27;,
+    &#x27;Riceverai un messaggio verso le &#x27; + CONFIG.AVVISI_ORE.join(&#x27; e verso le &#x27;) + &#x27; solo quando arrivano documenti nuovi.&#x27;);
+  console.log(&#x27;AVVISI ATTIVI con il bot @&#x27; + me.username + &#x27; (chat &#x27; + pr.getProperty(&#x27;tg_chat&#x27;) + &#x27;). Ti è arrivato un messaggio di prova in Telegram.&#x27;);
 }
 
-/** Spegne gli avvisi sul telefono. */
+/** Spegne gli avvisi. */
 function disattivaAvvisi() {
   ScriptApp.getProjectTriggers().filter(t =&gt; t.getHandlerFunction() === &#x27;avvisaNuovi&#x27;)
     .forEach(t =&gt; ScriptApp.deleteTrigger(t));
@@ -383,15 +393,14 @@ function disattivaAvvisi() {
 /** Gira alle 9 e alle 18: legge le email arrivate e avvisa solo se ci sono documenti nuovi. */
 async function avvisaNuovi() {
   const pr = PropertiesService.getScriptProperties();
-  if (!pr.getProperty(&#x27;ntfy_canale&#x27;)) return;
+  if (!pr.getProperty(&#x27;tg_chat&#x27;)) return;
   try { await aggiorna(); } catch (e) { console.warn(&#x27;Aggiornamento prima dell\&#x27;avviso non riuscito: &#x27; + e); }
   const ultimo = pr.getProperty(&#x27;avviso_ultimo&#x27;) || new Date().toISOString();
   const db = leggiDb_(cartellaPrincipale_());
   const nuovi = db.documenti.filter(d =&gt; d.aggiuntoIl &amp;&amp; d.aggiuntoIl &gt; ultimo &amp;&amp; d.origine !== &#x27;caricato&#x27;);
   // il prossimo avviso parte dall&#x27;ultimo documento visto qui (nessun doppione, nessun buco)
   const visto = db.documenti.reduce((m, d) =&gt; (d.aggiuntoIl &amp;&amp; d.aggiuntoIl &gt; m ? d.aggiuntoIl : m), ultimo);
-  pr.setProperty(&#x27;avviso_ultimo&#x27;, visto);
-  if (!nuovi.length) { console.log(&#x27;Nessun documento nuovo: nessun avviso.&#x27;); return; }
+  if (!nuovi.length) { pr.setProperty(&#x27;avviso_ultimo&#x27;, visto); console.log(&#x27;Nessun documento nuovo: nessun avviso.&#x27;); return; }
 
   const gruppi = {};
   for (const d of nuovi) {
@@ -403,25 +412,36 @@ async function avvisaNuovi() {
     return t + (n.length ? &#x27; &#x27; + n.join(&#x27;, &#x27;) : &#x27;&#x27;);
   });
   const tot = nuovi.filter(d =&gt; !d.allegatoDi).length || nuovi.length;
-  inviaNtfy_(tot === 1 ? &#x27;Archivio ODG: 1 documento nuovo&#x27; : &#x27;Archivio ODG: &#x27; + tot + &#x27; documenti nuovi&#x27;,
-             righe.join(&#x27; · &#x27;) + &#x27;\nTocca per aprire l\&#x27;archivio.&#x27;, [&#x27;bell&#x27;]);
+  inviaAvviso_(&#x27;🔔 Archivio ODG: &#x27; + (tot === 1 ? &#x27;1 documento nuovo&#x27; : tot + &#x27; documenti nuovi&#x27;), righe.join(&#x27; · &#x27;));
+  pr.setProperty(&#x27;avviso_ultimo&#x27;, visto);   // solo dopo l&#x27;invio riuscito: se fallisce, riprova al giro dopo
   console.log(&#x27;Avviso inviato: &#x27; + righe.join(&#x27; · &#x27;));
 }
 
-/** Prova manuale: manda subito una notifica. */
+/** Prova manuale: manda subito un messaggio. */
 function provaAvviso() {
-  inviaNtfy_(&#x27;Prova Archivio ODG&#x27;, &#x27;Se leggi questo messaggio gli avvisi funzionano.&#x27;, []);
-  console.log(&#x27;Notifica di prova inviata al canale &#x27; + PropertiesService.getScriptProperties().getProperty(&#x27;ntfy_canale&#x27;));
+  inviaAvviso_(&#x27;Prova Archivio ODG&#x27;, &#x27;Se leggi questo messaggio gli avvisi funzionano.&#x27;);
+  console.log(&#x27;Messaggio di prova inviato.&#x27;);
 }
 
-function inviaNtfy_(titolo, testo, tag) {
-  const canale = PropertiesService.getScriptProperties().getProperty(&#x27;ntfy_canale&#x27;);
-  if (!canale) throw new Error(&#x27;Esegui prima &quot;attivaAvvisi&quot;&#x27;);
-  const r = UrlFetchApp.fetch(CONFIG.NTFY_SERVER, {
-    method: &#x27;post&#x27;, contentType: &#x27;application/json&#x27;, muteHttpExceptions: true,
-    payload: JSON.stringify({ topic: canale, title: titolo, message: testo, tags: tag, click: CONFIG.APP_URL, priority: 3 })
+function inviaAvviso_(titolo, testo) {
+  const pr = PropertiesService.getScriptProperties();
+  const token = pr.getProperty(&#x27;tg_token&#x27;), chat = pr.getProperty(&#x27;tg_chat&#x27;);
+  if (!token || !chat) throw new Error(&#x27;Esegui prima &quot;attivaAvvisi&quot;&#x27;);
+  const esc = x =&gt; String(x).replace(/&amp;/g, &#x27;&amp;amp;&#x27;).replace(/&lt;/g, &#x27;&amp;lt;&#x27;).replace(/&gt;/g, &#x27;&amp;gt;&#x27;);
+  telegram_(token, &#x27;sendMessage&#x27;, {
+    chat_id: chat, parse_mode: &#x27;HTML&#x27;, text: &#x27;&lt;b&gt;&#x27; + esc(titolo) + &#x27;&lt;/b&gt;\n&#x27; + esc(testo),
+    reply_markup: { inline_keyboard: [[{ text: &#x27;Apri l\&#x27;archivio&#x27;, url: CONFIG.APP_URL }]] }
   });
-  if (r.getResponseCode() &gt;= 300) throw new Error(&#x27;ntfy ha risposto &#x27; + r.getResponseCode() + &#x27;: &#x27; + r.getContentText().slice(0, 200));
+}
+
+function telegram_(token, metodo, dati) {
+  const r = UrlFetchApp.fetch(&#x27;https://api.telegram.org/bot&#x27; + token + &#x27;/&#x27; + metodo, {
+    method: &#x27;post&#x27;, contentType: &#x27;application/json&#x27;, payload: JSON.stringify(dati), muteHttpExceptions: true
+  });
+  let j = {}; try { j = JSON.parse(r.getContentText()); } catch (e) {}
+  if (!j.ok) throw new Error(&#x27;Telegram (&#x27; + metodo + &#x27;) ha risposto &#x27; + r.getResponseCode() + &#x27;: &#x27; +
+    (j.description || r.getContentText().slice(0, 200)) + (r.getResponseCode() === 401 ? &#x27; – controlla il token&#x27; : &#x27;&#x27;));
+  return j.result;
 }
 
 /** Ricomincia da zero (cancella il database, non i PDF salvati). */
