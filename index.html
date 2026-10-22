@@ -1045,11 +1045,18 @@ async function scaricaDaGoogle(quiet){
         : "Google non ha restituito l’archivio (risposta "+r.status+")"; throw e;
     }
     let dati=null; try{ dati=JSON.parse(txt); }catch(x){}
+    if(dati&&dati.ok===false&&dati.inAttesa){
+      // Codice confermato ma l'amministratore non ha ancora approvato questo dispositivo
+      inAttesaApprovazione=true; mostraAttesa(dati.utente); return false;
+    }
     if(dati&&dati.ok===false&&dati.autorizzazione){
       // Accesso riservato: serve (di nuovo) il codice. Se il dispositivo era autorizzato, l'accesso è stato revocato.
-      if(tokenAccesso){ await togliArchivioCondiviso(); tokenAccesso=null; await idbSet("token",null); toast("Accesso scaduto o revocato: conferma di nuovo la tua email"); }
+      const eraInAttesa=inAttesaApprovazione; inAttesaApprovazione=false; fermaAttesa();
+      if(tokenAccesso){ await togliArchivioCondiviso(); tokenAccesso=null; await idbSet("token",null);
+        toast(dati.rifiutato?(eraInAttesa?"La richiesta di accesso non è stata approvata":"L’accesso a questo dispositivo è stato tolto"):"Accesso scaduto o revocato: conferma di nuovo la tua email"); }
       mostraAccesso(); return false;
     }
+    if(inAttesaApprovazione){ inAttesaApprovazione=false; fermaAttesa(); if($("dlg").open&&$("dTag").textContent==="In attesa") closeDlg(); toast("Accesso approvato: scarico l’archivio…"); }
     if(dati&&dati.ok===false&&!dati.documenti){
       const e=new Error("script"); e.dettaglio="Lo script risponde: "+(dati.errore||"errore sconosciuto"); throw e;
     }
@@ -1073,6 +1080,29 @@ async function togliArchivioCondiviso(){
   for(const d of via){ const f=idDaUrl(d.pdf); if(f) await idbDel("pdfc:"+f); }
   docs=docs.filter(d=>d.origine==="dispositivo"); meta={aggiornato:null};
   buildIndex(); await idbSet("docs",docs); await idbSet("meta",meta); updateStatus(); render(true);
+}
+/* ===== in attesa di approvazione ===== */
+let inAttesaApprovazione=false, timerAttesa=null;
+function fermaAttesa(){ if(timerAttesa){ clearInterval(timerAttesa); timerAttesa=null; } }
+function mostraAttesa(email){
+  $("status").textContent="In attesa di approvazione";
+  if(!timerAttesa) timerAttesa=setInterval(()=>{ if(document.visibilityState==="visible"&&navigator.onLine) scaricaDaGoogle(true); },45000);
+  const dlg=$("dlg");
+  if(dlg.open&&$("dTag").textContent==="In attesa") return;
+  dlg.className="d-DDS";
+  $("dTag").textContent="In attesa"; $("dDate").textContent=""; $("dTitle").textContent="Richiesta inviata";
+  $("dSrc").textContent=""; $("dActions").innerHTML="";
+  const old=document.querySelector(".dhead .warn"); if(old) old.remove();
+  const b=$("dBody"); b.classList.add("help");
+  b.innerHTML=`<div class="linkform">
+    <p class="note" style="margin-top:0;font-size:15.5px">Il codice è corretto${email?` per <b>${esc(email)}</b>`:""}. Per sicurezza ogni nuovo dispositivo deve essere <b>approvato</b> dal responsabile dell’archivio.</p>
+    <p class="note" style="font-size:15.5px">Appena approvato riceverai un’email e l’archivio si scaricherà da solo: puoi lasciare l’app aperta o riaprirla più tardi.</p>
+    <div class="row"><button class="primary" id="attesaCheck">Controlla ora</button></div>
+    <p class="note" id="attesaMsg" role="status"></p></div>`;
+  $("attesaCheck").onclick=async()=>{ $("attesaCheck").disabled=true; $("attesaMsg").textContent="Controllo…";
+    await scaricaDaGoogle(true);
+    if(inAttesaApprovazione&&$("attesaMsg")){ $("attesaMsg").textContent="Non ancora approvato. Riprova tra poco."; $("attesaCheck").disabled=false; } };
+  showDlg();
 }
 function mostraAccesso(emailNota){
   const dlg=$("dlg"); dlg.className="d-DDS";
@@ -1116,7 +1146,7 @@ function mostraAccesso(emailNota){
       try{
         const j=await chiamaScript({azione:"verificaCodice",email,codice,dispositivo:nomeDispositivo()},60000);
         tokenAccesso=j.token; await idbSet("token",j.token); closeDlg();
-        toast("Accesso confermato: scarico l’archivio…");
+        if(!j.inAttesa) toast("Accesso confermato: scarico l’archivio…");
         await scaricaDaGoogle(false);
       }catch(e){ $("accErr").textContent=e.message; $("accOk").disabled=false; }
       finally{ inVerifica=false; }

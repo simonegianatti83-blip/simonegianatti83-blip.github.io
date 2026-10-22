@@ -41,13 +41,15 @@ small{color:var(--ink-2)}
 <li>Installa l’app da <b>simonegianatti83-blip.github.io</b> e tocca <b>Collega a Google</b> → incolla il link colleghi.</li>
 <li>Scrive la sua email <b>@vigilfuoco.it</b>, riceve un codice di 6 cifre (vale 15 minuti) e lo inserisce. Fatto: quel dispositivo resta autorizzato.</li>
 </ol>
-<h2 style="font-size:18px;margin:22px 0 6px">Avviso a ogni accesso</h2>
-<p>Ogni volta che un collega autorizza un dispositivo ti arriva un’email <b>“Nuovo accesso all’Archivio ODG”</b> con chi è, da quale dispositivo e quando. Contiene due pulsanti:</p>
-<ul>
-<li><b>Nega l’accesso a questo dispositivo</b> – quel dispositivo perde l’archivio alla prossima apertura. Se riprova deve rifare il codice (e ti arriva un altro avviso).</li>
-<li><b>Blocca questa email</b> – perde l’accesso su tutti i dispositivi e non può più chiedere codici. Dalla pagina di conferma puoi anche riabilitarla.</li>
-</ul>
-<p>I pulsanti chiedono sempre una conferma e funzionano solo dall’email che ricevi tu. Se va tutto bene non devi fare niente. Per spegnere gli avvisi metti <code>AVVISA_ACCESSI: false</code> nello script.</p>
+<h2 style="font-size:18px;margin:22px 0 6px">Approvazione dei nuovi dispositivi (con Telegram)</h2>
+<p>Dopo il codice, ogni nuovo dispositivo resta <b>in attesa</b> e non vede nessun documento finché non lo approvi tu. Ti arriva un messaggio sul <b>bot Telegram</b> (e un’email come traccia) con chi è, il dispositivo e l’ora, e i pulsanti <b>✅ Approva</b>, <b>❌ Rifiuta</b> e <b>⛔ Blocca questa email</b>. Ogni pulsante chiede una conferma. Quando approvi, il collega riceve un’email e l’archivio gli si scarica da solo.</p>
+<p><b>Collegare Telegram (una volta):</b></p>
+<ol>
+<li>In alto nello script incolla in <code>const TELEGRAM_TOKEN = '';</code> il token del bot (lo stesso dello script principale) e salva.</li>
+<li>In Telegram scrivi “ciao” al tuo bot.</li>
+<li>Esegui la funzione <b>collegaTelegram</b>: arriva “Accessi dei colleghi collegati”.</li>
+</ol>
+<p style="font-size:14px">Per tornare all’accesso immediato metti <code>APPROVAZIONE: false</code>; per avere solo Telegram senza email <code>AVVISO_EMAIL: false</code>. I dispositivi già autorizzati prima di questo aggiornamento restano autorizzati.</p>
 <h2 style="font-size:18px;margin:22px 0 6px">Gestire gli accessi</h2>
 <p>Nel progetto “ODG lettura colleghi” scegli la funzione e premi <b>Esegui</b>, poi leggi il registro:</p>
 <ul>
@@ -55,12 +57,13 @@ small{color:var(--ink-2)}
 <li><b>revocaAccesso</b> – scrivi l’email in <code>EMAIL_DA_GESTIRE</code> (in alto nel codice), salva ed esegui: perde l’accesso su tutti i dispositivi, il suo archivio sparisce alla prima connessione e non può chiedere altri codici.</li>
 <li><b>riabilitaAccesso</b> – annulla il blocco di quell’email.</li>
 <li><b>revocaTutti</b> – tutti dovranno rifare il codice.</li>
+<li><b>approvaInAttesa</b> – approva le richieste in attesa dell’email scritta in <code>EMAIL_DA_GESTIRE</code> (se non hai Telegram a portata di mano).</li>
 <li><b>storicoAccessi</b> – gli ultimi 300 eventi: accessi, accessi negati, blocchi e riabilitazioni, con data e ora.</li>
 </ul>
 <p style="font-size:14px">Le email con i codici partono dal tuo Gmail con il nome “Archivio ODG” (il destinatario vede il tuo indirizzo). Gmail permette circa 100 email al giorno; lo script ne usa al massimo 60 per i codici.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Accesso in SOLA LETTURA per i colleghi (v3: codice + avviso email a te per ogni accesso)
+ * ODG ARCHIVIO – Accesso in SOLA LETTURA per i colleghi (v4: codice + approvazione tua via Telegram/email)
  * ------------------------------------------------------------
  * Progetto separato da ODG_estrattore. Il suo link (/exec) si può dare ai
  * colleghi. Per entrare ognuno conferma la propria email @vigilfuoco.it con un
@@ -79,10 +82,16 @@ small{color:var(--ink-2)}
  *  3. Esegui il deployment → Gestisci deployment → matita → Nuova versione
  *     (prima volta: Nuovo deployment → App web · Esegui come: Me · Chiunque).
  *
- * AVVISO DI ACCESSO: ogni volta che un collega autorizza un dispositivo ti arriva
- * un&#x27;email (chi, quale dispositivo, quando) con due pulsanti: &quot;Nega l&#x27;accesso a
- * questo dispositivo&quot; e &quot;Blocca questa email&quot;. I pulsanti chiedono una conferma
- * e funzionano solo dall&#x27;email che ricevi tu (link firmati).
+ * APPROVAZIONE: dopo il codice il dispositivo resta IN ATTESA e non vede niente
+ * finché non lo approvi. Ti arriva un messaggio sul bot Telegram (e un&#x27;email) con
+ * chi è, quale dispositivo e quando, e i pulsanti &quot;Approva&quot;, &quot;Rifiuta&quot; e &quot;Blocca
+ * questa email&quot;. I pulsanti chiedono una conferma e funzionano solo dai messaggi
+ * che ricevi tu (link firmati). Quando approvi, il collega riceve un&#x27;email.
+ *
+ * TELEGRAM (stesso bot dello script principale):
+ *  1. Incolla in TELEGRAM_TOKEN qui sotto il token del bot (lo stesso di prima).
+ *  2. Scrivi &quot;ciao&quot; al bot in Telegram.
+ *  3. Esegui &quot;collegaTelegram&quot;: arriva un messaggio di prova. Il token resta salvato.
  *
  * GESTIRE GLI ACCESSI (dall&#x27;editor, scegli la funzione → Esegui):
  *  - elencoAccessi      chi è autorizzato, da quale dispositivo, ultimo accesso
@@ -90,7 +99,8 @@ small{color:var(--ink-2)}
  *                       e le impedisce di richiedere nuovi codici
  *  - riabilitaAccesso   annulla il blocco dell&#x27;email in EMAIL_DA_GESTIRE
  *  - revocaTutti        toglie l&#x27;accesso a tutti (dovranno rifare il codice)
- *  - storicoAccessi     gli ultimi 300 eventi (accessi, negati, blocchi)
+ *  - storicoAccessi     gli ultimi 300 eventi (richieste, approvati, rifiutati, blocchi)
+ *  - approvaInAttesa    approva le richieste in attesa dell&#x27;email in EMAIL_DA_GESTIRE
  */
 
 const LETTURA = {
@@ -102,9 +112,14 @@ const LETTURA = {
   CODICE_TENTATIVI: 5,           // tentativi per codice
   CODICI_ORA_PER_EMAIL: 3,       // limite richieste di codice per email ogni ora
   CODICI_GIORNO: 60,             // limite totale di email al giorno (Gmail ne consente 100)
-  AVVISA_ACCESSI: true,          // email a te a ogni nuovo dispositivo autorizzato
+  APPROVAZIONE: true,            // true = ogni nuovo dispositivo aspetta la tua approvazione
+  AVVISA_ACCESSI: true,          // avviso a te (Telegram + email) a ogni richiesta di accesso
+  AVVISO_EMAIL: true,            // false = solo Telegram
   EMAIL_AVVISI: &#x27;&#x27;               // vuoto = il proprietario della cartella ODG Archivio (tu)
 };
+
+// Token del bot Telegram (lo stesso dello script principale). Dopo &quot;collegaTelegram&quot; resta salvato.
+const TELEGRAM_TOKEN = &#x27;&#x27;;
 
 // Email su cui agire con revocaAccesso / riabilitaAccesso
 const EMAIL_DA_GESTIRE = &#x27;&#x27;;
@@ -117,6 +132,12 @@ function doGet(e) {
   try {
     const accesso = verificaToken_(p.t);
     if (!accesso) return risposta_({ ok: false, autorizzazione: true, errore: &#x27;Accesso non autorizzato&#x27; });
+    if (accesso.stato === &#x27;rifiutato&#x27;) {
+      PropertiesService.getScriptProperties().deleteProperty(&#x27;tok:&#x27; + hash_(String(p.t)));
+      return risposta_({ ok: false, autorizzazione: true, rifiutato: true, errore: &#x27;La richiesta di accesso non è stata approvata&#x27; });
+    }
+    if (accesso.stato === &#x27;attesa&#x27;)
+      return risposta_({ ok: false, inAttesa: true, utente: accesso.email, errore: &#x27;Accesso in attesa di approvazione&#x27; });
     const db = leggiArchivio_();
     const documenti = db.documenti.filter(d =&gt; LETTURA.INCLUDI_CARICATI || d.origine !== &#x27;caricato&#x27;);
     if (p.pdf) return risposta_(pdfConsentito_(String(p.pdf), documenti));
@@ -125,7 +146,7 @@ function doGet(e) {
       aggiornato: db.aggiornato || null,
       solaLettura: true,
       utente: accesso.email,
-      versioneScript: &#x27;lettura-3&#x27;,
+      versioneScript: &#x27;lettura-4&#x27;,
       eliminati: db.eliminati || [],
       documenti: documenti.map(pulito_)
     });
@@ -211,11 +232,12 @@ function verificaCodice_(emailGrezza, codice, dispositivo) {
     const token = Utilities.getUuid().replace(/-/g, &#x27;&#x27;) + Utilities.getUuid().replace(/-/g, &#x27;&#x27;);
     const chiave = hash_(token);
     const dati = { email: email, dispositivo: String(dispositivo || &#x27;&#x27;).slice(0, 60),
-      creato: new Date().toISOString(), ultimo: new Date().toISOString() };
+      creato: new Date().toISOString(), ultimo: new Date().toISOString(),
+      stato: LETTURA.APPROVAZIONE ? &#x27;attesa&#x27; : &#x27;ok&#x27; };
     prop.setProperty(&#x27;tok:&#x27; + chiave, JSON.stringify(dati));
-    registra_(prop, &#x27;accesso&#x27;, email, dati.dispositivo);
+    registra_(prop, LETTURA.APPROVAZIONE ? &#x27;richiesta&#x27; : &#x27;accesso&#x27;, email, dati.dispositivo);
     try { avvisaAccesso_(chiave, dati); } catch (err) { console.warn(&#x27;Avviso di accesso non inviato: &#x27; + err); }
-    return { ok: true, token: token, email: email };
+    return { ok: true, token: token, email: email, inAttesa: dati.stato === &#x27;attesa&#x27; };
   } finally { lock.releaseLock(); }
 }
 
@@ -250,41 +272,104 @@ function hash_(s) {
 
 // ================================================= avviso e gestione via email
 
-/** Email a te: chi è entrato, con i link firmati per negare l&#x27;accesso. */
+/** Avviso a te (Telegram + email): chi chiede l&#x27;accesso, con i link firmati per approvare o rifiutare. */
 function avvisaAccesso_(chiave, d) {
   if (!LETTURA.AVVISA_ACCESSI) return;
   const prop = PropertiesService.getScriptProperties();
-  const a = emailAvvisi_();
-  if (!a) return;
   const url = urlApp_();
   const tutte = prop.getProperties();
-  const suoi = Object.keys(tutte).filter(k =&gt; k.indexOf(&#x27;tok:&#x27;) === 0 &amp;&amp; JSON.parse(tutte[k]).email === d.email).length;
-  const totale = Object.keys(tutte).filter(k =&gt; k.indexOf(&#x27;tok:&#x27;) === 0).length;
+  const tok = Object.keys(tutte).filter(k =&gt; k.indexOf(&#x27;tok:&#x27;) === 0).map(k =&gt; JSON.parse(tutte[k]));
+  const suoi = tok.filter(t =&gt; t.email === d.email &amp;&amp; t.stato !== &#x27;attesa&#x27; &amp;&amp; t.stato !== &#x27;rifiutato&#x27;).length;
+  const totale = tok.filter(t =&gt; t.stato !== &#x27;attesa&#x27; &amp;&amp; t.stato !== &#x27;rifiutato&#x27;).length;
   const quando = Utilities.formatDate(new Date(d.creato), &#x27;Europe/Rome&#x27;, &quot;dd/MM/yyyy &#x27;alle&#x27; HH:mm&quot;);
-  const id = chiave.slice(0, 16);
-  const nega = url ? link_(url, &#x27;nega&#x27;, id) : &#x27;&#x27;, blocca = url ? link_(url, &#x27;blocca&#x27;, d.email) : &#x27;&#x27;;
+  const id = chiave.slice(0, 16), attesa = d.stato === &#x27;attesa&#x27;;
+  const L = url ? { approva: link_(url, &#x27;approva&#x27;, id), nega: link_(url, &#x27;nega&#x27;, id), blocca: link_(url, &#x27;blocca&#x27;, d.email) } : null;
+  const titolo = attesa ? &#x27;Richiesta di accesso all\&#x27;Archivio ODG&#x27; : &#x27;Nuovo accesso all\&#x27;Archivio ODG&#x27;;
+  const righe = [&#x27;Chi: &#x27; + d.email, &#x27;Dispositivo: &#x27; + (d.dispositivo || &#x27;non indicato&#x27;), &#x27;Quando: &#x27; + quando,
+                 &#x27;Già autorizzati: &#x27; + suoi + &#x27; dispositivi per questa email · &#x27; + totale + &#x27; in totale&#x27;];
+
+  // Telegram
+  try {
+    const tg = telegramDati_();
+    if (tg) {
+      const esc = x =&gt; String(x).replace(/&amp;/g, &#x27;&amp;amp;&#x27;).replace(/&lt;/g, &#x27;&amp;lt;&#x27;).replace(/&gt;/g, &#x27;&amp;gt;&#x27;);
+      const tasti = !L ? [] : attesa
+        ? [[{ text: &#x27;✅ Approva&#x27;, url: L.approva }, { text: &#x27;❌ Rifiuta&#x27;, url: L.nega }], [{ text: &#x27;⛔ Blocca questa email&#x27;, url: L.blocca }]]
+        : [[{ text: &#x27;❌ Nega l\&#x27;accesso&#x27;, url: L.nega }, { text: &#x27;⛔ Blocca email&#x27;, url: L.blocca }]];
+      telegram_(tg.token, &#x27;sendMessage&#x27;, { chat_id: tg.chat, parse_mode: &#x27;HTML&#x27;,
+        text: &#x27;🔐 &lt;b&gt;&#x27; + esc(titolo) + &#x27;&lt;/b&gt;\n&#x27; + righe.map(esc).join(&#x27;\n&#x27;) +
+              (attesa ? &#x27;\n\nFinché non approvi non vede nessun documento.&#x27; : &#x27;&#x27;),
+        reply_markup: { inline_keyboard: tasti } });
+    }
+  } catch (e) { console.warn(&#x27;Telegram non inviato: &#x27; + e); }
+
+  // Email (anche come traccia)
+  const a = emailAvvisi_();
+  if (!LETTURA.AVVISO_EMAIL || !a) return;
   const esc = x =&gt; String(x).replace(/&amp;/g, &#x27;&amp;amp;&#x27;).replace(/&lt;/g, &#x27;&amp;lt;&#x27;).replace(/&gt;/g, &#x27;&amp;gt;&#x27;).replace(/&quot;/g, &#x27;&amp;quot;&#x27;);
   const btn = (href, testo, colore) =&gt; &#x27;&lt;a href=&quot;&#x27; + esc(href) + &#x27;&quot; style=&quot;display:inline-block;background:&#x27; + colore +
     &#x27;;color:#fff;text-decoration:none;font-weight:600;padding:10px 16px;border-radius:8px;margin:4px 8px 4px 0&quot;&gt;&#x27; + testo + &#x27;&lt;/a&gt;&#x27;;
+  const bottoni = !L ? &#x27;&lt;p&gt;&lt;i&gt;Gestisci la richiesta con le funzioni dello script.&lt;/i&gt;&lt;/p&gt;&#x27; : attesa
+    ? btn(L.approva, &#x27;Approva&#x27;, &#x27;#2E7A4E&#x27;) + btn(L.nega, &#x27;Rifiuta&#x27;, &#x27;#C1121F&#x27;) + btn(L.blocca, &#x27;Blocca questa email&#x27;, &#x27;#16212F&#x27;)
+    : btn(L.nega, &#x27;Nega l\&#x27;accesso a questo dispositivo&#x27;, &#x27;#C1121F&#x27;) + btn(L.blocca, &#x27;Blocca questa email&#x27;, &#x27;#16212F&#x27;);
   MailApp.sendEmail({
     to: a, name: &#x27;Archivio ODG&#x27;,
-    subject: &#x27;Nuovo accesso all\&#x27;Archivio ODG: &#x27; + d.email,
-    body: &#x27;Nuovo accesso all\&#x27;Archivio ODG\n\nChi: &#x27; + d.email + &#x27;\nDispositivo: &#x27; + (d.dispositivo || &#x27;non indicato&#x27;) +
-      &#x27;\nQuando: &#x27; + quando + &#x27;\nDispositivi autorizzati per questa email: &#x27; + suoi + &#x27; (in totale: &#x27; + totale + &#x27;)\n\n&#x27; +
-      (nega ? &#x27;Nega l\&#x27;accesso a questo dispositivo:\n&#x27; + nega + &#x27;\n\nBlocca questa email (tutti i suoi dispositivi):\n&#x27; + blocca + &#x27;\n&#x27; : &#x27;&#x27;),
+    subject: (attesa ? &#x27;Richiesta di accesso Archivio ODG: &#x27; : &#x27;Nuovo accesso all\&#x27;Archivio ODG: &#x27;) + d.email,
+    body: titolo + &#x27;\n\n&#x27; + righe.join(&#x27;\n&#x27;) + &#x27;\n\n&#x27; + (L ? (attesa ? &#x27;Approva:\n&#x27; + L.approva + &#x27;\n\nRifiuta:\n&#x27; + L.nega :
+          &#x27;Nega l\&#x27;accesso:\n&#x27; + L.nega) + &#x27;\n\nBlocca questa email:\n&#x27; + L.blocca + &#x27;\n&#x27; : &#x27;&#x27;),
     htmlBody: &#x27;&lt;div style=&quot;font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#16212F;max-width:520px&quot;&gt;&#x27; +
       &#x27;&lt;div style=&quot;height:5px;background:#C1121F;border-radius:3px&quot;&gt;&lt;/div&gt;&#x27; +
-      &#x27;&lt;h2 style=&quot;font-size:19px;margin:16px 0 12px&quot;&gt;Nuovo accesso all\&#x27;Archivio ODG&lt;/h2&gt;&#x27; +
+      &#x27;&lt;h2 style=&quot;font-size:19px;margin:16px 0 12px&quot;&gt;&#x27; + esc(titolo) + &#x27;&lt;/h2&gt;&#x27; +
       &#x27;&lt;table style=&quot;border-collapse:collapse;font-size:15px&quot;&gt;&#x27; +
       &#x27;&lt;tr&gt;&lt;td style=&quot;color:#7A8697;padding:3px 14px 3px 0&quot;&gt;Chi&lt;/td&gt;&lt;td&gt;&lt;b&gt;&#x27; + esc(d.email) + &#x27;&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&#x27; +
       &#x27;&lt;tr&gt;&lt;td style=&quot;color:#7A8697;padding:3px 14px 3px 0&quot;&gt;Dispositivo&lt;/td&gt;&lt;td&gt;&#x27; + esc(d.dispositivo || &#x27;non indicato&#x27;) + &#x27;&lt;/td&gt;&lt;/tr&gt;&#x27; +
       &#x27;&lt;tr&gt;&lt;td style=&quot;color:#7A8697;padding:3px 14px 3px 0&quot;&gt;Quando&lt;/td&gt;&lt;td&gt;&#x27; + esc(quando) + &#x27;&lt;/td&gt;&lt;/tr&gt;&#x27; +
-      &#x27;&lt;tr&gt;&lt;td style=&quot;color:#7A8697;padding:3px 14px 3px 0&quot;&gt;Dispositivi&lt;/td&gt;&lt;td&gt;&#x27; + suoi + &#x27; per questa email · &#x27; + totale + &#x27; in totale&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&#x27; +
-      &#x27;&lt;p style=&quot;margin:16px 0 6px&quot;&gt;Se non conosci questa persona o non vuoi che acceda:&lt;/p&gt;&#x27; +
-      (nega ? btn(nega, &#x27;Nega l\&#x27;accesso a questo dispositivo&#x27;, &#x27;#C1121F&#x27;) + btn(blocca, &#x27;Blocca questa email&#x27;, &#x27;#16212F&#x27;) :
-              &#x27;&lt;p&gt;&lt;i&gt;Per negare l\&#x27;accesso esegui revocaAccesso nello script.&lt;/i&gt;&lt;/p&gt;&#x27;) +
-      &#x27;&lt;p style=&quot;font-size:13px;color:#7A8697;margin-top:14px&quot;&gt;Ti verrà chiesta una conferma. Se va tutto bene non devi fare niente.&lt;/p&gt;&lt;/div&gt;&#x27;
+      &#x27;&lt;tr&gt;&lt;td style=&quot;color:#7A8697;padding:3px 14px 3px 0&quot;&gt;Già autorizzati&lt;/td&gt;&lt;td&gt;&#x27; + suoi + &#x27; per questa email · &#x27; + totale + &#x27; in totale&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&#x27; +
+      (attesa ? &#x27;&lt;p style=&quot;margin:16px 0 6px&quot;&gt;Finché non approvi, questo dispositivo non vede nessun documento.&lt;/p&gt;&#x27; : &#x27;&lt;p style=&quot;margin:16px 0 6px&quot;&gt;Se non conosci questa persona o non vuoi che acceda:&lt;/p&gt;&#x27;) +
+      bottoni + &#x27;&lt;p style=&quot;font-size:13px;color:#7A8697;margin-top:14px&quot;&gt;Ti verrà chiesta una conferma.&lt;/p&gt;&lt;/div&gt;&#x27;
   });
+}
+
+/** Al collega: la sua richiesta è stata approvata. */
+function avvisaApprovato_(d) {
+  try {
+    MailApp.sendEmail({ to: d.email, name: &#x27;Archivio ODG&#x27;, subject: &#x27;Accesso all\&#x27;Archivio ODG approvato&#x27;,
+      body: &#x27;Il tuo accesso all\&#x27;Archivio ODG (&#x27; + (d.dispositivo || &#x27;dispositivo&#x27;) + &#x27;) è stato approvato.\n\n&#x27; +
+            &#x27;Apri l\&#x27;app con internet: l\&#x27;archivio si scarica da solo.&#x27; });
+  } catch (e) { console.warn(&#x27;Email di approvazione non inviata: &#x27; + e); }
+}
+
+// ---------------------------------------------------------------- Telegram
+function telegramDati_() {
+  const pr = PropertiesService.getScriptProperties();
+  const token = pr.getProperty(&#x27;tg_token&#x27;), chat = pr.getProperty(&#x27;tg_chat&#x27;);
+  return token &amp;&amp; chat ? { token: token, chat: chat } : null;
+}
+function telegram_(token, metodo, dati) {
+  const r = UrlFetchApp.fetch(&#x27;https://api.telegram.org/bot&#x27; + token + &#x27;/&#x27; + metodo, {
+    method: &#x27;post&#x27;, contentType: &#x27;application/json&#x27;, payload: JSON.stringify(dati), muteHttpExceptions: true });
+  let j = {}; try { j = JSON.parse(r.getContentText()); } catch (e) {}
+  if (!j.ok) throw new Error(&#x27;Telegram (&#x27; + metodo + &#x27;) ha risposto &#x27; + r.getResponseCode() + &#x27;: &#x27; +
+    (j.description || r.getContentText().slice(0, 200)) + (r.getResponseCode() === 401 ? &#x27; – controlla il token&#x27; : &#x27;&#x27;));
+  return j.result;
+}
+/** Esegui una volta: collega il bot Telegram (prima scrivi &quot;ciao&quot; al bot). */
+function collegaTelegram() {
+  const pr = PropertiesService.getScriptProperties();
+  const token = (TELEGRAM_TOKEN || &#x27;&#x27;).trim() || pr.getProperty(&#x27;tg_token&#x27;);
+  if (!token || !/^\d+:[\w-]{20,}$/.test(token))
+    throw new Error(&#x27;Incolla in TELEGRAM_TOKEN il token del bot (lo stesso dello script principale), salva e riesegui.&#x27;);
+  const me = telegram_(token, &#x27;getMe&#x27;, {});
+  const chat = (telegram_(token, &#x27;getUpdates&#x27;, {}) || []).map(u =&gt; (u.message || u.my_chat_member || {}).chat)
+    .filter(c =&gt; c &amp;&amp; c.type === &#x27;private&#x27;).pop();
+  if (!chat &amp;&amp; !pr.getProperty(&#x27;tg_chat&#x27;))
+    throw new Error(&#x27;Scrivi &quot;ciao&quot; al bot @&#x27; + me.username + &#x27; in Telegram e poi riesegui collegaTelegram.&#x27;);
+  pr.setProperty(&#x27;tg_token&#x27;, token);
+  if (chat) pr.setProperty(&#x27;tg_chat&#x27;, String(chat.id));
+  urlApp_();
+  telegram_(token, &#x27;sendMessage&#x27;, { chat_id: pr.getProperty(&#x27;tg_chat&#x27;), parse_mode: &#x27;HTML&#x27;,
+    text: &#x27;✅ &lt;b&gt;Accessi dei colleghi collegati&lt;/b&gt;\nQui riceverai le richieste di accesso all\&#x27;Archivio ODG da approvare.&#x27; });
+  console.log(&#x27;Telegram collegato (bot @&#x27; + me.username + &#x27;). Ti è arrivato un messaggio di prova.&#x27;);
 }
 
 function emailAvvisi_() {
@@ -324,34 +409,53 @@ function paginaGestione_(p) {
     &#x27;&lt;div style=&quot;height:5px;background:#C1121F;border-radius:3px&quot;&gt;&lt;/div&gt;&lt;h2 style=&quot;font-size:21px&quot;&gt;&#x27; + titolo + &#x27;&lt;/h2&gt;&#x27; +
     &#x27;&lt;p style=&quot;font-size:16px;line-height:1.5&quot;&gt;&#x27; + testo + &#x27;&lt;/p&gt;&#x27; + (extra || &#x27;&#x27;) + &#x27;&lt;/div&gt;&#x27;).setTitle(&#x27;Archivio ODG – accessi&#x27;);
   const esc = x =&gt; String(x).replace(/&amp;/g, &#x27;&amp;amp;&#x27;).replace(/&lt;/g, &#x27;&amp;lt;&#x27;).replace(/&gt;/g, &#x27;&amp;gt;&#x27;).replace(/&quot;/g, &#x27;&amp;quot;&#x27;);
-  if ([&#x27;nega&#x27;, &#x27;blocca&#x27;, &#x27;riabilita&#x27;].indexOf(azione) &lt; 0 || !chi || p.f !== firma_(azione, chi))
+  if ([&#x27;approva&#x27;, &#x27;nega&#x27;, &#x27;blocca&#x27;, &#x27;riabilita&#x27;].indexOf(azione) &lt; 0 || !chi || p.f !== firma_(azione, chi))
     return pagina(&#x27;Link non valido&#x27;, &#x27;Questo link non è valido o è stato modificato.&#x27;);
   const prop = PropertiesService.getScriptProperties();
   const url = urlApp_();
   const tutte = prop.getProperties();
   let dati = null, chiaveTok = &#x27;&#x27;;
-  if (azione === &#x27;nega&#x27;) {
+  const perDispositivo = azione === &#x27;nega&#x27; || azione === &#x27;approva&#x27;;
+  if (perDispositivo) {
     chiaveTok = Object.keys(tutte).find(k =&gt; k.indexOf(&#x27;tok:&#x27; + chi) === 0) || &#x27;&#x27;;
     if (chiaveTok) dati = JSON.parse(tutte[chiaveTok]);
   }
-  const chiTesto = azione === &#x27;nega&#x27; ? (dati ? &#x27;&lt;b&gt;&#x27; + esc(dati.email) + &#x27;&lt;/b&gt; (&#x27; + esc(dati.dispositivo || &#x27;dispositivo&#x27;) + &#x27;)&#x27; : &#x27;&#x27;) : &#x27;&lt;b&gt;&#x27; + esc(chi) + &#x27;&lt;/b&gt;&#x27;;
+  const chiTesto = perDispositivo ? (dati ? &#x27;&lt;b&gt;&#x27; + esc(dati.email) + &#x27;&lt;/b&gt; (&#x27; + esc(dati.dispositivo || &#x27;dispositivo&#x27;) + &#x27;)&#x27; : &#x27;&#x27;) : &#x27;&lt;b&gt;&#x27; + esc(chi) + &#x27;&lt;/b&gt;&#x27;;
 
-  if (azione === &#x27;nega&#x27; &amp;&amp; !dati)
-    return pagina(&#x27;Accesso già tolto&#x27;, &#x27;Questo dispositivo non è più autorizzato.&#x27;);
+  if (perDispositivo &amp;&amp; (!dati || dati.stato === &#x27;rifiutato&#x27;))
+    return pagina(&#x27;Richiesta non più valida&#x27;, &#x27;Questo dispositivo non è più autorizzato: se ci riprova dovrà rifare il codice e riceverai una nuova richiesta.&#x27;);
+  if (azione === &#x27;approva&#x27; &amp;&amp; dati.stato !== &#x27;attesa&#x27;)
+    return pagina(&#x27;Già approvato&#x27;, chiTesto + &#x27; è già autorizzato.&#x27;);
   if (p.ok !== &#x27;1&#x27;) {
     const conferma = url + &#x27;?gestione=&#x27; + azione + &#x27;&amp;chi=&#x27; + encodeURIComponent(chi) + &#x27;&amp;f=&#x27; + p.f + &#x27;&amp;ok=1&#x27;;
-    const domanda = azione === &#x27;nega&#x27; ? &#x27;Vuoi togliere l\&#x27;accesso a &#x27; + chiTesto + &#x27;?&#x27; :
+    const domanda = azione === &#x27;approva&#x27; ? &#x27;Vuoi approvare l\&#x27;accesso di &#x27; + chiTesto + &#x27;? Potrà consultare l\&#x27;archivio in sola lettura.&#x27; :
+                    azione === &#x27;nega&#x27; ? (dati.stato === &#x27;attesa&#x27; ? &#x27;Vuoi rifiutare la richiesta di &#x27; : &#x27;Vuoi togliere l\&#x27;accesso a &#x27;) + chiTesto + &#x27;?&#x27; :
                     azione === &#x27;blocca&#x27; ? &#x27;Vuoi bloccare &#x27; + chiTesto + &#x27;? Perde l\&#x27;accesso su tutti i dispositivi e non potrà più richiedere il codice.&#x27; :
                     &#x27;Vuoi riabilitare &#x27; + chiTesto + &#x27;? Potrà richiedere di nuovo il codice di accesso.&#x27;;
     return pagina(&#x27;Conferma&#x27;, domanda, &#x27;&lt;a href=&quot;&#x27; + esc(conferma) + &#x27;&quot; target=&quot;_top&quot; style=&quot;display:inline-block;background:&#x27; +
-      (azione === &#x27;riabilita&#x27; ? &#x27;#2E7A4E&#x27; : &#x27;#C1121F&#x27;) + &#x27;;color:#fff;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:8px&quot;&gt;Sì, conferma&lt;/a&gt;&#x27;);
+      (azione === &#x27;riabilita&#x27; || azione === &#x27;approva&#x27; ? &#x27;#2E7A4E&#x27; : &#x27;#C1121F&#x27;) + &#x27;;color:#fff;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:8px&quot;&gt;Sì, conferma&lt;/a&gt;&#x27;);
   }
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
+    if (perDispositivo) {   // rilegge lo stato aggiornato (potrebbe essere cambiato nel frattempo)
+      dati = JSON.parse(prop.getProperty(chiaveTok) || &#x27;null&#x27;);
+      if (!dati || dati.stato === &#x27;rifiutato&#x27;) return pagina(&#x27;Richiesta non più valida&#x27;, &#x27;Questo dispositivo non è più autorizzato.&#x27;);
+      if (azione === &#x27;approva&#x27; &amp;&amp; dati.stato !== &#x27;attesa&#x27;) return pagina(&#x27;Già approvato&#x27;, chiTesto + &#x27; è già autorizzato.&#x27;);
+    }
+    if (azione === &#x27;approva&#x27;) {
+      dati.stato = &#x27;ok&#x27;; dati.approvato = new Date().toISOString();
+      prop.setProperty(chiaveTok, JSON.stringify(dati));
+      registra_(prop, &#x27;approvato&#x27;, dati.email, dati.dispositivo);
+      avvisaApprovato_(dati);
+      return pagina(&#x27;Accesso approvato&#x27;, chiTesto + &#x27; può consultare l\&#x27;archivio. Gli abbiamo mandato un\&#x27;email: alla prossima apertura dell\&#x27;app l\&#x27;archivio si scarica.&#x27;);
+    }
     if (azione === &#x27;nega&#x27;) {
-      prop.deleteProperty(chiaveTok);
-      registra_(prop, &#x27;negato&#x27;, dati.email, dati.dispositivo);
-      return pagina(&#x27;Accesso negato&#x27;, &#x27;Hai tolto l\&#x27;accesso a &#x27; + chiTesto + &#x27;. Alla prossima apertura l\&#x27;archivio sparisce da quel dispositivo. &#x27; +
+      const eraAttesa = dati.stato === &#x27;attesa&#x27;;
+      dati.stato = &#x27;rifiutato&#x27;;                 // l&#x27;app lo scopre alla prossima apertura, poi il dato viene cancellato
+      prop.setProperty(chiaveTok, JSON.stringify(dati));
+      registra_(prop, eraAttesa ? &#x27;rifiutato&#x27; : &#x27;negato&#x27;, dati.email, dati.dispositivo);
+      return pagina(eraAttesa ? &#x27;Richiesta rifiutata&#x27; : &#x27;Accesso negato&#x27;, (eraAttesa ? &#x27;Hai rifiutato la richiesta di &#x27; : &#x27;Hai tolto l\&#x27;accesso a &#x27;) + chiTesto + &#x27;. &#x27; +
+        (eraAttesa ? &#x27;&#x27; : &#x27;Alla prossima apertura l\&#x27;archivio sparisce da quel dispositivo. &#x27;) +
         &#x27;Se ci riprova dovrà richiedere un nuovo codice e ti arriverà un altro avviso.&#x27;,
         &#x27;&lt;p style=&quot;font-size:15px&quot;&gt;Vuoi impedirgli anche di riprovare? &lt;a href=&quot;&#x27; + esc(link_(url, &#x27;blocca&#x27;, dati.email)) + &#x27;&quot; target=&quot;_top&quot;&gt;Blocca questa email&lt;/a&gt;&lt;/p&gt;&#x27;);
     }
@@ -397,7 +501,7 @@ function elencoAccessi() {
   const righe = Object.keys(tutte).filter(k =&gt; k.indexOf(&#x27;tok:&#x27;) === 0).map(k =&gt; JSON.parse(tutte[k]))
     .sort((a, b) =&gt; a.email.localeCompare(b.email));
   if (!righe.length) console.log(&#x27;Nessun dispositivo autorizzato.&#x27;);
-  righe.forEach(d =&gt; console.log(d.email + &#x27; · &#x27; + (d.dispositivo || &#x27;dispositivo&#x27;) +
+  righe.forEach(d =&gt; console.log((d.stato === &#x27;attesa&#x27; ? &#x27;[IN ATTESA] &#x27; : d.stato === &#x27;rifiutato&#x27; ? &#x27;[RIFIUTATO] &#x27; : &#x27;&#x27;) + d.email + &#x27; · &#x27; + (d.dispositivo || &#x27;dispositivo&#x27;) +
     &#x27; · autorizzato il &#x27; + d.creato.slice(0, 10) + &#x27; · ultimo accesso &#x27; + String(d.ultimo).slice(0, 10)));
   const b = bloccati_(PropertiesService.getScriptProperties());
   if (b.length) console.log(&#x27;Email bloccate: &#x27; + b.join(&#x27;, &#x27;));
@@ -416,6 +520,23 @@ function revocaAccesso() {
   const b = bloccati_(prop); if (b.indexOf(email) &lt; 0) { b.push(email); prop.setProperty(&#x27;bloccati&#x27;, JSON.stringify(b)); }
   registra_(prop, &#x27;bloccato&#x27;, email, n + &#x27; dispositivi (dallo script)&#x27;);
   console.log(&#x27;Accesso revocato a &#x27; + email + &#x27; (&#x27; + n + &#x27; dispositivi). Non potrà richiedere nuovi codici.&#x27;);
+}
+
+/** Approva le richieste in attesa dell&#x27;email in EMAIL_DA_GESTIRE. */
+function approvaInAttesa() {
+  const email = normalizzaEmail_(EMAIL_DA_GESTIRE);
+  if (!email) { console.log(&#x27;Scrivi l\&#x27;email in EMAIL_DA_GESTIRE, salva e riesegui.&#x27;); return; }
+  const prop = PropertiesService.getScriptProperties();
+  const tutte = prop.getProperties(); let n = 0;
+  Object.keys(tutte).forEach(k =&gt; {
+    if (k.indexOf(&#x27;tok:&#x27;) !== 0) return;
+    const d = JSON.parse(tutte[k]);
+    if (d.email === email &amp;&amp; d.stato === &#x27;attesa&#x27;) {
+      d.stato = &#x27;ok&#x27;; d.approvato = new Date().toISOString(); prop.setProperty(k, JSON.stringify(d));
+      registra_(prop, &#x27;approvato&#x27;, email, d.dispositivo + &#x27; (dallo script)&#x27;); avvisaApprovato_(d); n++;
+    }
+  });
+  console.log(n ? &#x27;Approvate &#x27; + n + &#x27; richieste di &#x27; + email + &#x27;.&#x27; : &#x27;Nessuna richiesta in attesa per &#x27; + email + &#x27;.&#x27;);
 }
 
 /** Annulla il blocco dell&#x27;email in EMAIL_DA_GESTIRE. */
@@ -442,7 +563,9 @@ function prova() {
   console.log(&#x27;OK: i colleghi vedranno &#x27; + documenti.length + &#x27; documenti. Archivio aggiornato al &#x27; + db.aggiornato + &#x27;.&#x27;);
   try { console.log(&#x27;Proprietario della cartella: &#x27; + DriveApp.getFoldersByName(LETTURA.CARTELLA).next().getOwner().getEmail()); } catch (e) {}
   console.log(&#x27;Email di codici ancora inviabili oggi da Gmail: &#x27; + MailApp.getRemainingDailyQuota());
-  console.log(&#x27;Avvisi di accesso: &#x27; + (LETTURA.AVVISA_ACCESSI ? &#x27;attivi, inviati a &#x27; + emailAvvisi_() : &#x27;spenti&#x27;));
+  console.log(&#x27;Approvazione dei nuovi dispositivi: &#x27; + (LETTURA.APPROVAZIONE ? &#x27;attiva&#x27; : &#x27;spenta&#x27;));
+  console.log(&#x27;Avvisi: Telegram &#x27; + (telegramDati_() ? &#x27;collegato&#x27; : &#x27;NON collegato (esegui collegaTelegram)&#x27;) +
+              &#x27; · email &#x27; + (LETTURA.AVVISO_EMAIL ? &#x27;a &#x27; + emailAvvisi_() : &#x27;spenta&#x27;));
   segreto_();
 }
 
