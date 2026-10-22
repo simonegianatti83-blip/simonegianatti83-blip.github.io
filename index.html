@@ -192,7 +192,8 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
 .mailbox .mbody{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.55;background:var(--bg);border:1px solid var(--line-2);border-radius:var(--r-md);padding:12px 14px;margin:4px 0 16px}
 .mailbox .mnote{font-size:13.5px;color:var(--ink-2);margin-top:14px}
 .pdfview{display:flex;flex-direction:column;gap:10px;align-items:center;white-space:normal}
-.pdfview canvas{width:100%;height:auto;background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.pdfview canvas{width:100%;height:auto;background:#fff;border-radius:6px}
+.pdfview .pg{background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.18);overflow:hidden}
 .pdfview .pn{font-size:12.5px;color:var(--ink-3)}
 .att{display:inline-block;font-size:12px;font-weight:650;color:var(--ink-2);background:var(--line-2);border-radius:5px;padding:1px 7px;margin-left:6px;vertical-align:1px}
 
@@ -360,6 +361,8 @@ function idbGet(k){return new Promise(res=>{if(!idb)return res(null);try{const r
   r.onsuccess=()=>res(r.result||null);r.onerror=()=>res(null);}catch(e){res(null);}});}
 function idbDel(k){return new Promise(res=>{if(!idb)return res(false);try{const tx=idb.transaction(STORE,"readwrite");
   tx.objectStore(STORE).delete(k);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);}catch(e){res(false);}});}
+function idbChiavi(){return new Promise(res=>{if(!idb)return res([]);try{const r=idb.transaction(STORE).objectStore(STORE).getAllKeys();
+  r.onsuccess=()=>res(r.result||[]);r.onerror=()=>res([]);}catch(e){res([]);}});}
 function idbSet(k,v){return new Promise(res=>{if(!idb)return res(false);try{const tx=idb.transaction(STORE,"readwrite");
   tx.objectStore(STORE).put(v,k);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);}catch(e){res(false);}});}
 
@@ -611,6 +614,7 @@ function openDoc(i){
   const dl=$("dDel"); if(dl) dl.onclick=()=>eliminaDoc(d);
   const c=$("dCopy"); if(c) c.onclick=()=>{try{navigator.clipboard.writeText((d.titolo||"")+"\n\n"+d.testo).then(()=>toast("Testo copiato"));}catch(e){}};
   showDlg(); body.scrollTop=0;
+  precaricaPdf(d);
   const m=body.querySelector("mark"); if(m) setTimeout(()=>m.scrollIntoView({block:"center"}),60);
 }
 function showHelp(){
@@ -742,7 +746,7 @@ async function importText(txt,quiet){
   pulisciNuovi(); await idbSet("nuovi",nuoviVisti);
   buildIndex(); const ok=await idbSet("docs",docs); await idbSet("meta",meta);
   updateStatus(); render(true);
-  if(lista.length) mostraNovita(lista);
+  if(lista.length){ mostraNovita(lista); setTimeout(()=>precaricaInCoda(lista),4000); }
   else if(!quiet||nuovi||agg)
     toast(nuovi||agg ? `${nuovi===1?"1 documento nuovo":nuovi+" documenti nuovi"}${agg?`, ${agg} completati col testo`:""}${ok?"":". Attenzione: questo browser non li salva"}`
                      : "Archivio già aggiornato");
@@ -844,7 +848,7 @@ async function salvaRevisione(){
   let salvati=0, pdfOk=true;
   for(const it of scelti){
     const id="dispositivo|"+Date.now().toString(36)+Math.random().toString(36).slice(2,7)+"|"+it.file;
-    const ok=await idbSet("pdf:"+id,it.buf); if(!ok) pdfOk=false;
+    const ok=await idbSet("pdf:"+id,it.buf); if(!ok) pdfOk=false; else pdfSalvati.add("pdf:"+id);
     docs.push({id,tipo:it.tipo,numero:it.numero,data:it.data,titolo:it.titolo||it.file,file:it.file,testo:it.testo,
       pagine:it.pagine,testoCompleto:it.testo?true:null,origine:"dispositivo",pdfKey:ok?id:"",
       oggettoEmail:"",dataEmail:"",gmail:"",pdf:"",allegatoDi:""});
@@ -927,19 +931,51 @@ async function scaricaPdf(d,btn){
   }catch(e){ toast(e&&e.message&&!/^[A-Z][a-z]+Error$/.test(e.name||"")?e.message:"Non riesco a scaricare il PDF"); }
   finally{ if(btn){btn.textContent=testo;btn.disabled=false;} }
 }
+/* PDF: copia sul dispositivo se c'è, altrimenti da Google (una sola richiesta per PDF, con un nuovo tentativo) */
+const pdfSalvati=new Set(), pdfInArrivo=new Map();
+function pdfSulDispositivo(d){ const f=idDaUrl(d.pdf); return !!((d.pdfKey&&pdfSalvati.has("pdf:"+d.pdfKey))||(f&&pdfSalvati.has("pdfc:"+f))); }
 async function ottieniPdf(d){
   if(d.pdfKey){ const b=await idbGet("pdf:"+d.pdfKey); if(b) return b; }
   const fid=idDaUrl(d.pdf);
-  if(fid){ const c=await idbGet("pdfc:"+fid); if(c) return c; }
+  if(fid){ const c=await idbGet("pdfc:"+fid); if(c){ pdfSalvati.add("pdfc:"+fid); return c; } }
   if(!fid) throw new Error("Il PDF non è disponibile su questo dispositivo.");
   if(!linkGoogle) throw new Error("Collega l’app a Google per aprire qui i PDF.");
   if(!navigator.onLine) throw new Error("Serve internet la prima volta che apri questo PDF: dopo resta disponibile anche offline.");
-  const r=await conTimeout(fetch(urlScript({pdf:fid}),{cache:"no-store"}),90000);
+  if(pdfInArrivo.has(fid)) return pdfInArrivo.get(fid);     // già in scaricamento (es. anteprima avviata in anticipo)
+  const pr=(async()=>{
+    let ultimo;
+    for(let tentativo=0;tentativo<2;tentativo++){
+      try{ return await scaricaPdfDaGoogle(fid); }
+      catch(e){ ultimo=e; if(e.definitivo) throw e; await new Promise(r=>setTimeout(r,1500)); }
+    }
+    throw ultimo;
+  })();
+  pdfInArrivo.set(fid,pr);
+  try{ return await pr; } finally{ pdfInArrivo.delete(fid); }
+}
+async function scaricaPdfDaGoogle(fid){
   const SCRIPT_VECCHIO="Il link punta ancora alla versione precedente dello script. In Apps Script: Esegui il deployment → Gestisci deployment → matita → Versione: Nuova versione → Esegui il deployment.";
-  let j; try{ j=JSON.parse(await r.text()); }catch(e){ throw new Error(SCRIPT_VECCHIO); }
-  if(j.ok===undefined&&Array.isArray(j.documenti)) throw new Error(SCRIPT_VECCHIO);
-  if(!j.ok) throw new Error("Google non ha inviato il PDF: "+(j.errore||"errore sconosciuto")+".");
-  const buf=b64ToAb(j.base64); await idbSet("pdfc:"+fid,buf); return buf;
+  let r;
+  try{ r=await conTimeout(fetch(urlScript({pdf:fid}),{cache:"no-store"}),120000); }
+  catch(e){ throw new Error(e.message==="timeout"?"Google ci mette troppo a inviare il PDF: riprova tra poco.":"Connessione interrotta mentre scaricavo il PDF: riprova."); }
+  let j; const txt=await r.text();
+  try{ j=JSON.parse(txt); }catch(e){ const x=new Error(/^\s*</.test(txt)&&r.ok?SCRIPT_VECCHIO:"Google non ha risposto correttamente: riprova."); x.definitivo=/^\s*</.test(txt)&&r.ok; throw x; }
+  if(j.ok===undefined&&Array.isArray(j.documenti)){ const x=new Error(SCRIPT_VECCHIO); x.definitivo=true; throw x; }
+  if(!j.ok){ const x=new Error("Google non ha inviato il PDF: "+(j.errore||"errore sconosciuto")+"."); x.definitivo=/non trovato|non fa parte|non disponibile|autorizz/i.test(j.errore||""); throw x; }
+  const buf=b64ToAb(j.base64); if(await idbSet("pdfc:"+fid,buf)) pdfSalvati.add("pdfc:"+fid); return buf;
+}
+/* Scarica in anticipo il PDF (senza mostrarlo): quando lo apri è già pronto */
+function precaricaPdf(d){
+  if(!d||!d.pdf||pdfSulDispositivo(d)||!linkGoogle||!navigator.onLine) return;
+  const c=navigator.connection; if(c&&(c.saveData||/2g/.test(c.effectiveType||""))) return;
+  ottieniPdf(d).catch(()=>{});
+}
+let codaPdf=[], codaAttiva=false;
+async function precaricaInCoda(lista){
+  codaPdf.push(...lista.filter(d=>d.pdf).slice(0,25));
+  if(codaAttiva) return; codaAttiva=true;
+  try{ while(codaPdf.length&&navigator.onLine){ const d=codaPdf.shift(); if(!pdfSulDispositivo(d)) await ottieniPdf(d).catch(()=>{}); } }
+  finally{ codaAttiva=false; }
 }
 function linkGmail(d){
   const m=String(d.gmail||"").match(/#all\/([0-9a-f]+)$/i);
@@ -996,28 +1032,66 @@ async function eliminaDoc(d){
 }
 async function mostraPdf(d,i){
   const b=$("dBody"); b.classList.add("help");
-  b.innerHTML=`<div class="pdfview"><p class="pn">Apro il PDF…</p></div>`;
+  b.innerHTML=`<div class="pdfview"><p class="pn">${pdfSulDispositivo(d)?"Apro il PDF…":"Scarico il PDF da Google… la prima volta può volerci qualche secondo, poi resta sul dispositivo."}</p></div>`;
   $("dActions").innerHTML=`<button id="dBack">Torna al testo</button><button id="dPdfDl2">Scarica il PDF</button>`; $("dBack").onclick=()=>openDoc(docs.indexOf(d));
   $("dPdfDl2").onclick=()=>scaricaPdf(d,$("dPdfDl2"));
   try{
     let buf;
     try{ buf=await ottieniPdf(d); }
-    catch(e){ b.innerHTML=`<p class="none">${esc(e.message)}</p>`+(d.pdf&&navigator.onLine?`<p><a href="${esc(d.pdf)}" target="_blank" rel="noopener">Apri in Google Drive</a></p>`:""); return; }
+    catch(e){ b.innerHTML=`<p class="none">${esc(e.message)}</p>`+(navigator.onLine?`<p><button class="ghostbtn" id="pdfRiprova">Riprova</button></p>`:"")+(d.pdf&&navigator.onLine?`<p><a href="${esc(d.pdf)}" target="_blank" rel="noopener">Apri in Google Drive</a></p>`:"");
+      const rp=$("pdfRiprova"); if(rp) rp.onclick=()=>mostraPdf(d,i); return; }
+    const pn0=b.querySelector(".pdfview .pn"); if(pn0) pn0.textContent="Preparo le pagine…";
     const lib=await caricaPdfjs();
     const task=lib.getDocument({data:new Uint8Array(buf.slice(0)),isEvalSupported:false});
     const pdf=await task.promise;
-    const box=b.querySelector(".pdfview"); box.innerHTML="";
-    const w=Math.max(320,b.clientWidth-40), dpr=Math.min(window.devicePixelRatio||1,2);
+    const box=b.querySelector(".pdfview"); if(!box) { try{ await task.destroy(); }catch(e){} return; }
+    box.innerHTML="";
+    // Le pagine si disegnano solo quando arrivano sullo schermo e si liberano quando ci si allontana:
+    // così anche i PDF lunghi si aprono subito e non esauriscono la memoria del telefono.
+    const w=Math.max(300,b.clientWidth-40);
+    const mobile=IOS||/Android/i.test(navigator.userAgent);
+    const dpr=Math.min(window.devicePixelRatio||1,mobile?1.5:2), MAXPX=mobile?3.2e6:6e6;
+    const p1=await pdf.getPage(1), v1=p1.getViewport({scale:1});
+    const pagine=[];
     for(let p=1;p<=pdf.numPages;p++){
-      if(!$("dlg").open||!b.contains(box)) break;
-      const page=await pdf.getPage(p), v0=page.getViewport({scale:1}), vp=page.getViewport({scale:(w/v0.width)*dpr});
-      const c=document.createElement("canvas"); c.width=Math.floor(vp.width); c.height=Math.floor(vp.height);
+      const wrap=document.createElement("div"); wrap.className="pg"; wrap.style.cssText=`width:100%;aspect-ratio:${v1.width}/${v1.height};position:relative`;
       const lab=document.createElement("div"); lab.className="pn"; lab.textContent="Pagina "+p+" di "+pdf.numPages;
-      box.append(c,lab);
-      await page.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
+      box.append(wrap,lab); pagine.push({p,wrap,c:null,stato:0});
     }
-    try{ await task.destroy(); }catch(e){}
-  }catch(e){ console.warn("PDF non aperto:",e); b.innerHTML=`<p class="none">Non riesco ad aprire il PDF su questo dispositivo.</p>`; }
+    const visibili=new Set();
+    let inCorso=0; const coda=[];
+    const disegna=async(pg)=>{
+      if(pg.stato) return; pg.stato=1; inCorso++;
+      try{
+        const page=pg.p===1?p1:await pdf.getPage(pg.p), v0=page.getViewport({scale:1});
+        pg.wrap.style.aspectRatio=v0.width+"/"+v0.height;
+        let sc=(w/v0.width)*dpr; if(v0.width*v0.height*sc*sc>MAXPX) sc=Math.sqrt(MAXPX/(v0.width*v0.height));
+        const vp=page.getViewport({scale:sc});
+        const c=document.createElement("canvas"); c.width=Math.floor(vp.width); c.height=Math.floor(vp.height);
+        c.style.cssText="width:100%;height:100%;display:block";
+        await page.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
+        if(pg.stato!==1){ c.width=c.height=0; return; }        // nel frattempo è uscita dallo schermo
+        pg.wrap.replaceChildren(c); pg.c=c; pg.stato=2;
+        if(pg.p!==1) page.cleanup();
+      }catch(e){ pg.stato=0; if(!$("dlg").open) return; console.warn("pagina",pg.p,e); }
+      finally{ inCorso--; prossima(); }
+    };
+    const libera=(pg)=>{ if(pg.c){ pg.c.width=pg.c.height=0; pg.c.remove(); pg.c=null; } pg.stato=0; };
+    const prossima=()=>{ while(inCorso<2&&coda.length){ const pg=coda.shift(); if(visibili.has(pg.p)) disegna(pg); } };
+    const obs=new IntersectionObserver(ent=>{
+      for(const e of ent){
+        const pg=pagine[+e.target.dataset.i];
+        if(e.isIntersecting){ visibili.add(pg.p); if(!pg.stato) coda.push(pg); }
+        else{ visibili.delete(pg.p); libera(pg); }
+      }
+      coda.sort((a,x)=>a.p-x.p); prossima();
+    },{root:b,rootMargin:"150% 0px"});
+    pagine.forEach((pg,i)=>{ pg.wrap.dataset.i=i; obs.observe(pg.wrap); });
+    // pulizia quando si chiude o si torna al testo
+    const fine=()=>{ obs.disconnect(); pagine.forEach(libera); try{ task.destroy(); }catch(e){} };
+    const guardia=setInterval(()=>{ if(!$("dlg").open||!b.contains(box)){ clearInterval(guardia); fine(); } },700);
+  }catch(e){ console.warn("PDF non aperto:",e); b.innerHTML=`<p class="none">Non riesco ad aprire il PDF su questo dispositivo.</p>`+
+      `<p><button class="ghostbtn" id="pdfRiprova">Riprova</button></p>`; const rp=$("pdfRiprova"); if(rp) rp.onclick=()=>mostraPdf(d,i); }
 }
 
 /* ===== collegamento allo script Google ===== */
@@ -1295,6 +1369,7 @@ try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(
   docs=(await idbGet("docs"))||[]; meta=(await idbGet("meta"))||{aggiornato:null};
   linkGoogle=await idbGet("link"); tokenAccesso=await idbGet("token");
   nuoviVisti=(await idbGet("nuovi"))||{};
+  (await idbChiavi()).forEach(k=>{ if(/^pdfc?:/.test(k)) pdfSalvati.add(k); });
   buildIndex(); updateStatus(); render(true);
   let ultimaSync=0;
   const sincronizza=async()=>{ if(!linkGoogle) return; ultimaSync=Date.now(); await scaricaDaGoogle(true); await inviaInSospeso(true); };
