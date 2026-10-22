@@ -57,6 +57,7 @@ small{color:var(--ink-2)}
 <li><b>revocaAccesso</b> – scrivi l’email in <code>EMAIL_DA_GESTIRE</code> (in alto nel codice), salva ed esegui: perde l’accesso su tutti i dispositivi, il suo archivio sparisce alla prima connessione e non può chiedere altri codici.</li>
 <li><b>riabilitaAccesso</b> – annulla il blocco di quell’email.</li>
 <li><b>revocaTutti</b> – tutti dovranno rifare il codice.</li>
+<li><b>provaRichiesta</b> – simula la richiesta di un collega inventato (mario.prova@vigilfuoco.it): ti arriva il messaggio vero sul bot e puoi provare i pulsanti. Nessun codice inviato, nessun accesso reale.</li>
 <li><b>approvaInAttesa</b> – approva le richieste in attesa dell’email scritta in <code>EMAIL_DA_GESTIRE</code> (se non hai Telegram a portata di mano).</li>
 <li><b>storicoAccessi</b> – gli ultimi 300 eventi: accessi, accessi negati, blocchi e riabilitazioni, con data e ora.</li>
 </ul>
@@ -101,6 +102,7 @@ small{color:var(--ink-2)}
  *  - revocaTutti        toglie l&#x27;accesso a tutti (dovranno rifare il codice)
  *  - storicoAccessi     gli ultimi 300 eventi (richieste, approvati, rifiutati, blocchi)
  *  - approvaInAttesa    approva le richieste in attesa dell&#x27;email in EMAIL_DA_GESTIRE
+ *  - provaRichiesta     simula la richiesta di un collega inventato (per provare i pulsanti)
  */
 
 const LETTURA = {
@@ -442,6 +444,13 @@ function paginaGestione_(p) {
       if (!dati || dati.stato === &#x27;rifiutato&#x27;) return pagina(&#x27;Richiesta non più valida&#x27;, &#x27;Questo dispositivo non è più autorizzato.&#x27;);
       if (azione === &#x27;approva&#x27; &amp;&amp; dati.stato !== &#x27;attesa&#x27;) return pagina(&#x27;Già approvato&#x27;, chiTesto + &#x27; è già autorizzato.&#x27;);
     }
+    if (dati.prova &amp;&amp; (azione === &#x27;approva&#x27; || azione === &#x27;nega&#x27;)) {   // richiesta simulata: niente accessi veri
+      prop.deleteProperty(chiaveTok);
+      registra_(prop, azione === &#x27;approva&#x27; ? &#x27;approvato (prova)&#x27; : &#x27;rifiutato (prova)&#x27;, dati.email, dati.dispositivo);
+      return pagina(azione === &#x27;approva&#x27; ? &#x27;Accesso approvato&#x27; : &#x27;Richiesta rifiutata&#x27;,
+        &#x27;Funziona. Era una &lt;b&gt;richiesta di prova&lt;/b&gt;: nessun dispositivo ha ottenuto l\&#x27;accesso e nessuna email è stata inviata. &#x27; +
+        &#x27;Con un collega vero, &#x27; + (azione === &#x27;approva&#x27; ? &#x27;da questo momento potrebbe consultare l\&#x27;archivio.&#x27; : &#x27;il suo dispositivo verrebbe respinto.&#x27;));
+    }
     if (azione === &#x27;approva&#x27;) {
       dati.stato = &#x27;ok&#x27;; dati.approvato = new Date().toISOString();
       prop.setProperty(chiaveTok, JSON.stringify(dati));
@@ -520,6 +529,21 @@ function revocaAccesso() {
   const b = bloccati_(prop); if (b.indexOf(email) &lt; 0) { b.push(email); prop.setProperty(&#x27;bloccati&#x27;, JSON.stringify(b)); }
   registra_(prop, &#x27;bloccato&#x27;, email, n + &#x27; dispositivi (dallo script)&#x27;);
   console.log(&#x27;Accesso revocato a &#x27; + email + &#x27; (&#x27; + n + &#x27; dispositivi). Non potrà richiedere nuovi codici.&#x27;);
+}
+
+/** PROVA: simula la richiesta di accesso di un collega inventato. Ti arriva il messaggio con i
+ *  pulsanti veri; nessun codice viene inviato e nessun dispositivo ottiene davvero l&#x27;accesso. */
+function provaRichiesta() {
+  const prop = PropertiesService.getScriptProperties();
+  const chiave = hash_(&#x27;prova-&#x27; + Utilities.getUuid());
+  const dati = { email: &#x27;mario.prova@vigilfuoco.it&#x27;, dispositivo: &#x27;iPhone · Safari (PROVA)&#x27;,
+    creato: new Date().toISOString(), ultimo: new Date().toISOString(), stato: &#x27;attesa&#x27;, prova: true };
+  prop.setProperty(&#x27;tok:&#x27; + chiave, JSON.stringify(dati));
+  registra_(prop, &#x27;richiesta&#x27;, dati.email, dati.dispositivo);
+  if (!urlApp_()) console.log(&#x27;ATTENZIONE: lo script non conosce ancora il suo link /exec, quindi i pulsanti non compaiono. &#x27; +
+    &#x27;Fai prima il deployment (Nuova versione) e apri una volta il link colleghi nel browser, poi riprova.&#x27;);
+  avvisaAccesso_(chiave, dati);
+  console.log(&#x27;Richiesta di prova inviata: guarda il bot Telegram (e la posta) e prova i pulsanti.&#x27;);
 }
 
 /** Approva le richieste in attesa dell&#x27;email in EMAIL_DA_GESTIRE. */
