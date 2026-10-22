@@ -41,6 +41,13 @@ small{color:var(--ink-2)}
 <li>Installa l’app da <b>simonegianatti83-blip.github.io</b> e tocca <b>Collega a Google</b> → incolla il link colleghi.</li>
 <li>Scrive la sua email <b>@vigilfuoco.it</b>, riceve un codice di 6 cifre (vale 15 minuti) e lo inserisce. Fatto: quel dispositivo resta autorizzato.</li>
 </ol>
+<h2 style="font-size:18px;margin:22px 0 6px">Avviso a ogni accesso</h2>
+<p>Ogni volta che un collega autorizza un dispositivo ti arriva un’email <b>“Nuovo accesso all’Archivio ODG”</b> con chi è, da quale dispositivo e quando. Contiene due pulsanti:</p>
+<ul>
+<li><b>Nega l’accesso a questo dispositivo</b> – quel dispositivo perde l’archivio alla prossima apertura. Se riprova deve rifare il codice (e ti arriva un altro avviso).</li>
+<li><b>Blocca questa email</b> – perde l’accesso su tutti i dispositivi e non può più chiedere codici. Dalla pagina di conferma puoi anche riabilitarla.</li>
+</ul>
+<p>I pulsanti chiedono sempre una conferma e funzionano solo dall’email che ricevi tu. Se va tutto bene non devi fare niente. Per spegnere gli avvisi metti <code>AVVISA_ACCESSI: false</code> nello script.</p>
 <h2 style="font-size:18px;margin:22px 0 6px">Gestire gli accessi</h2>
 <p>Nel progetto “ODG lettura colleghi” scegli la funzione e premi <b>Esegui</b>, poi leggi il registro:</p>
 <ul>
@@ -48,11 +55,12 @@ small{color:var(--ink-2)}
 <li><b>revocaAccesso</b> – scrivi l’email in <code>EMAIL_DA_GESTIRE</code> (in alto nel codice), salva ed esegui: perde l’accesso su tutti i dispositivi, il suo archivio sparisce alla prima connessione e non può chiedere altri codici.</li>
 <li><b>riabilitaAccesso</b> – annulla il blocco di quell’email.</li>
 <li><b>revocaTutti</b> – tutti dovranno rifare il codice.</li>
+<li><b>storicoAccessi</b> – gli ultimi 300 eventi: accessi, accessi negati, blocchi e riabilitazioni, con data e ora.</li>
 </ul>
 <p style="font-size:14px">Le email con i codici partono dal tuo Gmail con il nome “Archivio ODG” (il destinatario vede il tuo indirizzo). Gmail permette circa 100 email al giorno; lo script ne usa al massimo 60 per i codici.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Accesso in SOLA LETTURA per i colleghi (v2: accesso con codice)
+ * ODG ARCHIVIO – Accesso in SOLA LETTURA per i colleghi (v3: codice + avviso email a te per ogni accesso)
  * ------------------------------------------------------------
  * Progetto separato da ODG_estrattore. Il suo link (/exec) si può dare ai
  * colleghi. Per entrare ognuno conferma la propria email @vigilfuoco.it con un
@@ -71,12 +79,18 @@ small{color:var(--ink-2)}
  *  3. Esegui il deployment → Gestisci deployment → matita → Nuova versione
  *     (prima volta: Nuovo deployment → App web · Esegui come: Me · Chiunque).
  *
+ * AVVISO DI ACCESSO: ogni volta che un collega autorizza un dispositivo ti arriva
+ * un&#x27;email (chi, quale dispositivo, quando) con due pulsanti: &quot;Nega l&#x27;accesso a
+ * questo dispositivo&quot; e &quot;Blocca questa email&quot;. I pulsanti chiedono una conferma
+ * e funzionano solo dall&#x27;email che ricevi tu (link firmati).
+ *
  * GESTIRE GLI ACCESSI (dall&#x27;editor, scegli la funzione → Esegui):
  *  - elencoAccessi      chi è autorizzato, da quale dispositivo, ultimo accesso
  *  - revocaAccesso      toglie l&#x27;accesso all&#x27;email scritta in EMAIL_DA_GESTIRE
  *                       e le impedisce di richiedere nuovi codici
  *  - riabilitaAccesso   annulla il blocco dell&#x27;email in EMAIL_DA_GESTIRE
  *  - revocaTutti        toglie l&#x27;accesso a tutti (dovranno rifare il codice)
+ *  - storicoAccessi     gli ultimi 300 eventi (accessi, negati, blocchi)
  */
 
 const LETTURA = {
@@ -87,7 +101,9 @@ const LETTURA = {
   CODICE_MINUTI: 15,             // validità del codice
   CODICE_TENTATIVI: 5,           // tentativi per codice
   CODICI_ORA_PER_EMAIL: 3,       // limite richieste di codice per email ogni ora
-  CODICI_GIORNO: 60              // limite totale di email al giorno (Gmail ne consente 100)
+  CODICI_GIORNO: 60,             // limite totale di email al giorno (Gmail ne consente 100)
+  AVVISA_ACCESSI: true,          // email a te a ogni nuovo dispositivo autorizzato
+  EMAIL_AVVISI: &#x27;&#x27;               // vuoto = il proprietario della cartella ODG Archivio (tu)
 };
 
 // Email su cui agire con revocaAccesso / riabilitaAccesso
@@ -97,6 +113,7 @@ const EMAIL_DA_GESTIRE = &#x27;&#x27;;
 
 function doGet(e) {
   const p = (e &amp;&amp; e.parameter) || {};
+  if (p.gestione) return paginaGestione_(p);
   try {
     const accesso = verificaToken_(p.t);
     if (!accesso) return risposta_({ ok: false, autorizzazione: true, errore: &#x27;Accesso non autorizzato&#x27; });
@@ -108,7 +125,7 @@ function doGet(e) {
       aggiornato: db.aggiornato || null,
       solaLettura: true,
       utente: accesso.email,
-      versioneScript: &#x27;lettura-2&#x27;,
+      versioneScript: &#x27;lettura-3&#x27;,
       eliminati: db.eliminati || [],
       documenti: documenti.map(pulito_)
     });
@@ -192,10 +209,12 @@ function verificaCodice_(emailGrezza, codice, dispositivo) {
     }
     prop.deleteProperty(&#x27;otp:&#x27; + email);
     const token = Utilities.getUuid().replace(/-/g, &#x27;&#x27;) + Utilities.getUuid().replace(/-/g, &#x27;&#x27;);
-    prop.setProperty(&#x27;tok:&#x27; + hash_(token), JSON.stringify({
-      email: email, dispositivo: String(dispositivo || &#x27;&#x27;).slice(0, 60),
-      creato: new Date().toISOString(), ultimo: new Date().toISOString()
-    }));
+    const chiave = hash_(token);
+    const dati = { email: email, dispositivo: String(dispositivo || &#x27;&#x27;).slice(0, 60),
+      creato: new Date().toISOString(), ultimo: new Date().toISOString() };
+    prop.setProperty(&#x27;tok:&#x27; + chiave, JSON.stringify(dati));
+    registra_(prop, &#x27;accesso&#x27;, email, dati.dispositivo);
+    try { avvisaAccesso_(chiave, dati); } catch (err) { console.warn(&#x27;Avviso di accesso non inviato: &#x27; + err); }
     return { ok: true, token: token, email: email };
   } finally { lock.releaseLock(); }
 }
@@ -229,7 +248,148 @@ function hash_(s) {
     .map(b =&gt; (&#x27;0&#x27; + (b &amp; 255).toString(16)).slice(-2)).join(&#x27;&#x27;);
 }
 
+// ================================================= avviso e gestione via email
+
+/** Email a te: chi è entrato, con i link firmati per negare l&#x27;accesso. */
+function avvisaAccesso_(chiave, d) {
+  if (!LETTURA.AVVISA_ACCESSI) return;
+  const prop = PropertiesService.getScriptProperties();
+  const a = emailAvvisi_();
+  if (!a) return;
+  const url = urlApp_();
+  const tutte = prop.getProperties();
+  const suoi = Object.keys(tutte).filter(k =&gt; k.indexOf(&#x27;tok:&#x27;) === 0 &amp;&amp; JSON.parse(tutte[k]).email === d.email).length;
+  const totale = Object.keys(tutte).filter(k =&gt; k.indexOf(&#x27;tok:&#x27;) === 0).length;
+  const quando = Utilities.formatDate(new Date(d.creato), &#x27;Europe/Rome&#x27;, &quot;dd/MM/yyyy &#x27;alle&#x27; HH:mm&quot;);
+  const id = chiave.slice(0, 16);
+  const nega = url ? link_(url, &#x27;nega&#x27;, id) : &#x27;&#x27;, blocca = url ? link_(url, &#x27;blocca&#x27;, d.email) : &#x27;&#x27;;
+  const esc = x =&gt; String(x).replace(/&amp;/g, &#x27;&amp;amp;&#x27;).replace(/&lt;/g, &#x27;&amp;lt;&#x27;).replace(/&gt;/g, &#x27;&amp;gt;&#x27;).replace(/&quot;/g, &#x27;&amp;quot;&#x27;);
+  const btn = (href, testo, colore) =&gt; &#x27;&lt;a href=&quot;&#x27; + esc(href) + &#x27;&quot; style=&quot;display:inline-block;background:&#x27; + colore +
+    &#x27;;color:#fff;text-decoration:none;font-weight:600;padding:10px 16px;border-radius:8px;margin:4px 8px 4px 0&quot;&gt;&#x27; + testo + &#x27;&lt;/a&gt;&#x27;;
+  MailApp.sendEmail({
+    to: a, name: &#x27;Archivio ODG&#x27;,
+    subject: &#x27;Nuovo accesso all\&#x27;Archivio ODG: &#x27; + d.email,
+    body: &#x27;Nuovo accesso all\&#x27;Archivio ODG\n\nChi: &#x27; + d.email + &#x27;\nDispositivo: &#x27; + (d.dispositivo || &#x27;non indicato&#x27;) +
+      &#x27;\nQuando: &#x27; + quando + &#x27;\nDispositivi autorizzati per questa email: &#x27; + suoi + &#x27; (in totale: &#x27; + totale + &#x27;)\n\n&#x27; +
+      (nega ? &#x27;Nega l\&#x27;accesso a questo dispositivo:\n&#x27; + nega + &#x27;\n\nBlocca questa email (tutti i suoi dispositivi):\n&#x27; + blocca + &#x27;\n&#x27; : &#x27;&#x27;),
+    htmlBody: &#x27;&lt;div style=&quot;font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#16212F;max-width:520px&quot;&gt;&#x27; +
+      &#x27;&lt;div style=&quot;height:5px;background:#C1121F;border-radius:3px&quot;&gt;&lt;/div&gt;&#x27; +
+      &#x27;&lt;h2 style=&quot;font-size:19px;margin:16px 0 12px&quot;&gt;Nuovo accesso all\&#x27;Archivio ODG&lt;/h2&gt;&#x27; +
+      &#x27;&lt;table style=&quot;border-collapse:collapse;font-size:15px&quot;&gt;&#x27; +
+      &#x27;&lt;tr&gt;&lt;td style=&quot;color:#7A8697;padding:3px 14px 3px 0&quot;&gt;Chi&lt;/td&gt;&lt;td&gt;&lt;b&gt;&#x27; + esc(d.email) + &#x27;&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&#x27; +
+      &#x27;&lt;tr&gt;&lt;td style=&quot;color:#7A8697;padding:3px 14px 3px 0&quot;&gt;Dispositivo&lt;/td&gt;&lt;td&gt;&#x27; + esc(d.dispositivo || &#x27;non indicato&#x27;) + &#x27;&lt;/td&gt;&lt;/tr&gt;&#x27; +
+      &#x27;&lt;tr&gt;&lt;td style=&quot;color:#7A8697;padding:3px 14px 3px 0&quot;&gt;Quando&lt;/td&gt;&lt;td&gt;&#x27; + esc(quando) + &#x27;&lt;/td&gt;&lt;/tr&gt;&#x27; +
+      &#x27;&lt;tr&gt;&lt;td style=&quot;color:#7A8697;padding:3px 14px 3px 0&quot;&gt;Dispositivi&lt;/td&gt;&lt;td&gt;&#x27; + suoi + &#x27; per questa email · &#x27; + totale + &#x27; in totale&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&#x27; +
+      &#x27;&lt;p style=&quot;margin:16px 0 6px&quot;&gt;Se non conosci questa persona o non vuoi che acceda:&lt;/p&gt;&#x27; +
+      (nega ? btn(nega, &#x27;Nega l\&#x27;accesso a questo dispositivo&#x27;, &#x27;#C1121F&#x27;) + btn(blocca, &#x27;Blocca questa email&#x27;, &#x27;#16212F&#x27;) :
+              &#x27;&lt;p&gt;&lt;i&gt;Per negare l\&#x27;accesso esegui revocaAccesso nello script.&lt;/i&gt;&lt;/p&gt;&#x27;) +
+      &#x27;&lt;p style=&quot;font-size:13px;color:#7A8697;margin-top:14px&quot;&gt;Ti verrà chiesta una conferma. Se va tutto bene non devi fare niente.&lt;/p&gt;&lt;/div&gt;&#x27;
+  });
+}
+
+function emailAvvisi_() {
+  if (LETTURA.EMAIL_AVVISI) return LETTURA.EMAIL_AVVISI;
+  try { return DriveApp.getFoldersByName(LETTURA.CARTELLA).next().getOwner().getEmail(); } catch (e) { return &#x27;&#x27;; }
+}
+
+/** Indirizzo /exec di questo script (lo ricorda dalla prima richiesta dei colleghi). */
+function urlApp_() {
+  const prop = PropertiesService.getScriptProperties();
+  let u = &#x27;&#x27;;
+  try { u = ScriptApp.getService().getUrl() || &#x27;&#x27;; } catch (e) {}
+  if (/\/exec$/.test(u)) { if (prop.getProperty(&#x27;url&#x27;) !== u) prop.setProperty(&#x27;url&#x27;, u); return u; }
+  return prop.getProperty(&#x27;url&#x27;) || &#x27;&#x27;;
+}
+
+function segreto_() {
+  const prop = PropertiesService.getScriptProperties();
+  let s = prop.getProperty(&#x27;segreto&#x27;);
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); prop.setProperty(&#x27;segreto&#x27;, s); }
+  return s;
+}
+function firma_(azione, chi) {
+  return Utilities.computeHmacSha256Signature(azione + &#x27;|&#x27; + chi, segreto_())
+    .map(b =&gt; (&#x27;0&#x27; + (b &amp; 255).toString(16)).slice(-2)).join(&#x27;&#x27;).slice(0, 32);
+}
+function link_(url, azione, chi) {
+  return url + &#x27;?gestione=&#x27; + azione + &#x27;&amp;chi=&#x27; + encodeURIComponent(chi) + &#x27;&amp;f=&#x27; + firma_(azione, chi);
+}
+
+/** Pagina aperta dai pulsanti dell&#x27;email: prima chiede conferma, poi esegue. */
+function paginaGestione_(p) {
+  const azione = String(p.gestione), chi = String(p.chi || &#x27;&#x27;);
+  const pagina = (titolo, testo, extra) =&gt; HtmlService.createHtmlOutput(
+    &#x27;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;&#x27; +
+    &#x27;&lt;div style=&quot;font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:40px auto;padding:0 18px;color:#16212F&quot;&gt;&#x27; +
+    &#x27;&lt;div style=&quot;height:5px;background:#C1121F;border-radius:3px&quot;&gt;&lt;/div&gt;&lt;h2 style=&quot;font-size:21px&quot;&gt;&#x27; + titolo + &#x27;&lt;/h2&gt;&#x27; +
+    &#x27;&lt;p style=&quot;font-size:16px;line-height:1.5&quot;&gt;&#x27; + testo + &#x27;&lt;/p&gt;&#x27; + (extra || &#x27;&#x27;) + &#x27;&lt;/div&gt;&#x27;).setTitle(&#x27;Archivio ODG – accessi&#x27;);
+  const esc = x =&gt; String(x).replace(/&amp;/g, &#x27;&amp;amp;&#x27;).replace(/&lt;/g, &#x27;&amp;lt;&#x27;).replace(/&gt;/g, &#x27;&amp;gt;&#x27;).replace(/&quot;/g, &#x27;&amp;quot;&#x27;);
+  if ([&#x27;nega&#x27;, &#x27;blocca&#x27;, &#x27;riabilita&#x27;].indexOf(azione) &lt; 0 || !chi || p.f !== firma_(azione, chi))
+    return pagina(&#x27;Link non valido&#x27;, &#x27;Questo link non è valido o è stato modificato.&#x27;);
+  const prop = PropertiesService.getScriptProperties();
+  const url = urlApp_();
+  const tutte = prop.getProperties();
+  let dati = null, chiaveTok = &#x27;&#x27;;
+  if (azione === &#x27;nega&#x27;) {
+    chiaveTok = Object.keys(tutte).find(k =&gt; k.indexOf(&#x27;tok:&#x27; + chi) === 0) || &#x27;&#x27;;
+    if (chiaveTok) dati = JSON.parse(tutte[chiaveTok]);
+  }
+  const chiTesto = azione === &#x27;nega&#x27; ? (dati ? &#x27;&lt;b&gt;&#x27; + esc(dati.email) + &#x27;&lt;/b&gt; (&#x27; + esc(dati.dispositivo || &#x27;dispositivo&#x27;) + &#x27;)&#x27; : &#x27;&#x27;) : &#x27;&lt;b&gt;&#x27; + esc(chi) + &#x27;&lt;/b&gt;&#x27;;
+
+  if (azione === &#x27;nega&#x27; &amp;&amp; !dati)
+    return pagina(&#x27;Accesso già tolto&#x27;, &#x27;Questo dispositivo non è più autorizzato.&#x27;);
+  if (p.ok !== &#x27;1&#x27;) {
+    const conferma = url + &#x27;?gestione=&#x27; + azione + &#x27;&amp;chi=&#x27; + encodeURIComponent(chi) + &#x27;&amp;f=&#x27; + p.f + &#x27;&amp;ok=1&#x27;;
+    const domanda = azione === &#x27;nega&#x27; ? &#x27;Vuoi togliere l\&#x27;accesso a &#x27; + chiTesto + &#x27;?&#x27; :
+                    azione === &#x27;blocca&#x27; ? &#x27;Vuoi bloccare &#x27; + chiTesto + &#x27;? Perde l\&#x27;accesso su tutti i dispositivi e non potrà più richiedere il codice.&#x27; :
+                    &#x27;Vuoi riabilitare &#x27; + chiTesto + &#x27;? Potrà richiedere di nuovo il codice di accesso.&#x27;;
+    return pagina(&#x27;Conferma&#x27;, domanda, &#x27;&lt;a href=&quot;&#x27; + esc(conferma) + &#x27;&quot; target=&quot;_top&quot; style=&quot;display:inline-block;background:&#x27; +
+      (azione === &#x27;riabilita&#x27; ? &#x27;#2E7A4E&#x27; : &#x27;#C1121F&#x27;) + &#x27;;color:#fff;text-decoration:none;font-weight:600;padding:12px 18px;border-radius:8px&quot;&gt;Sì, conferma&lt;/a&gt;&#x27;);
+  }
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    if (azione === &#x27;nega&#x27;) {
+      prop.deleteProperty(chiaveTok);
+      registra_(prop, &#x27;negato&#x27;, dati.email, dati.dispositivo);
+      return pagina(&#x27;Accesso negato&#x27;, &#x27;Hai tolto l\&#x27;accesso a &#x27; + chiTesto + &#x27;. Alla prossima apertura l\&#x27;archivio sparisce da quel dispositivo. &#x27; +
+        &#x27;Se ci riprova dovrà richiedere un nuovo codice e ti arriverà un altro avviso.&#x27;,
+        &#x27;&lt;p style=&quot;font-size:15px&quot;&gt;Vuoi impedirgli anche di riprovare? &lt;a href=&quot;&#x27; + esc(link_(url, &#x27;blocca&#x27;, dati.email)) + &#x27;&quot; target=&quot;_top&quot;&gt;Blocca questa email&lt;/a&gt;&lt;/p&gt;&#x27;);
+    }
+    if (azione === &#x27;blocca&#x27;) {
+      const email = normalizzaEmail_(chi) || chi;
+      let n = 0;
+      Object.keys(tutte).forEach(k =&gt; { if (k.indexOf(&#x27;tok:&#x27;) === 0 &amp;&amp; JSON.parse(tutte[k]).email === email) { prop.deleteProperty(k); n++; } });
+      prop.deleteProperty(&#x27;otp:&#x27; + email);
+      const b = bloccati_(prop); if (b.indexOf(email) &lt; 0) { b.push(email); prop.setProperty(&#x27;bloccati&#x27;, JSON.stringify(b)); }
+      registra_(prop, &#x27;bloccato&#x27;, email, n + &#x27; dispositivi&#x27;);
+      return pagina(&#x27;Email bloccata&#x27;, chiTesto + &#x27; è bloccata: ha perso l\&#x27;accesso su &#x27; + n + (n === 1 ? &#x27; dispositivo&#x27; : &#x27; dispositivi&#x27;) +
+        &#x27; e non può più richiedere il codice.&#x27;, &#x27;&lt;p style=&quot;font-size:15px&quot;&gt;Hai sbagliato? &lt;a href=&quot;&#x27; + esc(link_(url, &#x27;riabilita&#x27;, email)) + &#x27;&quot; target=&quot;_top&quot;&gt;Riabilita questa email&lt;/a&gt;&lt;/p&gt;&#x27;);
+    }
+    const email = normalizzaEmail_(chi) || chi;
+    prop.setProperty(&#x27;bloccati&#x27;, JSON.stringify(bloccati_(prop).filter(x =&gt; x !== email)));
+    registra_(prop, &#x27;riabilitato&#x27;, email, &#x27;&#x27;);
+    return pagina(&#x27;Email riabilitata&#x27;, chiTesto + &#x27; può di nuovo richiedere il codice di accesso.&#x27;);
+  } finally { lock.releaseLock(); }
+}
+
+/** Traccia degli accessi: ultimi 300 eventi. */
+function registra_(prop, evento, email, dettaglio) {
+  try {
+    const s = JSON.parse(prop.getProperty(&#x27;storico&#x27;) || &#x27;[]&#x27;);
+    s.push([new Date().toISOString(), evento, email, String(dettaglio || &#x27;&#x27;).slice(0, 60)]);
+    prop.setProperty(&#x27;storico&#x27;, JSON.stringify(s.slice(-300)));
+  } catch (e) {}
+}
+
 // ============================================================ gestione accessi
+
+/** Ultimi eventi: accessi, accessi negati, blocchi (scegli &quot;storicoAccessi&quot; → Esegui). */
+function storicoAccessi() {
+  const s = JSON.parse(PropertiesService.getScriptProperties().getProperty(&#x27;storico&#x27;) || &#x27;[]&#x27;);
+  if (!s.length) { console.log(&#x27;Nessun evento registrato.&#x27;); return; }
+  s.slice().reverse().forEach(([q, ev, em, det]) =&gt; console.log(
+    Utilities.formatDate(new Date(q), &#x27;Europe/Rome&#x27;, &#x27;dd/MM/yyyy HH:mm&#x27;) + &#x27; · &#x27; + ev + &#x27; · &#x27; + em + (det ? &#x27; · &#x27; + det : &#x27;&#x27;)));
+}
 
 /** Elenca chi è autorizzato (scegli &quot;elencoAccessi&quot; → Esegui → leggi il registro). */
 function elencoAccessi() {
@@ -254,6 +414,7 @@ function revocaAccesso() {
   });
   prop.deleteProperty(&#x27;otp:&#x27; + email);
   const b = bloccati_(prop); if (b.indexOf(email) &lt; 0) { b.push(email); prop.setProperty(&#x27;bloccati&#x27;, JSON.stringify(b)); }
+  registra_(prop, &#x27;bloccato&#x27;, email, n + &#x27; dispositivi (dallo script)&#x27;);
   console.log(&#x27;Accesso revocato a &#x27; + email + &#x27; (&#x27; + n + &#x27; dispositivi). Non potrà richiedere nuovi codici.&#x27;);
 }
 
@@ -281,6 +442,8 @@ function prova() {
   console.log(&#x27;OK: i colleghi vedranno &#x27; + documenti.length + &#x27; documenti. Archivio aggiornato al &#x27; + db.aggiornato + &#x27;.&#x27;);
   try { console.log(&#x27;Proprietario della cartella: &#x27; + DriveApp.getFoldersByName(LETTURA.CARTELLA).next().getOwner().getEmail()); } catch (e) {}
   console.log(&#x27;Email di codici ancora inviabili oggi da Gmail: &#x27; + MailApp.getRemainingDailyQuota());
+  console.log(&#x27;Avvisi di accesso: &#x27; + (LETTURA.AVVISA_ACCESSI ? &#x27;attivi, inviati a &#x27; + emailAvvisi_() : &#x27;spenti&#x27;));
+  segreto_();
 }
 
 // ====================================================================== dati
