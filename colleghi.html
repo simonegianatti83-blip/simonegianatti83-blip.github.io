@@ -45,7 +45,7 @@ small{color:var(--ink-2)}
 <p>Dopo il codice, ogni nuovo dispositivo resta <b>in attesa</b> e non vede nessun documento finché non lo approvi tu. Ti arriva un messaggio sul <b>bot Telegram</b> (e un’email come traccia) con chi è, il dispositivo e l’ora, e i pulsanti <b>✅ Approva</b>, <b>❌ Rifiuta</b> e <b>⛔ Blocca questa email</b>. Ogni pulsante chiede una conferma. Quando approvi, il collega riceve un’email e l’archivio gli si scarica da solo.</p>
 <p><b>Collegare Telegram (una volta):</b></p>
 <ol>
-<li>In alto nello script incolla in <code>const TELEGRAM_TOKEN = '';</code> il token del bot (lo stesso dello script principale) e salva.</li>
+<li>In alto nello script incolla in <code>const TELEGRAM_TOKEN = '';</code> il token del bot (lo stesso dello script principale) e in <code>const LINK_COLLEGHI = '';</code> il link /exec dei colleghi (serve per i pulsanti Approva/Rifiuta). Salva.</li>
 <li>In Telegram scrivi “ciao” al tuo bot.</li>
 <li>Esegui la funzione <b>collegaTelegram</b>: arriva “Accessi dei colleghi collegati”.</li>
 </ol>
@@ -123,6 +123,10 @@ const LETTURA = {
 // Token del bot Telegram (lo stesso dello script principale). Dopo &quot;collegaTelegram&quot; resta salvato.
 const TELEGRAM_TOKEN = &#x27;&#x27;;
 
+// Il link /exec di QUESTO script (quello che dai ai colleghi): serve per i pulsanti Approva/Rifiuta.
+// Incollalo una volta tra gli apici: dopo la prima esecuzione resta salvato.
+const LINK_COLLEGHI = &#x27;&#x27;;
+
 // Email su cui agire con revocaAccesso / riabilitaAccesso
 const EMAIL_DA_GESTIRE = &#x27;&#x27;;
 
@@ -130,6 +134,7 @@ const EMAIL_DA_GESTIRE = &#x27;&#x27;;
 
 function doGet(e) {
   const p = (e &amp;&amp; e.parameter) || {};
+  try { urlApp_(); } catch (x) {}
   if (p.gestione) return paginaGestione_(p);
   try {
     const accesso = verificaToken_(p.t);
@@ -159,6 +164,7 @@ function doGet(e) {
 
 /** Solo le richieste per ottenere l&#x27;accesso; nessuna modifica all&#x27;archivio. */
 function doPost(e) {
+  try { urlApp_(); } catch (x) {}
   let r = {};
   try { r = JSON.parse(e.postData.contents); } catch (x) {}
   try {
@@ -382,9 +388,12 @@ function emailAvvisi_() {
 /** Indirizzo /exec di questo script (lo ricorda dalla prima richiesta dei colleghi). */
 function urlApp_() {
   const prop = PropertiesService.getScriptProperties();
+  const salva = u =&gt; { if (prop.getProperty(&#x27;url&#x27;) !== u) prop.setProperty(&#x27;url&#x27;, u); return u; };
+  const fisso = String(LINK_COLLEGHI || &#x27;&#x27;).trim();
+  if (/^https:\/\/script\.google\.com\/.+\/exec$/.test(fisso)) return salva(fisso);
   let u = &#x27;&#x27;;
   try { u = ScriptApp.getService().getUrl() || &#x27;&#x27;; } catch (e) {}
-  if (/\/exec$/.test(u)) { if (prop.getProperty(&#x27;url&#x27;) !== u) prop.setProperty(&#x27;url&#x27;, u); return u; }
+  if (/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)) return salva(u);
   return prop.getProperty(&#x27;url&#x27;) || &#x27;&#x27;;
 }
 
@@ -540,8 +549,11 @@ function provaRichiesta() {
     creato: new Date().toISOString(), ultimo: new Date().toISOString(), stato: &#x27;attesa&#x27;, prova: true };
   prop.setProperty(&#x27;tok:&#x27; + chiave, JSON.stringify(dati));
   registra_(prop, &#x27;richiesta&#x27;, dati.email, dati.dispositivo);
-  if (!urlApp_()) console.log(&#x27;ATTENZIONE: lo script non conosce ancora il suo link /exec, quindi i pulsanti non compaiono. &#x27; +
-    &#x27;Fai prima il deployment (Nuova versione) e apri una volta il link colleghi nel browser, poi riprova.&#x27;);
+  if (!urlApp_()) {
+    console.log(&#x27;MANCA IL LINK: incolla in LINK_COLLEGHI (in alto) il link /exec dei colleghi, salva e riesegui provaRichiesta. &#x27; +
+      &#x27;Senza il link il messaggio arriva ma senza i pulsanti Approva/Rifiuta.&#x27;);
+    return;
+  }
   avvisaAccesso_(chiave, dati);
   console.log(&#x27;Richiesta di prova inviata: guarda il bot Telegram (e la posta) e prova i pulsanti.&#x27;);
 }
@@ -588,6 +600,7 @@ function prova() {
   try { console.log(&#x27;Proprietario della cartella: &#x27; + DriveApp.getFoldersByName(LETTURA.CARTELLA).next().getOwner().getEmail()); } catch (e) {}
   console.log(&#x27;Email di codici ancora inviabili oggi da Gmail: &#x27; + MailApp.getRemainingDailyQuota());
   console.log(&#x27;Approvazione dei nuovi dispositivi: &#x27; + (LETTURA.APPROVAZIONE ? &#x27;attiva&#x27; : &#x27;spenta&#x27;));
+  console.log(&#x27;Link per i pulsanti: &#x27; + (urlApp_() || &#x27;MANCANTE – incolla il link /exec dei colleghi in LINK_COLLEGHI&#x27;));
   console.log(&#x27;Avvisi: Telegram &#x27; + (telegramDati_() ? &#x27;collegato&#x27; : &#x27;NON collegato (esegui collegaTelegram)&#x27;) +
               &#x27; · email &#x27; + (LETTURA.AVVISO_EMAIL ? &#x27;a &#x27; + emailAvvisi_() : &#x27;spenta&#x27;));
   segreto_();
