@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="it"><head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Zona rossa</title><meta charset="utf-8"><base target="_top">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:"Bahnschrift","DIN Alternate","Roboto Condensed","Arial Narrow",system-ui,sans-serif;background:#EDF0EC;color:#1D2B35}
+header{color:#fff;padding:16px;border-bottom:8px solid}
+header.vvf{background:#B3121F;border-color:#8E0E18}header.civ{background:#1F5FBF;border-color:#174a96}
+header b{display:block;font-size:15px;letter-spacing:.05em;margin-bottom:2px}
+header small{display:block;opacity:.85;font-size:13px;letter-spacing:.03em}
+header h1{margin:4px 0 0;font-size:21px;line-height:1.25;font-weight:600}
+main{max-width:520px;margin:0 auto;padding:16px}
+.card{background:#FAFBF9;border:1px solid #C5CEC8;border-radius:6px;padding:16px;margin-bottom:14px}
+h3{font-size:15px;margin:20px 0 4px;padding-top:12px;border-top:1px solid #C5CEC8;color:#1D2B35}
+label{display:block;font-size:14px;color:#4A5A64;margin:12px 0 4px}
+.req{color:#B3121F}
+input,select,textarea{width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid #C5CEC8;border-radius:3px;background:#fff;color:#1D2B35}
+textarea{min-height:70px}input:focus,select:focus,textarea:focus{outline:2px solid #1F5FBF;outline-offset:1px}
+.opts{display:flex;flex-direction:column;gap:8px;margin-top:4px}.opts.row{flex-direction:row;flex-wrap:wrap}
+.opts label{display:flex;gap:10px;align-items:center;margin:0;padding:10px 12px;border:1px solid #C5CEC8;border-radius:5px;background:#fff;color:#1D2B35;font-size:15px;flex:1;min-width:120px;cursor:pointer}
+.opts input{width:auto;margin:0}
+.opts.spec label{flex:0 1 auto;min-width:0;padding:8px 10px;font-size:14px}
+.civ ~ main .opts label:has(input:checked){border:2px solid #1F5FBF;background:#EAF1FC}
+.vvf ~ main .opts label:has(input:checked){border:2px solid #B3121F;background:#FCEBEC}
+.persona{border:1px solid #C5CEC8;border-radius:5px;padding:4px 12px 12px;margin-top:10px;background:#fff}
+.persona .t{display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-top:8px}
+.persona .t a{color:#B3121F;font-size:14px;cursor:pointer}
+button{width:100%;margin-top:18px;padding:13px;font-size:17px;font-weight:600;border:0;border-radius:4px;color:#fff;letter-spacing:.02em;cursor:pointer}
+.civ ~ main button{background:#1F5FBF}.vvf ~ main button{background:#B3121F}
+button.sec{background:#fff!important;color:#1F5FBF;border:1px solid #1F5FBF;margin-top:10px;padding:10px;font-size:15px}
+button:disabled{opacity:.6}
+.warn{background:#FBEFD9;border:1px solid #B76E00;color:#1D2B35;padding:10px 12px;border-radius:5px;font-size:14px}
+.nota{background:#EAF1FC;border-left:4px solid #1F5FBF;padding:8px 10px;font-size:13px;margin-top:8px;border-radius:0 4px 4px 0}
+.ok{text-align:center}.ok h2{color:#2B6E47}.err{color:#B3121F;font-weight:600;margin-top:10px}
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:16px;color:#1D2B35}.chk input{width:auto;margin-top:3px}
+[hidden]{display:none!important}
+</style></head><body>
+<header id="hd"><b id="hband"></b><small id="hsub"></small><h1 id="htitle"></h1></header>
+<main id="app"></main>
+<script>
+var API = "https://script.google.com/macros/s/AKfycbw7zXxj4p-5bOalG--XSFB5vmBBxcSmw1CEmhWA67i7fbHu_nRP6O6B5GaHqbriqiatEA/exec";   // indirizzo dello script Google (/exec): non contiene la chiave
+var KIND = /[?&]f=personale(&|$)/.test(location.search) ? 'personale' : 'accesso';
+function chiama(corpo){
+  var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},30000);
+  return fetch(API,{method:'POST',body:JSON.stringify(corpo),redirect:'follow',signal:ctl.signal})
+    .then(function(r){return r.json()})
+    .catch(function(e){return {ok:false,error:e.name==='AbortError'?'Il posto di comando non ha risposto in tempo. Riprova.':'Connessione non riuscita. Controlla la rete del telefono e riprova.'}})
+    .finally(function(){clearTimeout(t)});
+}
+function invia(kind,d,ok,ko){chiama({action:'invia',kind:kind,dati:d}).then(function(r){if(r&&r.ok)ok(r);else ko({message:(r&&r.error)||'Errore di invio'})})}
+(function carica(){
+  var hd=document.getElementById('hd'),app=document.getElementById('app');
+  hd.className=KIND==='accesso'?'civ':'vvf';
+  document.getElementById('hband').textContent=KIND==='accesso'?'CIVILI · FORZE DELL\'ORDINE · ENTI':'SOLO VIGILI DEL FUOCO';
+  document.getElementById('htitle').textContent=KIND==='accesso'?'Richiesta di accesso alla zona rossa':'Registrazione personale Vigili del Fuoco';
+  document.title=KIND==='accesso'?'Richiesta accesso zona rossa':'Registrazione Vigili del Fuoco';
+  app.innerHTML='<div class="card"><p>Caricamento del modulo…</p></div>';
+  chiama({action:'modulo',kind:KIND}).then(function(r){
+    if(!r||!r.ok||!r.dati){
+      var msg=/chiave/i.test((r&&r.error)||'')?'Modulo non ancora attivo: il posto di comando deve aggiornare lo script Google. Rivolgiti direttamente al personale.':((r&&r.error)||'Modulo non disponibile.');
+      app.innerHTML='<div class="card"><h2>Modulo non disponibile</h2><p>'+msg.replace(/[&<>]/g,'')+'</p><button id="rip">Riprova</button></div>';
+      document.getElementById('rip').onclick=carica;return}
+    avvia(r.dati);
+  });
+})();
+function avvia(D){
+var $ = function(id){return document.getElementById(id)};
+var CIV = D.kind==='accesso';
+var tipoLbl = {alluvione:'Alluvione',incendio:'Incendio boschivo',terremoto:'Terremoto',frana:'Frana'}[D.tipo]||'';
+$('hd').className = CIV ? 'civ' : 'vvf';
+$('hband').textContent = CIV ? 'CIVILI · FORZE DELL\'ORDINE · ENTI' : 'SOLO VIGILI DEL FUOCO';
+$('hsub').textContent = (tipoLbl? tipoLbl+' · ':'') + (D.evento||'Zona rossa');
+$('htitle').textContent = CIV ? 'Richiesta di accesso alla zona rossa' : 'Registrazione personale Vigili del Fuoco';
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function lab(id,t){return '<label for="'+id+'">'+t+' <span class="req">*</span></label>'}
+function inp(id,t,type,extra){return lab(id,t)+'<input id="'+id+'" type="'+(type||'text')+'" required '+(extra||'')+'>'}
+function radios(name,t,vals,row){return '<label>'+t+' <span class="req">*</span></label><div class="opts'+(row?' row':'')+'">'+vals.map(function(v,i){var val=Array.isArray(v)?v[0]:v,txt=Array.isArray(v)?v[1]:v;return '<label><input type="radio" name="'+name+'" value="'+esc(val)+'"'+(i===0?' required':'')+'> '+txt+'</label>'}).join('')+'</div>'}
+function rv(name){var x=document.querySelector('input[name="'+name+'"]:checked');return x?x.value:''}
+function onRadio(name,fn){Array.prototype.forEach.call(document.querySelectorAll('input[name="'+name+'"]'),function(r){r.addEventListener('change',fn)})}
+
+if(!D.open){
+  $('app').innerHTML='<div class="card"><h2>Registrazioni chiuse</h2><p>Al momento il modulo non è attivo. Rivolgiti al personale del posto di comando'+(D.pca?' ('+esc(D.pca)+')':'')+'.</p></div>';
+} else if(CIV){
+  var mot=(D.motivi||[]).map(function(m){return '<option>'+esc(m)+'</option>'}).join('');
+  $('app').innerHTML='<form class="card" id="f" novalidate>'+
+  '<div class="warn">In zona rossa si entra <b>solo accompagnati dai Vigili del Fuoco</b>, nell\'orario che vi verrà comunicato. Questa è una richiesta, non un\'autorizzazione. <b>I Vigili del Fuoco usano il QR rosso.</b> I campi con <span class="req">*</span> sono obbligatori.</div>'+
+  radios('cat','Chi sei',[['Cittadino','Cittadino (residente, proprietario, familiare)'],["Forze dell'ordine","Forze dell'ordine (Carabinieri, Polizia, Polizia Locale, GdF…)"],['Ente / autorità','Ente o autorità (Sindaco, Provincia, Comunità Montana, Prefettura, tecnici…)']])+
+  '<div id="boxEnte" hidden>'+inp('ente','Ente e qualifica (es. Sindaco di Sondrio, Carabinieri stazione di …)','text','list="enti"')+
+  '<datalist id="enti"><option>Sindaco</option><option>Presidente della Provincia</option><option>Prefettura</option><option>Comunità Montana</option><option>Regione</option><option>Protezione Civile</option><option>Tecnico comunale</option><option>Carabinieri</option><option>Polizia di Stato</option><option>Polizia Locale</option><option>Polizia Provinciale</option><option>Guardia di Finanza</option><option>Carabinieri Forestali</option><option>Croce Rossa / 118</option></datalist>'+
+  radios('mezzo','Entri in zona rossa con un mezzo?',[['No','No'],['Sì','Sì']],1)+
+  '<div id="boxTarga" hidden>'+inp('targa','Targa del mezzo','text','autocapitalize="characters"')+'<div class="nota">Il mezzo entra in zona rossa <b>sempre accompagnato dai Vigili del Fuoco</b>.</div></div></div>'+
+  '<h3>I tuoi dati</h3>'+
+  inp('cognome','Cognome','text','autocomplete="family-name"')+inp('nome','Nome','text','autocomplete="given-name"')+
+  inp('telefono','Cellulare','tel','autocomplete="tel" inputmode="tel"')+
+  inp('comune','Comune')+inp('indirizzo','Immobile o luogo da raggiungere (via, civico, piano)')+
+  lab('motivo','Motivo dell\'accesso')+'<select id="motivo" required><option value="">— scegli —</option>'+mot+'<option>Sopralluogo istituzionale</option><option>Servizio di ordine pubblico / vigilanza</option><option>Verifica tecnica</option><option>Altro (specificare nelle note)</option></select>'+
+  '<h3>Altre persone</h3>'+
+  radios('altreSi','Entrano altre persone con te?',[['No','No'],['Sì','Sì']],1)+
+  '<div id="boxAltre" hidden><div id="altre"></div><button type="button" class="sec" id="addP">+ Aggiungi un\'altra persona</button></div>'+
+  '<label for="note">Note (es. animali, farmaci, persone fragili) — facoltativo</label><textarea id="note" data-opt="1"></textarea>'+
+  '<label class="chk"><input type="checkbox" id="priv" required> Acconsento al trattamento dei dati per la gestione dell\'emergenza. <span class="req">*</span></label>'+
+  '<button id="b">Invia richiesta</button><div class="err" id="e"></div></form>';
+  var nP=0;
+  function addPersona(){nP++;var i=nP,div=document.createElement('div');div.className='persona';div.dataset.p=i;
+    div.innerHTML='<div class="t"><span>Persona '+i+'</span><a data-del="'+i+'">Togli</a></div>'+inp('pc'+i,'Cognome (persona '+i+')')+inp('pn'+i,'Nome (persona '+i+')')+inp('pt'+i,'Cellulare (persona '+i+')','tel','inputmode="tel"');
+    $('altre').appendChild(div);div.querySelector('[data-del]').onclick=function(){div.remove();if(!$('altre').children.length){var no=document.querySelector('input[name=altreSi][value=No]');no.checked=true;$('boxAltre').hidden=true}};}
+  onRadio('cat',function(){var on=rv('cat')!=='Cittadino';$('boxEnte').hidden=!on;if(!on){$('boxTarga').hidden=true}});
+  onRadio('mezzo',function(){$('boxTarga').hidden=rv('mezzo')!=='Sì'});
+  onRadio('altreSi',function(){var on=rv('altreSi')==='Sì';$('boxAltre').hidden=!on;if(on&&!$('altre').children.length)addPersona()});
+  $('addP').onclick=addPersona;
+} else {
+  $('app').innerHTML='<form class="card" id="f" novalidate>'+
+  '<div class="warn">Modulo riservato ai <b>Vigili del Fuoco</b>: in zona rossa accedono solo i VVF. Civili, forze dell\'ordine ed enti usano il QR blu. <b>Tutti i campi sono obbligatori.</b></div>'+
+  radios('tipo','Personale',[['Permanente','Permanente'],['Volontario','Volontario']],1)+
+  lab('grado','Grado / qualifica')+'<select id="grado" required><option value="">— scegli prima permanente o volontario —</option></select>'+
+  inp('cognome','Cognome')+inp('nome','Nome')+inp('sede','Sede / distaccamento')+inp('telefono','Cellulare','tel','inputmode="tel"')+
+  inp('canale','Canale radio in uso','text','value="'+esc(D.canale||'VHF 46')+'"')+inp('idradio','ID / sigla radio')+inp('squadra','Squadra / mezzo','text','autocapitalize="characters"')+
+  '<label>Specializzazione (anche più di una) <span class="req">*</span></label><div class="opts row spec">'+D.spec.map(function(x){return '<label><input type="checkbox" name="spec" value="'+esc(x)+'"> '+esc(x)+'</label>'}).join('')+'</div>'+
+  '<h3>Impiego</h3>'+
+  radios('impiego','Dove vieni impiegato?',[['Operativo sul campo','Operativo sul campo'],['Personale al PCA','Personale al PCA']],1)+
+  '<h3>Patente e autista</h3>'+
+  lab('patente','Grado della patente VVF')+'<select id="patente" required><option value="">— scegli —</option>'+D.patenti.map(function(p){return '<option value="'+p+'">'+(p==='NESSUNO'?'Nessuna patente VVF':p+' grado')+'</option>'}).join('')+'</select>'+
+  radios('autista','Sei abilitato come autista?',[['No','No'],['Sì','Sì']],1)+
+  '<div id="boxPart" hidden>'+radios('partenza','Sei autista di partenza oggi?',[['No','No'],['Sì','Sì']],1)+'</div>'+
+  '<div id="boxPat" hidden>'+inp('targaMezzo','Targa del mezzo di soccorso che conduci oggi','text','autocapitalize="characters"')+'</div>'+
+  '<button id="b">Registrami</button><div class="err" id="e"></div></form>';
+  onRadio('tipo',function(){var l=rv('tipo')==='Volontario'?D.gradiVol:D.gradiPerm;$('grado').innerHTML='<option value="">— scegli —</option>'+l.map(function(g){return '<option>'+g+'</option>'}).join('')});
+  onRadio('autista',function(){var on=rv('autista')==='Sì';$('boxPart').hidden=!on;if(!on)$('boxPat').hidden=true;else $('boxPat').hidden=rv('partenza')!=='Sì'});
+  onRadio('partenza',function(){$('boxPat').hidden=rv('partenza')!=='Sì'});
+}
+
+function visibile(x){while(x&&x.id!=='f'){if(x.hidden)return false;x=x.parentElement}return true}
+function controlla(){
+  var f=$('f'),miss=[];
+  Array.prototype.forEach.call(f.querySelectorAll('input:not([type=radio]):not([type=checkbox]),select'),function(x){
+    if(x.dataset.opt||!visibile(x))return; x.style.borderColor='';
+    var v=String(x.value).trim(),bad=!v||(x.type==='tel'&&v.replace(/[^0-9]/g,'').length<6);
+    if(bad){x.style.borderColor='#B3121F';var l=f.querySelector('label[for="'+x.id+'"]');miss.push((l?l.textContent.replace(' *','').replace('*',''):x.id)+(v?' (numero non valido)':''))}
+  });
+  var names={};Array.prototype.forEach.call(f.querySelectorAll('input[type=radio]'),function(r){if(visibile(r))names[r.name]=1});
+  Object.keys(names).forEach(function(n){if(!rv(n)){var l=document.querySelector('input[name="'+n+'"]').closest('.opts').previousElementSibling;miss.push(l.textContent.replace('*','').trim())}});
+  if($('priv')&&!$('priv').checked)miss.push('consenso al trattamento dei dati');
+  if(!CIV&&!document.querySelector('input[name=spec]:checked'))miss.push('specializzazione');
+  if(!CIV&&rv('autista')==='Sì'&&$('patente').value==='NESSUNO')miss.push('grado della patente (un autista deve avere almeno il 1°)');
+  return miss;
+}
+var f=$('f');
+if(f) f.addEventListener('submit',function(ev){
+  ev.preventDefault();
+  var miss=controlla();
+  if(miss.length){$('e').innerHTML='Mancano: '+miss.map(esc).join(', ')+'.';return}
+  var d={};
+  Array.prototype.forEach.call(f.querySelectorAll('input,select,textarea'),function(x){
+    if(x.type==='radio'){if(x.checked)d[x.name==='cat'?'categoria':x.name]=x.value;return}
+    if(x.name==='spec'){if(x.checked)(d.spec=d.spec||[]).push(x.value);return}
+    if(x.id&&!/^p[cnt]\d+$/.test(x.id))d[x.id]=x.type==='checkbox'?x.checked:x.value});
+  if(CIV){d.altrePersone=Array.prototype.map.call(document.querySelectorAll('#altre .persona'),function(p){var i=p.dataset.p;return {cognome:$('pc'+i).value,nome:$('pn'+i).value,telefono:$('pt'+i).value}})}
+  $('b').disabled=true;$('b').textContent='Invio in corso…';$('e').textContent='';
+  invia(D.kind,d,function(r){
+    $('app').innerHTML='<div class="card ok"><h2>Registrazione inviata</h2><p>'+(CIV?'Attendi di essere chiamato dal personale. Tieni il cellulare acceso.':'Presentati al posto di comando per l\'assegnazione.')+'</p><p style="color:#777;font-size:13px">Ricevuta: '+esc(r.ts)+'</p></div>';
+  },function(err){
+    $('b').disabled=false;$('b').textContent='Riprova';$('e').textContent=(err&&err.message)||'Errore di invio';
+  });
+});
+}
+</script></body></html>

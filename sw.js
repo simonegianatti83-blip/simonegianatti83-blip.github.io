@@ -38,8 +38,8 @@ function conTimeout(promessa, ms) {
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
-  // la cartella dei moduli QR del PCA (gestionale Ricerca Persona) non fa parte di questa app
-  if (new URL(req.url).pathname.startsWith("/moduli-pca/")) return;
+  // le cartelle dei moduli QR (gestionali Ricerca Persona e Zona Rossa) non fanno parte di questa app
+  if (/^\/moduli-(pca|zona-rossa)\//.test(new URL(req.url).pathname)) return;
 
   // La pagina dell'app: prima la rete (versione aggiornata), poi la copia salvata.
   if (req.mode === "navigate") {
