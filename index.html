@@ -284,6 +284,7 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
     <button id="mImport" role="menuitem">Importa archivio (.json)…</button>
     <button id="mExport" role="menuitem">Salva una copia di backup</button>
     <button id="mMancanti" role="menuitem">Numeri mancanti</button>
+    <button id="mBot" role="menuitem">Prova avviso Telegram</button>
     <button id="mHelp" role="menuitem">Come aggiornare l’archivio</button>
     <button id="mTheme" role="menuitem">Cambia tema chiaro/scuro</button>
     <hr>
@@ -1289,6 +1290,7 @@ function exportBackup(){
   setTimeout(()=>URL.revokeObjectURL(a.href),2000); toast("Copia di backup salvata");
 }
 function updateStatus(){
+  if($("mBot")) $("mBot").hidden=!!meta.solaLettura;
   $("status").textContent=docs.length
     ?`${docs.length} documenti${meta.aggiornato?", aggiornato al "+fmtData(meta.aggiornato):""}${meta.solaLettura?" · sola lettura":""}`
     :"Comando VVF Sondrio · consultabile anche offline";
@@ -1338,6 +1340,12 @@ $("pdfIn").onchange=e=>{ const fs=[...e.target.files]; e.target.value=""; scegli
 $("mLink").onclick=()=>{toggleMenu(false);showCollega();};
 $("mExport").onclick=()=>{toggleMenu(false);docs.length?exportBackup():toast("L’archivio è vuoto");};
 $("mHelp").onclick=()=>{toggleMenu(false);showHelp();};
+$("mBot").onclick=async()=>{toggleMenu(false);
+  if(!linkGoogle||!navigator.onLine){toast("Serve internet e il collegamento a Google");return;}
+  toast("Invio il messaggio di prova…");
+  try{await chiamaScript({azione:"provaBot"},60000);toast("Inviato: controlla Telegram");}
+  catch(e){toast(e.vecchio?"Aggiorna lo script Google alla versione 10 (vedi istruzioni)":"Non inviato: esegui prima attivaAvvisi nello script");}
+};
 $("mMancanti").onclick=()=>{toggleMenu(false);docs.length?mostraMancanti():toast("L’archivio è vuoto");};
 $("mTheme").onclick=()=>{toggleMenu(false);const r=document.documentElement;
   const dark=r.dataset.theme?r.dataset.theme==="dark":matchMedia("(prefers-color-scheme: dark)").matches;

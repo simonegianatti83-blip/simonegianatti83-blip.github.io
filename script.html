@@ -61,7 +61,7 @@ small{color:var(--ink-2)}
 <p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può leggere o aggiungere documenti. Non condividerlo.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Estrattore da Gmail (v9: testo integrale, PDF caricati dall&#x27;app, email complete,
+ * ODG ARCHIVIO – Estrattore da Gmail (v10: testo integrale, PDF caricati dall&#x27;app, email complete,
  *   cartella &quot;Da importare&quot; per i PDF degli anni passati, avviso Telegram alle 9 e alle 18)
  * ------------------------------------------------------------
  * Legge le email dell&#x27;Ufficio Informatica VVF Sondrio, prende ogni PDF
@@ -134,7 +134,7 @@ const CONFIG = {
 };
 // ==========================================================
 
-const VERSIONE_SCRIPT = 9;
+const VERSIONE_SCRIPT = 10;
 
 // Token del bot Telegram (vedi istruzioni in alto). Dopo &quot;attivaAvvisi&quot; resta salvato.
 const TELEGRAM_TOKEN = &#x27;&#x27;;   // l&#x27;app la usa per capire se lo script è aggiornato
@@ -281,6 +281,10 @@ function doPost(e) {
   try {
     if (req.azione === &#x27;carica&#x27;) return json_(caricaDaApp_(req));
     if (req.azione === &#x27;elimina&#x27;) return json_(eliminaDaApp_(req));
+    if (req.azione === &#x27;provaBot&#x27;) {   // pulsante &quot;Prova avviso Telegram&quot; dell&#x27;app
+      inviaAvviso_(&#x27;🔔 Prova Archivio ODG&#x27;, &#x27;Il bot Telegram funziona: riceverai qui gli avvisi su nuovi ODG, DDS e Comunicazioni.&#x27;);
+      return json_({ ok: true });
+    }
     return json_({ ok: false, errore: &#x27;Azione sconosciuta&#x27; });
   } catch (err) {
     return json_({ ok: false, errore: String(err) });
