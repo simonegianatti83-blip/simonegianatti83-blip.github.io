@@ -61,7 +61,7 @@ small{color:var(--ink-2)}
 <p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può leggere o aggiungere documenti. Non condividerlo.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Estrattore da Gmail (v8: testo integrale, PDF caricati dall&#x27;app, email complete,
+ * ODG ARCHIVIO – Estrattore da Gmail (v9: testo integrale, PDF caricati dall&#x27;app, email complete,
  *   cartella &quot;Da importare&quot; per i PDF degli anni passati, avviso Telegram alle 9 e alle 18)
  * ------------------------------------------------------------
  * Legge le email dell&#x27;Ufficio Informatica VVF Sondrio, prende ogni PDF
@@ -134,7 +134,7 @@ const CONFIG = {
 };
 // ==========================================================
 
-const VERSIONE_SCRIPT = 8;
+const VERSIONE_SCRIPT = 9;
 
 // Token del bot Telegram (vedi istruzioni in alto). Dopo &quot;attivaAvvisi&quot; resta salvato.
 const TELEGRAM_TOKEN = &#x27;&#x27;;   // l&#x27;app la usa per capire se lo script è aggiornato
@@ -168,9 +168,20 @@ async function aggiorna() {
     }
   }
 
-  // 2) Email nuove
+  // 2) Email nuove. A archivio completo guarda solo la posta recente (pochi accessi a Gmail,
+  //    così non si supera il limite giornaliero); la prima volta, o se incompleto, rilegge tutto.
+  let query = CONFIG.QUERY;
+  if (db.completo) {
+    const base = db.lettoFinoA ? new Date(db.lettoFinoA) : new Date();
+    const da = new Date(base.getTime() - (db.lettoFinoA ? 3 : 30) * 86400000);
+    query += &#x27; after:&#x27; + Utilities.formatDate(da, &#x27;Europe/Rome&#x27;, &#x27;yyyy/MM/dd&#x27;);
+  }
+  const inizioLettura = new Date().toISOString();
+  let gmailKo = false;
   for (let start = 0; !interrotto; start += CONFIG.BLOCCO_THREAD) {
-    const threads = GmailApp.search(CONFIG.QUERY, start, CONFIG.BLOCCO_THREAD);
+    let threads;
+    try { threads = GmailApp.search(query, start, CONFIG.BLOCCO_THREAD); }
+    catch (e) { console.warn(&#x27;Gmail non risponde (limite giornaliero?): &#x27; + e); gmailKo = true; interrotto = true; break; }
     if (!threads.length) break;
 
     for (const thread of threads) {
@@ -236,7 +247,7 @@ async function aggiorna() {
     if (imp.interrotto) interrotto = true;
   } else sottocartella_(cartella, CONFIG.CARTELLA_IMPORTA);
 
-  const finale = salvaUnendo_(cartella, aggiunti, modifiche, !interrotto, nuoveEmail);
+  const finale = salvaUnendo_(cartella, aggiunti, modifiche, gmailKo ? undefined : !interrotto, nuoveEmail, interrotto ? null : inizioLettura);
   if (imp) for (const f of imp.spostare) { try { f.moveTo(imp.caricati); } catch (e) { console.warn(&#x27;Non spostato: &#x27; + f.getName()); } }
   if (importati) console.log(&#x27;PDF importati dalla cartella &quot;&#x27; + CONFIG.CARTELLA_IMPORTA + &#x27;&quot;: &#x27; + importati);
   const incompleti = finale.documenti.filter(d =&gt; d.testoCompleto === false).length;
@@ -733,7 +744,7 @@ function sottocartella_(padre, nome) {
 
 /** Scrive il database rileggendolo un attimo prima, così non si perde ciò che
  *  l&#x27;app ha caricato nel frattempo. Un blocco evita scritture contemporanee. */
-function salvaUnendo_(cartella, aggiunti, modifiche, completo, nuoveEmail) {
+function salvaUnendo_(cartella, aggiunti, modifiche, completo, nuoveEmail, lettoFinoA) {
   const lock = LockService.getScriptLock(); lock.waitLock(60000);
   try {
     const db = leggiDb_(cartella);
@@ -744,6 +755,7 @@ function salvaUnendo_(cartella, aggiunti, modifiche, completo, nuoveEmail) {
     if (nuoveEmail) Object.assign(db.email, nuoveEmail);
     db.aggiornato = new Date().toISOString();
     if (completo !== undefined) db.completo = completo;
+    if (lettoFinoA) db.lettoFinoA = lettoFinoA;
     scriviDb_(cartella, db);
     return db;
   } finally { lock.releaseLock(); }
