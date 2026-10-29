@@ -39,9 +39,9 @@ small{color:var(--ink-2)}
 <li>Nel messaggio di BotFather tocca il link al tuo bot (t.me/…) → <b>Avvia</b>.</li>
 <li>Nello script, in alto, incolla il token tra gli apici in <b>const TELEGRAM_TOKEN = '';</b> e salva.</li>
 <li>Scegli la funzione <b>attivaAvvisi</b> → <b>Esegui</b> (autorizza se richiesto): arriva subito un messaggio di prova nel bot.</li>
-<li>Da quel momento, verso le 9 e verso le 18, ricevi un messaggio solo se ci sono documenti nuovi (es. <i>ODG 474 · DDS 249</i>) con il pulsante <b>Apri l’archivio</b>. Per spegnere: <b>disattivaAvvisi</b>.</li>
+<li>Da quel momento, verso le 9 e verso le 18, ricevi un messaggio solo se ci sono documenti nuovi (es. <i>Ci sono nuovi ODG e DDS</i>, senza numeri) con il pulsante <b>Apri l’archivio</b>. Per spegnere: <b>disattivaAvvisi</b>.</li>
 </ol>
-<p style="font-size:14px">Il token resta salvato: quando aggiorni lo script non serve reincollarlo. Il messaggio contiene solo tipo e numero dei documenti.</p>
+<p style="font-size:14px">Il token resta salvato: quando aggiorni lo script non serve reincollarlo. Il messaggio dice solo quali tipi sono nuovi, senza numeri.</p>
 <h2 style="font-size:18px;margin:22px 0 6px">PDF degli anni passati (email cancellate)</h2>
 <ol>
 <li>Apri <b>drive.google.com</b> dal PC → cartella <b>ODG Archivio</b> → <b>Da importare</b>.</li>
@@ -402,19 +402,19 @@ async function avvisaNuovi() {
   const visto = db.documenti.reduce((m, d) =&gt; (d.aggiuntoIl &amp;&amp; d.aggiuntoIl &gt; m ? d.aggiuntoIl : m), ultimo);
   if (!nuovi.length) { pr.setProperty(&#x27;avviso_ultimo&#x27;, visto); console.log(&#x27;Nessun documento nuovo: nessun avviso.&#x27;); return; }
 
-  const gruppi = {};
+  // solo i tipi presenti, senza numeri né conteggi
+  const nomi = { ODG: &#x27;ODG&#x27;, DDS: &#x27;DDS&#x27;, COMUNICAZIONE: &#x27;Comunicazioni&#x27; };
+  const tipi = [];
   for (const d of nuovi) {
-    const t = d.tipo === &#x27;COMUNICAZIONE&#x27; ? &#x27;COM&#x27; : (d.tipo || &#x27;DOC&#x27;);
-    (gruppi[t] = gruppi[t] || new Set()).add(d.numero != null ? d.numero : &#x27;&#x27;);
+    const t = nomi[d.tipo] || &#x27;Documenti&#x27;;
+    if (tipi.indexOf(t) &lt; 0) tipi.push(t);
   }
-  const righe = [&#x27;ODG&#x27;, &#x27;DDS&#x27;, &#x27;COM&#x27;, &#x27;ALTRO&#x27;, &#x27;DOC&#x27;].filter(t =&gt; gruppi[t]).map(t =&gt; {
-    const n = [...gruppi[t]].filter(x =&gt; x !== &#x27;&#x27;).sort((a, b) =&gt; a - b);
-    return t + (n.length ? &#x27; &#x27; + n.join(&#x27;, &#x27;) : &#x27;&#x27;);
-  });
-  const tot = nuovi.filter(d =&gt; !d.allegatoDi).length || nuovi.length;
-  inviaAvviso_(&#x27;🔔 Archivio ODG: &#x27; + (tot === 1 ? &#x27;1 documento nuovo&#x27; : tot + &#x27; documenti nuovi&#x27;), righe.join(&#x27; · &#x27;));
+  const ordine = [&#x27;ODG&#x27;, &#x27;DDS&#x27;, &#x27;Comunicazioni&#x27;, &#x27;Documenti&#x27;];
+  tipi.sort((a, b) =&gt; ordine.indexOf(a) - ordine.indexOf(b));
+  const elenco = tipi.length &gt; 1 ? tipi.slice(0, -1).join(&#x27;, &#x27;) + &#x27; e &#x27; + tipi[tipi.length - 1] : tipi[0];
+  inviaAvviso_(&#x27;🔔 Archivio ODG&#x27;, &#x27;Ci sono nuovi &#x27; + elenco);
   pr.setProperty(&#x27;avviso_ultimo&#x27;, visto);   // solo dopo l&#x27;invio riuscito: se fallisce, riprova al giro dopo
-  console.log(&#x27;Avviso inviato: &#x27; + righe.join(&#x27; · &#x27;));
+  console.log(&#x27;Avviso inviato: &#x27; + elenco);
 }
 
 /** Prova manuale: manda subito un messaggio. */
