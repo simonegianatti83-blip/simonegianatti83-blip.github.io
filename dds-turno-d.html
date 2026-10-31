@@ -226,5 +226,11 @@ function ddsGira_(req) {
   return { ok: true, inviati, nonRaggiunti, turnoD: turnoD.map(p =&gt; p.qual + &#x27; &#x27; + p.nome + &#x27; &#x27; + p.turno) };
 }
 </textarea>
-<script>document.getElementById('copy').onclick=function(){var t=document.getElementById('code');t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand('copy');}this.textContent='Copiato ✓';this.classList.add('done');};</script>
-</div></body></html>
+<script>
+const b=document.getElementById("copy"),t=document.getElementById("code");
+b.onclick=async()=>{
+  try{ await navigator.clipboard.writeText(t.value); }
+  catch(e){ t.focus(); t.select(); t.setSelectionRange(0,t.value.length); document.execCommand("copy"); }
+  b.textContent="Copiato ✓  Ora incollalo in Google Apps Script"; b.classList.add("done");
+};
+</script></div></body></html>
