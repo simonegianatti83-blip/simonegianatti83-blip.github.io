@@ -61,7 +61,7 @@ small{color:var(--ink-2)}
 <p style="font-size:14px">Il link è lungo e casuale: solo chi lo conosce può leggere o aggiungere documenti. Non condividerlo.</p>
 <small>Se il pulsante non funziona: tocca il riquadro qui sotto, seleziona tutto e copia.</small>
 <textarea id="code" readonly spellcheck="false">/**
- * ODG ARCHIVIO – Estrattore da Gmail (v10: testo integrale, PDF caricati dall&#x27;app, email complete,
+ * ODG ARCHIVIO – Estrattore da Gmail (v11: testo integrale, PDF caricati dall&#x27;app, email complete,
  *   cartella &quot;Da importare&quot; per i PDF degli anni passati, avviso Telegram alle 9 e alle 18)
  * ------------------------------------------------------------
  * Legge le email dell&#x27;Ufficio Informatica VVF Sondrio, prende ogni PDF
@@ -134,9 +134,11 @@ const CONFIG = {
 };
 // ==========================================================
 
-const VERSIONE_SCRIPT = 10;
+const VERSIONE_SCRIPT = 11;
 
 // Token del bot Telegram (vedi istruzioni in alto). Dopo &quot;attivaAvvisi&quot; resta salvato.
+const VIGILANZE_URL = &#x27;&#x27;;     // indirizzo /exec della web app &quot;Vigilanze TD&quot; (vedi DdsTurnoD.gs)
+const VIGILANZE_CHIAVE = &#x27;&#x27;;  // la stessa chiave scritta in DdsTurnoD.gs
 const TELEGRAM_TOKEN = &#x27;&#x27;;   // l&#x27;app la usa per capire se lo script è aggiornato
 
 const MESI = { gen:1, feb:2, mar:3, apr:4, mag:5, giu:6, lug:7, ago:8, set:9, ott:10, nov:11, dic:12 };
@@ -248,6 +250,7 @@ async function aggiorna() {
   } else sottocartella_(cartella, CONFIG.CARTELLA_IMPORTA);
 
   const finale = salvaUnendo_(cartella, aggiunti, modifiche, gmailKo ? undefined : !interrotto, nuoveEmail, interrotto ? null : inizioLettura);
+  try { giraVigilanzeD_(finale.documenti); } catch (e) { console.warn(&#x27;Vigilanze turno D: &#x27; + e); }
   if (imp) for (const f of imp.spostare) { try { f.moveTo(imp.caricati); } catch (e) { console.warn(&#x27;Non spostato: &#x27; + f.getName()); } }
   if (importati) console.log(&#x27;PDF importati dalla cartella &quot;&#x27; + CONFIG.CARTELLA_IMPORTA + &#x27;&quot;: &#x27; + importati);
   const incompleti = finale.documenti.filter(d =&gt; d.testoCompleto === false).length;
@@ -815,6 +818,62 @@ function scriviDb_(cartella, db) {
 }
 
 function pad_(n) { return (n &lt; 10 ? &#x27;0&#x27; : &#x27;&#x27;) + n; }
+
+
+// ------------------------------------------------- DDS di vigilanza → CS/CR del turno D
+/** Salva indirizzo e chiave della web app &quot;Vigilanze TD&quot; (poi puoi svuotare le due righe in alto). */
+function collegaVigilanze() {
+  if (!VIGILANZE_URL || !VIGILANZE_CHIAVE) throw new Error(&#x27;Scrivi VIGILANZE_URL e VIGILANZE_CHIAVE in alto nello script e riesegui.&#x27;);
+  const pr = PropertiesService.getScriptProperties();
+  pr.setProperty(&#x27;vig_url&#x27;, VIGILANZE_URL); pr.setProperty(&#x27;vig_chiave&#x27;, VIGILANZE_CHIAVE);
+  if (!pr.getProperty(&#x27;vig_da&#x27;)) pr.setProperty(&#x27;vig_da&#x27;, new Date().toISOString());   // girerà solo i DDS arrivati da adesso
+  console.log(&#x27;Collegato alla web app Vigilanze TD. Ora i DDS di vigilanza del turno D vengono girati ai CS/CR.&#x27;);
+}
+
+function eVigilanzaDds_(d) {
+  return d.tipo === &#x27;DDS&#x27; &amp;&amp; /vigilanza/i.test((d.titolo || &#x27;&#x27;) + &#x27; &#x27; + (d.file || &#x27;&#x27;));
+}
+
+/** Manda alla web app il DDS di vigilanza (testo + PDF): sarà lei a guardare il TURNO in tabella. */
+function inviaVigilanzaDds_(d, prova) {
+  const pr = PropertiesService.getScriptProperties();
+  const url = pr.getProperty(&#x27;vig_url&#x27;), chiave = pr.getProperty(&#x27;vig_chiave&#x27;);
+  if (!url || !chiave) return null;
+  let pdf = &#x27;&#x27;;
+  try { pdf = Utilities.base64Encode(DriveApp.getFileById(idDaUrl_(d.pdf)).getBlob().getBytes()); } catch (e) { console.warn(&#x27;PDF non letto: &#x27; + e); }
+  const r = UrlFetchApp.fetch(url, { method: &#x27;post&#x27;, contentType: &#x27;application/json&#x27;, muteHttpExceptions: true, followRedirects: true,
+    payload: JSON.stringify({ chiave, azione: &#x27;ddsVigilanza&#x27;, prova: !!prova, numero: d.numero, data: d.data ? d.data.split(&#x27;-&#x27;).reverse().join(&#x27;/&#x27;) : &#x27;&#x27;,
+      titolo: d.titolo || d.file, testo: String(d.testo || &#x27;&#x27;).slice(0, 12000), pdf, nomePdf: d.file }) });
+  let j; try { j = JSON.parse(r.getContentText()); } catch (e) { throw new Error(&#x27;Risposta non valida dalla web app (controlla che sia pubblicata con &quot;Chi ha accesso: Chiunque&quot; e la Nuova versione)&#x27;); }
+  if (!j.ok) throw new Error(j.errore || &#x27;errore&#x27;);
+  return j;
+}
+
+/** Dopo ogni lettura della posta: i DDS di vigilanza arrivati per email dopo il collegamento (se un invio fallisce, riprova al giro dopo). */
+function giraVigilanzeD_(documenti) {
+  const pr = PropertiesService.getScriptProperties();
+  if (!pr.getProperty(&#x27;vig_url&#x27;)) return;
+  const da = pr.getProperty(&#x27;vig_da&#x27;) || &#x27;&#x27;;
+  const fatti = JSON.parse(pr.getProperty(&#x27;vig_fatti&#x27;) || &#x27;[]&#x27;);
+  for (const d of documenti) {
+    if (d.origine || !eVigilanzaDds_(d) || !d.aggiuntoIl || d.aggiuntoIl &lt;= da || fatti.indexOf(d.id) &gt;= 0) continue;
+    const j = inviaVigilanzaDds_(d, false);
+    fatti.push(d.id);
+    pr.setProperty(&#x27;vig_fatti&#x27;, JSON.stringify(fatti.slice(-200)));
+    console.log(&#x27;DDS &#x27; + d.numero + &#x27; vigilanza: &#x27; + (j.inviati &amp;&amp; j.inviati.length ? &#x27;inviato a &#x27; + j.inviati.join(&#x27;, &#x27;) : (j.note || &#x27;nessun invio&#x27;)) +
+      (j.nonRaggiunti &amp;&amp; j.nonRaggiunti.length ? &#x27; – non raggiunti: &#x27; + j.nonRaggiunti.join(&#x27;, &#x27;) : &#x27;&#x27;));
+  }
+}
+
+/** Prova: prende l&#x27;ultimo DDS di vigilanza in archivio e lo manda SOLO a te (il messaggio dice a chi andrebbe). */
+function provaVigilanzaDds() {
+  const db = leggiDb_(cartellaPrincipale_());
+  const v = db.documenti.filter(eVigilanzaDds_).sort((a, b) =&gt; (b.data || &#x27;&#x27;).localeCompare(a.data || &#x27;&#x27;) || (b.numero || 0) - (a.numero || 0))[0];
+  if (!v) throw new Error(&#x27;Nessun DDS di vigilanza in archivio&#x27;);
+  const j = inviaVigilanzaDds_(v, true);
+  if (!j) throw new Error(&#x27;Esegui prima collegaVigilanze&#x27;);
+  console.log(&#x27;Prova con DDS &#x27; + v.numero + &#x27;: &#x27; + JSON.stringify(j));
+}
 </textarea>
 </div>
 <script>

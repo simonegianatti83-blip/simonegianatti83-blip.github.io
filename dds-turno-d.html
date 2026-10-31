@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>DDS turno D – web app Vigilanze</title>
+<style>
+:root{--bg:#EEF1F5;--surface:#fff;--ink:#16212F;--ink-2:#4A5767;--line:#D6DDE6;--ok:#2E7A4E;--btn:#16212F;--btn-ink:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#0F1620;--surface:#18212D;--ink:#E7ECF2;--ink-2:#AEB9C6;--line:#2A3544;--ok:#4FB57B;--btn:#E7ECF2;--btn-ink:#0F1620}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Avenir Next","Segoe UI",Roboto,system-ui,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 6px}
+p{color:var(--ink-2);margin:0 0 16px}
+.copy{width:100%;border:0;border-radius:12px;padding:16px;font-size:18px;font-weight:700;background:var(--btn);color:var(--btn-ink);cursor:pointer}
+.copy.done{background:var(--ok);color:#fff}
+ol{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 16px 16px 36px;margin:18px 0}
+li{margin-bottom:8px} b{color:var(--ink)}
+textarea{width:100%;height:260px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);
+  font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:12px}
+small{color:var(--ink-2)}
+</style></head><body><div class="wrap">
+<h1>DDS di vigilanza al CS/CR del turno D</h1>
+<p>Nuovo file per il progetto Apps Script della web app <b>Vigilanze TD</b> (non sostituisce niente).</p>
+<button class="copy" id="copy">Copia il file</button>
+<ol>
+<li>Apri il progetto della web app (foglio VIGILANZA TEATRO 2026 → Estensioni → Apps Script). Premi <b>+</b> accanto a File → <b>Script</b> e chiamalo <b>DdsTurnoD</b>.</li>
+<li>Incolla il codice copiato e salva.</li>
+<li>Scrivi in <b>DDS_CHIAVE_NUOVA</b> una chiave segreta a tua scelta (20 caratteri o più), scegli la funzione <b>ddsImpostaChiave</b> e premi Esegui. Poi cancella la chiave dal codice.</li>
+<li><b>Esegui il deployment → Gestisci deployment → matita → Nuova versione</b>. L’accesso deve restare <b>Chiunque</b>.</li>
+<li>Nello script dell’Archivio ODG (v11): scrivi in alto <b>VIGILANZE_URL</b> (l’indirizzo /exec della web app) e <b>VIGILANZE_CHIAVE</b> (la stessa chiave), esegui <b>collegaVigilanze</b>, poi <b>Nuova versione</b>.</li>
+<li>Prova: esegui <b>provaVigilanzaDds</b> nello script ODG. Il messaggio arriva solo a te e dice a chi andrebbe.</li>
+</ol>
+<small>Se il pulsante non funziona: tocca il riquadro, seleziona tutto e copia.</small>
+<textarea id="code" readonly spellcheck="false">/***********************************************************************
+ * DDS DI VIGILANZA → CS / CR DEL TURNO D  (file DdsTurnoD.gs, v1)
+ *
+ * Va nello STESSO progetto Apps Script della web app &quot;Vigilanze TD&quot;, come file
+ * nuovo accanto a WebApp.gs (usa tgMappa_, tgIscritti_, tgApi_, norm_ ecc.).
+ *
+ * COME FUNZIONA
+ *  Lo script dell&#x27;Archivio ODG, quando arriva un DDS di vigilanza, ne manda qui il
+ *  testo e il PDF. Questo file legge la tabella &quot;Dipendenti associati al servizio&quot;
+ *  e guarda la colonna TURNO (non l&#x27;oggetto del DDS, che a volte è sbagliato):
+ *  se c&#x27;è un CS o un CR con turno D (D1, D8…), gli gira il DDS sul bot Telegram.
+ *  Riceve solo chi è iscritto al bot e APPROVATO nella scheda &quot;TELEGRAM ISCRITTI&quot;.
+ *
+ * INSTALLAZIONE
+ *  1. Incolla questo file come nuovo file (+ → Script) nel progetto della web app.
+ *  2. Scrivi qui sotto, tra gli apici, una chiave segreta a tua scelta (almeno 20
+ *     caratteri, lettere e numeri) e premi Esegui su &quot;ddsImpostaChiave&quot;. Poi puoi
+ *     cancellarla da qui. La STESSA chiave va nello script dell&#x27;Archivio ODG.
+ *  3. Esegui il deployment → Gestisci deployment → matita → Nuova versione.
+ *     (La web app deve essere pubblicata con &quot;Chi ha accesso: Chiunque&quot;: la
+ *     password dell&#x27;app resta valida, qui entra solo chi conosce la chiave.)
+ ***********************************************************************/
+
+const DDS_CHIAVE_NUOVA = &#x27;&#x27;;   // ← scrivi qui la chiave, esegui ddsImpostaChiave, poi cancellala
+
+function ddsImpostaChiave() {
+  if (String(DDS_CHIAVE_NUOVA).length &lt; 20) throw new Error(&#x27;Scrivi in DDS_CHIAVE_NUOVA una chiave di almeno 20 caratteri.&#x27;);
+  PropertiesService.getScriptProperties().setProperty(&#x27;DDS_CHIAVE&#x27;, DDS_CHIAVE_NUOVA);
+  console.log(&#x27;Chiave salvata. Ora puoi cancellarla dal codice.&#x27;);
+}
+
+/** Riceve il DDS dall&#x27;Archivio ODG. */
+function doPost(e) {
+  const out = o =&gt; ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+  try {
+    const req = JSON.parse(e.postData.contents);
+    const chiave = PropertiesService.getScriptProperties().getProperty(&#x27;DDS_CHIAVE&#x27;) || &#x27;&#x27;;
+    if (!chiave || req.chiave !== chiave) { Utilities.sleep(1000); return out({ ok: false, errore: &#x27;Chiave non valida&#x27; }); }
+    if (req.azione === &#x27;ddsVigilanza&#x27;) return out(ddsGira_(req));
+    return out({ ok: false, errore: &#x27;Azione sconosciuta&#x27; });
+  } catch (err) {
+    return out({ ok: false, errore: String(err &amp;&amp; err.message || err) });
+  }
+}
+
+const DDS_QUAL = [&#x27;CR&#x27;, &#x27;CRE&#x27;, &#x27;CS&#x27;, &#x27;CSE&#x27;, &#x27;VE&#x27;, &#x27;VC&#x27;, &#x27;VIG&#x27;];
+const DDS_CAPI = [&#x27;CR&#x27;, &#x27;CRE&#x27;, &#x27;CS&#x27;, &#x27;CSE&#x27;];
+const DDS_SEDE = /^(CENTRALE|SONDRIO|MORBEGNO|TIRANO|VALDISOTTO|BORMIO|MESE|CHIAVENNA|LIVIGNO|SONDALO|GROSIO|GROTTO|MADESIMO|APRICA|TALAMONA|TRESIVIO|CAMPODOLCINO|PONTE|IN|VALTELLINA|CHIESA|VALMALENCO|DISTACCAMENTO|VOLONTARI|VOL\.?)$/;
+
+function ddsTitolo_(s) {
+  return String(s).toLowerCase().replace(/(^|[\s&#x27;])([a-zà-ÿ])/g, (m, a, b) =&gt; a + b.toUpperCase());
+}
+
+/** Personale della tabella &quot;Dipendenti associati al servizio&quot;: [{qual, nome, turno, lettera}] */
+function ddsPersonale_(testo) {
+  let t = String(testo || &#x27;&#x27;).replace(/\r/g, &#x27; &#x27;).replace(/\s+/g, &#x27; &#x27;);
+  const a = t.search(/DIPENDENTI\s+ASSOCIATI/i);
+  if (a &lt; 0) return [];
+  t = t.slice(a).replace(/^DIPENDENTI\s+ASSOCIATI\s+AL\s+SERVIZIO/i, &#x27;&#x27;);
+  const f = t.search(/MEZZI\s+UTILIZZATI/i);
+  if (f &gt;= 0) t = t.slice(0, f);
+  const h = t.search(/\bTURNO\b/i);                 // intestazione: QUAL COGNOME NOME SEDE DI SERVIZIO TURNO
+  if (h &gt;= 0 &amp;&amp; h &lt; 150) t = t.slice(h + 5);
+  const tok = t.toUpperCase().split(/\s+/).filter(Boolean);
+  const segs = [];
+  let cur = null;
+  tok.forEach(x =&gt; {
+    if (DDS_QUAL.indexOf(x) &gt;= 0) { cur = { qual: x, t: [] }; segs.push(cur); } else if (cur) cur.t.push(x);
+  });
+  const out = [];
+  segs.forEach(s =&gt; {
+    let i = -1, turno = &#x27;&#x27;;
+    for (let k = 0; k &lt; s.t.length; k++) {
+      let m = s.t[k].match(/^([A-D])(\d{1,2})$/);
+      if (m) { i = k; turno = m[1] + m[2]; break; }
+      if (/^[A-D]$/.test(s.t[k]) &amp;&amp; /^\d{1,2}$/.test(s.t[k + 1] || &#x27;&#x27;)) { i = k; turno = s.t[k] + s.t[k + 1]; break; }
+    }
+    if (i &lt; 0) return;
+    const nome = s.t.slice(0, i);
+    while (nome.length &gt; 2 &amp;&amp; DDS_SEDE.test(nome[nome.length - 1])) nome.pop();
+    out.push({ qual: s.qual, nome: ddsTitolo_(nome.join(&#x27; &#x27;)), turno, lettera: turno.charAt(0) });
+  });
+  return out;
+}
+
+/** Dati del servizio dal testo del DDS. */
+function ddsDati_(testo, req) {
+  const t = String(testo || &#x27;&#x27;).replace(/\r/g, &#x27; &#x27;).replace(/\s+/g, &#x27; &#x27;);
+  const d = { luogo: &#x27;&#x27;, manifestazione: &#x27;&#x27;, inizio: &#x27;&#x27;, fine: &#x27;&#x27;, data: &#x27;&#x27; };
+  let m = t.match(/LUOGO:?\s*(.+?)\s+MANIFESTAZIONE:?\s*(.+?)\s+INDIRIZZO/i);
+  if (m) { d.luogo = m[1].trim(); d.manifestazione = m[2].trim(); }
+  m = t.match(/INIZIO\s+SERVIZIO\s*:?\s*(\d{2}\/\d{2}\/\d{4})\s+(\d{1,2}[:.]\d{2})\s+FINE\s+SERVIZIO\s*:?\s*(\d{2}\/\d{2}\/\d{4})\s+(\d{1,2}[:.]\d{2})/i);
+  if (m) { d.data = m[1]; d.inizio = m[2].replace(&#x27;.&#x27;, &#x27;:&#x27;); d.fine = m[4].replace(&#x27;.&#x27;, &#x27;:&#x27;); }
+  return d;
+}
+
+/** Cerca per nome (cognome e nome in qualsiasi ordine) tra gli iscritti approvati. */
+function ddsChat_(nome, iscritti) {
+  const k = new Set(norm_(nome).split(&#x27; &#x27;).filter(Boolean));
+  if (!k.size) return &#x27;&#x27;;
+  let best = null, bn = 0;
+  iscritti.forEach(x =&gt; {
+    const n = norm_(x.nome).split(&#x27; &#x27;).filter(Boolean);
+    if (n.length &gt;= 2 &amp;&amp; n.every(w =&gt; k.has(w)) &amp;&amp; n.length &gt; bn) { best = x; bn = n.length; }
+  });
+  return best ? best.chat : &#x27;&#x27;;
+}
+
+function ddsMessaggio_(req, dati, turnoD, avviso, prova) {
+  const L = [];
+  if (prova) L.push(&#x27;🧪 &lt;i&gt;MESSAGGIO DI PROVA – lo ricevi tu; il DDS vero andrebbe a: &#x27; + tgHtml_(prova) + &#x27;&lt;/i&gt;&#x27;);
+  L.push(&#x27;🚒 &lt;b&gt;VIGILANZA ASSEGNATA AL TURNO D&lt;/b&gt;&#x27;);
+  const ev = dati.manifestazione || req.titolo || &#x27;&#x27;;
+  L.push(&#x27;🎭 &lt;b&gt;&#x27; + tgHtml_(dati.luogo ? dati.luogo + (ev ? &#x27; – &#x27; + ev : &#x27;&#x27;) : ev) + &#x27;&lt;/b&gt;&#x27;);
+  if (dati.data) {
+    const [g, mo, y] = dati.data.split(&#x27;/&#x27;).map(Number);
+    const giorno = [&#x27;domenica&#x27;, &#x27;lunedì&#x27;, &#x27;martedì&#x27;, &#x27;mercoledì&#x27;, &#x27;giovedì&#x27;, &#x27;venerdì&#x27;, &#x27;sabato&#x27;][new Date(y, mo - 1, g).getDay()];
+    L.push(&#x27;📅 &#x27; + giorno + &#x27; &#x27; + dati.data + (dati.inizio ? &#x27; · ⏰ &lt;b&gt;dalle &#x27; + dati.inizio + &#x27; alle &#x27; + dati.fine + &#x27;&lt;/b&gt;&#x27; : &#x27;&#x27;));
+  }
+  L.push(&#x27;👨‍🚒 &lt;b&gt;Personale del turno D&lt;/b&gt;\n&#x27; + turnoD.map(p =&gt; &#x27;• &#x27; + p.qual + &#x27; &#x27; + tgHtml_(p.nome) + &#x27; (&#x27; + p.turno + &#x27;)&#x27;).join(&#x27;\n&#x27;));
+  if (avviso) L.push(&#x27;⚠️ &#x27; + tgHtml_(avviso));
+  L.push(&#x27;ℹ️ &lt;i&gt;DDS n. &#x27; + tgHtml_(req.numero || &#x27;&#x27;) + (req.data ? &#x27; del &#x27; + tgHtml_(req.data) : &#x27;&#x27;) + &#x27; – in allegato il documento.&lt;/i&gt;&#x27;);
+  return L.join(&#x27;\n\n&#x27;);
+}
+
+/** Gira il DDS ai CS/CR del turno D. req: {numero, data, titolo, testo, pdf (base64), nomePdf, prova} */
+function ddsGira_(req) {
+  const personale = ddsPersonale_(req.testo);
+  if (!personale.length) {                           // non resta in silenzio: lo dico all&#x27;amministratore
+    try {
+      const ac = tgMappa_().perNum[tgNum_(tgNumAdmin_())];
+      if (ac &amp;&amp; !req.prova) tgApi_(&#x27;sendMessage&#x27;, { chat_id: ac, parse_mode: &#x27;HTML&#x27;,
+        text: &#x27;⚠️ &lt;b&gt;DDS &#x27; + tgHtml_(req.numero || &#x27;&#x27;) + &#x27; (vigilanza)&lt;/b&gt;\n\nNon sono riuscito a leggere la tabella del personale: controlla a mano se spetta al turno D.&#x27; });
+    } catch (e) { console.warn(&#x27;admin: &#x27; + e); }
+    return { ok: true, inviati: [], note: &#x27;Tabella del personale non riconosciuta&#x27; };
+  }
+  const dati = ddsDati_(req.testo, req);
+  const turnoD = personale.filter(p =&gt; p.lettera === &#x27;D&#x27;);
+  if (!turnoD.length) return { ok: true, inviati: [], note: &#x27;Nessuno del turno D&#x27; };
+
+  // l&#x27;oggetto del DDS a volte indica un altro turno (es. &quot;T.C.&quot;): si segnala, ma conta la tabella
+  let avviso = &#x27;&#x27;;
+  const og = String(req.titolo || &#x27;&#x27;).match(/\bT\.?\s?([A-D])\.?\s*$/i);
+  if (og &amp;&amp; og[1].toUpperCase() !== &#x27;D&#x27;) avviso = &#x27;Nell\&#x27;oggetto del DDS è indicato il turno &#x27; + og[1].toUpperCase() + &#x27;, ma il personale in elenco è del turno D.&#x27;;
+
+  const capi = turnoD.filter(p =&gt; DDS_CAPI.indexOf(p.qual) &gt;= 0);
+  const iscritti = tgIscritti_().filter(x =&gt; x.stato === TG_STATI.OK);
+  const mappa = tgMappa_();
+  const adminChat = mappa.perNum[tgNum_(tgNumAdmin_())] || &#x27;&#x27;;
+  const log = tgLogSheet_();
+  const tz = waSS_().getSpreadsheetTimeZone();
+  const ora = Utilities.formatDate(new Date(), tz, &#x27;dd/MM/yyyy HH:mm&#x27;);
+  const idDds = &#x27;DDS&#x27; + (req.numero || &#x27;&#x27;) + &#x27;|&#x27; + (req.data || &#x27;&#x27;);
+  const giaInviati = new Set(log.getLastRow() &gt; 1 ? log.getRange(2, 2, log.getLastRow() - 1, 5).getDisplayValues()
+    .filter(r =&gt; r[3] === &#x27;inviato&#x27; &amp;&amp; r[4] === &#x27;dds&#x27;).map(r =&gt; r[0] + &#x27;|&#x27; + norm_(r[2])) : []);
+
+  const blob = req.pdf ? Utilities.newBlob(Utilities.base64Decode(req.pdf), &#x27;application/pdf&#x27;, req.nomePdf || (&#x27;DDS &#x27; + req.numero + &#x27;.pdf&#x27;)) : null;
+  const manda = (chat, testo) =&gt; {
+    tgApi_(&#x27;sendMessage&#x27;, { chat_id: chat, parse_mode: &#x27;HTML&#x27;, text: testo, disable_web_page_preview: true });
+    if (blob) {
+      const r = UrlFetchApp.fetch(&#x27;https://api.telegram.org/bot&#x27; + tgToken_() + &#x27;/sendDocument&#x27;, { method: &#x27;post&#x27;, muteHttpExceptions: true,
+        payload: { chat_id: chat, document: blob.copyBlob(), caption: &#x27;DDS n. &#x27; + (req.numero || &#x27;&#x27;) + &#x27; – &#x27; + dati.manifestazione } });
+      const j = JSON.parse(r.getContentText() || &#x27;{}&#x27;);
+      if (!j.ok) console.warn(&#x27;pdf: &#x27; + j.description);
+    }
+  };
+
+  const inviati = [], nonRaggiunti = [], righeLog = [];
+  if (req.prova) {                                   // prova: tutto solo all&#x27;amministratore
+    if (!adminChat) return { ok: false, errore: &#x27;L\&#x27;amministratore non è iscritto al bot (numero &#x27; + tgNumAdmin_() + &#x27;)&#x27; };
+    manda(adminChat, ddsMessaggio_(req, dati, turnoD, avviso, capi.map(c =&gt; c.nome).join(&#x27;, &#x27;) || &#x27;nessun CS/CR del turno D&#x27;));
+    return { ok: true, prova: true, destinatari: capi.map(c =&gt; c.nome), turnoD: turnoD.map(p =&gt; p.qual + &#x27; &#x27; + p.nome + &#x27; &#x27; + p.turno) };
+  }
+  capi.forEach(c =&gt; {
+    const k = idDds + &#x27;|&#x27; + norm_(c.nome);
+    if (giaInviati.has(k)) return;
+    const chat = ddsChat_(c.nome, iscritti);
+    if (!chat) { nonRaggiunti.push(c.nome); righeLog.push([ora, idDds, dati.data, c.nome, &#x27;non iscritto o non approvato&#x27;, &#x27;dds&#x27;]); return; }
+    try {
+      manda(chat, ddsMessaggio_(req, dati, turnoD, avviso, &#x27;&#x27;));
+      inviati.push(c.nome); righeLog.push([ora, idDds, dati.data, c.nome, &#x27;inviato&#x27;, &#x27;dds&#x27;]);
+    } catch (e) { nonRaggiunti.push(c.nome); righeLog.push([ora, idDds, dati.data, c.nome, &#x27;errore: &#x27; + (e.message || e), &#x27;dds&#x27;]); }
+  });
+  // nessun CS/CR del turno D, o non raggiungibile: lo dico all&#x27;amministratore (non resta in silenzio)
+  if (adminChat &amp;&amp; (!capi.length || nonRaggiunti.length)) {
+    try {
+      tgApi_(&#x27;sendMessage&#x27;, { chat_id: adminChat, parse_mode: &#x27;HTML&#x27;, text: &#x27;⚠️ &lt;b&gt;DDS &#x27; + tgHtml_(req.numero || &#x27;&#x27;) + &#x27; (vigilanza turno D)&lt;/b&gt;\n\n&#x27; +
+        (capi.length ? &#x27;Non ho potuto avvisare (non iscritti o non approvati al bot): &#x27; + tgHtml_(nonRaggiunti.join(&#x27;, &#x27;)) + &#x27;.&#x27;
+                     : &#x27;Nel turno D non c\&#x27;è nessun CS/CR: nessun avviso inviato. Personale D: &#x27; + tgHtml_(turnoD.map(p =&gt; p.qual + &#x27; &#x27; + p.nome).join(&#x27;, &#x27;)) + &#x27;.&#x27;) });
+    } catch (e) { console.warn(&#x27;admin: &#x27; + e); }
+  }
+  if (righeLog.length) log.getRange(log.getLastRow() + 1, 1, righeLog.length, 6).setValues(righeLog);
+  return { ok: true, inviati, nonRaggiunti, turnoD: turnoD.map(p =&gt; p.qual + &#x27; &#x27; + p.nome + &#x27; &#x27; + p.turno) };
+}
+</textarea>
+<script>document.getElementById('copy').onclick=function(){var t=document.getElementById('code');t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand('copy');}this.textContent='Copiato ✓';this.classList.add('done');};</script>
+</div></body></html>
