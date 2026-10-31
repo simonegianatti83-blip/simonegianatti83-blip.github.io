@@ -91,14 +91,71 @@ function ddsTitolo_(s) {
   return String(s).toLowerCase().replace(/(^|[\s&#x27;])([a-zà-ÿ])/g, (m, a, b) =&gt; a + b.toUpperCase());
 }
 
-/** Personale: prima dalla tabella &quot;Dipendenti associati&quot; (qual, nome, sede, turno), poi, se serve, da &quot;Rapporto presenza&quot; (turno, qual, nome). */
-function ddsPersonale_(testo) {
+/** Conta i turni (D8, B3…) in un pezzo di testo. */
+function ddsContaTurni_(t) {
+  return (String(t || &#x27;&#x27;).toUpperCase().replace(/(\d)([A-Z])/g, &#x27;$1 $2&#x27;).match(/(^|\s)[A-D]\d{1,2}(?=\s|$)/g) || []).length;
+}
+/** Le due tabelle del documento: &quot;Dipendenti associati&quot; e &quot;Rapporto presenza&quot; (pagina 1). */
+function ddsRegioni_(testo) {
+  const t = String(testo || &#x27;&#x27;).replace(/\r/g, &#x27; &#x27;).replace(/\s+/g, &#x27; &#x27;);
+  let A = &#x27;&#x27;, B = &#x27;&#x27;;
+  const a = t.search(/DIPENDENTI\s+ASSOCIATI/i);
+  if (a &gt;= 0) { A = t.slice(a); const f = A.search(/MEZZI\s+UTILIZZATI/i); if (f &gt;= 0) A = A.slice(0, f); }
+  const b = t.search(/RAPPORTO\s+PRESENZA/i);
+  if (b &gt;= 0) { B = t.slice(b); const f = B.slice(20).search(/PAGINA\s+\d\s+DI|RAPPORTO\s+PRESENZA/i); if (f &gt;= 0) B = B.slice(0, f + 20); }
+  return { A, B, tutto: t };
+}
+
+/**
+ * Personale del servizio: [{qual, nome, turno, lettera}].
+ * 1) righe &quot;QUAL COGNOME NOME SEDE TURNO&quot; (o &quot;TURNO QUAL COGNOME NOME&quot;) se le due tabelle concordano;
+ * 2) altrimenti il testo a COLONNE (prima tutte le qualifiche, poi i cognomi, i nomi, i turni), come lo legge
+ *    spesso l&#x27;OCR di Google: qui il nome si riconosce solo per le persone presenti in VOLONTARIETÀ (volNomi).
+ * Se non si è sicuri restituisce [] e l&#x27;amministratore viene avvisato: mai indovinare.
+ */
+function ddsPersonale_(testo, volNomi) {
+  const R = ddsRegioni_(testo);
   const A = ddsPersonaleA_(testo), B = ddsPersonaleB_(testo);
-  if (!A.length || !B.length) return A.length ? A : B;
-  // le due tabelle del documento devono dire la stessa cosa: se no, meglio non indovinare (si avvisa l&#x27;amministratore)
+  const okA = A.length &amp;&amp; A.length === ddsContaTurni_(R.A) &amp;&amp; A.every(x =&gt; x.nome.split(&#x27; &#x27;).length &gt;= 2);
+  const okB = B.length &amp;&amp; B.length === ddsContaTurni_(R.B) &amp;&amp; B.every(x =&gt; x.nome.split(&#x27; &#x27;).length &gt;= 2);
   const chiave = x =&gt; x.qual + &#x27;|&#x27; + x.turno + &#x27;|&#x27; + x.nome.toUpperCase().split(&#x27; &#x27;).sort().join(&#x27; &#x27;);
-  const a = A.map(chiave).sort().join(&#x27;;&#x27;), b = B.map(chiave).sort().join(&#x27;;&#x27;);
-  return a === b ? A : [];
+  if (okA &amp;&amp; okB) {
+    return A.map(chiave).sort().join(&#x27;;&#x27;) === B.map(chiave).sort().join(&#x27;;&#x27;) ? A : [];
+  }
+  if (okA &amp;&amp; !R.B) return A;
+  if (okB &amp;&amp; !R.A) return B;
+  return ddsColonne_(R, volNomi || {});
+}
+
+/** Testo a colonne dalla pagina &quot;Rapporto presenza&quot;: turni, qualifiche, cognomi, nomi. */
+function ddsColonne_(R, volNomi) {
+  if (!R.B) return [];
+  let t = R.B.toUpperCase().replace(/(\d)([A-ZÀ-Ý])/g, &#x27;$1 $2&#x27;);
+  const f = t.lastIndexOf(&#x27;FIRMA DEL DIPENDENTE&#x27;);
+  if (f &lt; 0) return [];
+  t = t.slice(f + 20);
+  const tok = t.split(/\s+/).filter(Boolean);
+  while (tok.length &amp;&amp; /^(IN|SERV|SOST|SERVIZIO)$/.test(tok[0])) tok.shift();
+  const T = tok.filter(x =&gt; /^[A-D]\d{1,2}$/.test(x));
+  const Q = tok.filter(x =&gt; DDS_QUAL.indexOf(x) &gt;= 0);
+  const W = tok.filter(x =&gt; !/^[A-D]\d{1,2}$/.test(x) &amp;&amp; DDS_QUAL.indexOf(x) &lt; 0);
+  const n = Q.length;
+  if (!n || T.length !== n || W.length &lt; 2 * n) return [];
+  const nomi = new Array(n).fill(&#x27;&#x27;);
+  if (W.length === 2 * n) {                           // cognomi e nomi di una parola sola: si accoppiano per ordine
+    for (let i = 0; i &lt; n; i++) nomi[i] = ddsTitolo_(W[i] + &#x27; &#x27; + W[n + i]);
+  } else {                                           // si riconoscono i nomi di battesimo (ultimi n) tra le persone note
+    const nomiBatt = W.slice(W.length - n), set = new Set(W);
+    const noti = Object.keys(volNomi).map(k =&gt; ({ nome: volNomi[k], tok: k.split(&#x27; &#x27;).filter(Boolean) }))
+      .filter(x =&gt; x.tok.length &gt;= 2 &amp;&amp; x.tok.every(w =&gt; set.has(w.toUpperCase())));
+    for (let i = 0; i &lt; n; i++) {
+      const c = noti.filter(x =&gt; x.tok.some(w =&gt; w.toUpperCase() === nomiBatt[i]));
+      if (c.length === 1) nomi[i] = c[0].nome;
+    }
+    const usati = nomi.filter(Boolean);
+    if (new Set(usati).size !== usati.length) return [];   // la stessa persona due volte: non è affidabile
+  }
+  return Q.map((q, i) =&gt; ({ qual: q, nome: nomi[i], turno: T[i], lettera: T[i].charAt(0), colonne: true }));
 }
 const DDS_QRE = &#x27;CRE|CSE|CR|CS|VE|VC|VIG&#x27;;
 function ddsRiga_(qual, nomeTok, turno) {
@@ -191,7 +248,7 @@ function ddsMessaggio_(req, dati, turnoD, avviso, prova) {
     const giorno = [&#x27;domenica&#x27;, &#x27;lunedì&#x27;, &#x27;martedì&#x27;, &#x27;mercoledì&#x27;, &#x27;giovedì&#x27;, &#x27;venerdì&#x27;, &#x27;sabato&#x27;][new Date(y, mo - 1, g).getDay()];
     L.push(&#x27;📅 &#x27; + giorno + &#x27; &#x27; + dati.data + (dati.inizio ? &#x27; · ⏰ &lt;b&gt;dalle &#x27; + dati.inizio + &#x27; alle &#x27; + dati.fine + &#x27;&lt;/b&gt;&#x27; : &#x27;&#x27;));
   }
-  L.push(&#x27;👨‍🚒 &lt;b&gt;Personale del turno D&lt;/b&gt;\n&#x27; + turnoD.map(p =&gt; &#x27;• &#x27; + p.qual + &#x27; &#x27; + tgHtml_(p.nome) + &#x27; (&#x27; + p.turno + &#x27;)&#x27;).join(&#x27;\n&#x27;));
+  L.push(&#x27;👨‍🚒 &lt;b&gt;Personale del turno D&lt;/b&gt;\n&#x27; + turnoD.map(p =&gt; &#x27;• &#x27; + p.qual + (p.nome ? &#x27; &#x27; + tgHtml_(p.nome) : &#x27;&#x27;) + &#x27; (&#x27; + p.turno + &#x27;)&#x27;).join(&#x27;\n&#x27;));
   if (avviso) L.push(&#x27;⚠️ &#x27; + tgHtml_(avviso));
   L.push(&#x27;ℹ️ &lt;i&gt;DDS n. &#x27; + tgHtml_(req.numero || &#x27;&#x27;) + (req.data ? &#x27; del &#x27; + tgHtml_(req.data) : &#x27;&#x27;) + &#x27; – in allegato il documento.&lt;/i&gt;&#x27;);
   return L.join(&#x27;\n\n&#x27;);
@@ -199,7 +256,9 @@ function ddsMessaggio_(req, dati, turnoD, avviso, prova) {
 
 /** Gira il DDS ai CS/CR del turno D. req: {numero, data, titolo, testo, pdf (base64), nomePdf, prova} */
 function ddsGira_(req) {
-  const personale = ddsPersonale_(req.testo);
+  let volNomi = {};
+  try { volNomi = nomiVol_(waSS_()); } catch (e) { console.warn(&#x27;VOLONTARIETÀ: &#x27; + e); }
+  const personale = ddsPersonale_(req.testo, volNomi);
   if (!personale.length) {                           // non resta in silenzio: lo dico all&#x27;amministratore
     try {
       const ac = tgMappa_().perNum[tgNum_(tgNumAdmin_())];
@@ -242,14 +301,14 @@ function ddsGira_(req) {
   const inviati = [], nonRaggiunti = [], righeLog = [];
   if (req.prova) {                                   // prova: tutto solo all&#x27;amministratore
     if (!adminChat) return { ok: false, errore: &#x27;L\&#x27;amministratore non è iscritto al bot (numero &#x27; + tgNumAdmin_() + &#x27;)&#x27; };
-    manda(adminChat, ddsMessaggio_(req, dati, turnoD, avviso, capi.map(c =&gt; c.nome).join(&#x27;, &#x27;) || &#x27;nessun CS/CR del turno D&#x27;));
-    return { ok: true, prova: true, destinatari: capi.map(c =&gt; c.nome), turnoD: turnoD.map(p =&gt; p.qual + &#x27; &#x27; + p.nome + &#x27; &#x27; + p.turno) };
+    manda(adminChat, ddsMessaggio_(req, dati, turnoD, avviso, capi.map(c =&gt; c.nome || (c.qual + &#x27; (nome non riconosciuto)&#x27;)).join(&#x27;, &#x27;) || &#x27;nessun CS/CR del turno D&#x27;));
+    return { ok: true, prova: true, destinatari: capi.map(c =&gt; c.nome || (c.qual + &#x27; (nome non riconosciuto)&#x27;)), turnoD: turnoD.map(p =&gt; p.qual + &#x27; &#x27; + p.nome + &#x27; &#x27; + p.turno) };
   }
   capi.forEach(c =&gt; {
     const k = idDds + &#x27;|&#x27; + norm_(c.nome);
     if (giaInviati.has(k)) return;
     const chat = ddsChat_(c.nome, iscritti);
-    if (!chat) { nonRaggiunti.push(c.nome); righeLog.push([ora, idDds, dati.data, c.nome, &#x27;non iscritto o non approvato&#x27;, &#x27;dds&#x27;]); return; }
+    if (!chat) { nonRaggiunti.push(c.nome || (c.qual + &#x27; (nome non riconosciuto)&#x27;)); righeLog.push([ora, idDds, dati.data, c.nome, &#x27;non iscritto o non approvato&#x27;, &#x27;dds&#x27;]); return; }
     try {
       manda(chat, ddsMessaggio_(req, dati, turnoD, avviso, &#x27;&#x27;));
       inviati.push(c.nome); righeLog.push([ora, idDds, dati.data, c.nome, &#x27;inviato&#x27;, &#x27;dds&#x27;]);
