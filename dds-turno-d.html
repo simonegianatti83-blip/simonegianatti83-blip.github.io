@@ -91,35 +91,65 @@ function ddsTitolo_(s) {
   return String(s).toLowerCase().replace(/(^|[\s&#x27;])([a-zà-ÿ])/g, (m, a, b) =&gt; a + b.toUpperCase());
 }
 
-/** Personale della tabella &quot;Dipendenti associati al servizio&quot;: [{qual, nome, turno, lettera}] */
+/** Personale: prima dalla tabella &quot;Dipendenti associati&quot; (qual, nome, sede, turno), poi, se serve, da &quot;Rapporto presenza&quot; (turno, qual, nome). */
 function ddsPersonale_(testo) {
-  let t = String(testo || &#x27;&#x27;).replace(/\r/g, &#x27; &#x27;).replace(/\s+/g, &#x27; &#x27;);
+  const A = ddsPersonaleA_(testo), B = ddsPersonaleB_(testo);
+  if (!A.length || !B.length) return A.length ? A : B;
+  // le due tabelle del documento devono dire la stessa cosa: se no, meglio non indovinare (si avvisa l&#x27;amministratore)
+  const chiave = x =&gt; x.qual + &#x27;|&#x27; + x.turno + &#x27;|&#x27; + x.nome.toUpperCase().split(&#x27; &#x27;).sort().join(&#x27; &#x27;);
+  const a = A.map(chiave).sort().join(&#x27;;&#x27;), b = B.map(chiave).sort().join(&#x27;;&#x27;);
+  return a === b ? A : [];
+}
+const DDS_QRE = &#x27;CRE|CSE|CR|CS|VE|VC|VIG&#x27;;
+function ddsRiga_(qual, nomeTok, turno) {
+  const nome = nomeTok.slice();
+  while (nome.length &gt; 2 &amp;&amp; DDS_SEDE.test(nome[nome.length - 1])) nome.pop();
+  return { qual: qual, nome: ddsTitolo_(nome.join(&#x27; &#x27;)), turno: turno, lettera: turno.charAt(0) };
+}
+
+function ddsPersonaleA_(testo) {
+  let t = String(testo || &#x27;&#x27;).replace(/\r/g, &#x27; &#x27;);
   const a = t.search(/DIPENDENTI\s+ASSOCIATI/i);
   if (a &lt; 0) return [];
   t = t.slice(a).replace(/^DIPENDENTI\s+ASSOCIATI\s+AL\s+SERVIZIO/i, &#x27;&#x27;);
   const f = t.search(/MEZZI\s+UTILIZZATI/i);
   if (f &gt;= 0) t = t.slice(0, f);
+  t = t.replace(/\s+/g, &#x27; &#x27;);
   const h = t.search(/\bTURNO\b/i);                 // intestazione: QUAL COGNOME NOME SEDE DI SERVIZIO TURNO
   if (h &gt;= 0 &amp;&amp; h &lt; 150) t = t.slice(h + 5);
+  t = t.replace(/(\d)([A-Za-zÀ-ÿ])/g, &#x27;$1 $2&#x27;);    // &quot;D8VE&quot; -&gt; &quot;D8 VE&quot; (testo con parole attaccate)
   const tok = t.toUpperCase().split(/\s+/).filter(Boolean);
-  const segs = [];
-  let cur = null;
-  tok.forEach(x =&gt; {
-    if (DDS_QUAL.indexOf(x) &gt;= 0) { cur = { qual: x, t: [] }; segs.push(cur); } else if (cur) cur.t.push(x);
-  });
+  const reQ = new RegExp(&#x27;^(&#x27; + DDS_QRE + &#x27;)&#x27;);
   const out = [];
-  segs.forEach(s =&gt; {
-    let i = -1, turno = &#x27;&#x27;;
-    for (let k = 0; k &lt; s.t.length; k++) {
-      let m = s.t[k].match(/^([A-D])(\d{1,2})$/);
-      if (m) { i = k; turno = m[1] + m[2]; break; }
-      if (/^[A-D]$/.test(s.t[k]) &amp;&amp; /^\d{1,2}$/.test(s.t[k + 1] || &#x27;&#x27;)) { i = k; turno = s.t[k] + s.t[k + 1]; break; }
+  let cur = null, attesa = true;
+  tok.forEach((x, k) =&gt; {
+    let q = null, resto = &#x27;&#x27;;
+    if (DDS_QUAL.indexOf(x) &gt;= 0) q = x;
+    else if (attesa) {                                // &quot;CSDELLA&quot; -&gt; CS + DELLA (solo all&#x27;inizio di una riga della tabella)
+      const m = x.match(reQ);
+      if (m &amp;&amp; x.length - m[1].length &gt;= 3) { q = m[1]; resto = x.slice(m[1].length); }
     }
-    if (i &lt; 0) return;
-    const nome = s.t.slice(0, i);
-    while (nome.length &gt; 2 &amp;&amp; DDS_SEDE.test(nome[nome.length - 1])) nome.pop();
-    out.push({ qual: s.qual, nome: ddsTitolo_(nome.join(&#x27; &#x27;)), turno, lettera: turno.charAt(0) });
+    if (q) { cur = { qual: q, t: resto ? [resto] : [], fatto: false }; out.push(cur); attesa = false; return; }
+    if (!cur || cur.fatto) return;
+    let mt = x.match(/^([A-D])(\d{1,2})$/), turno = &#x27;&#x27;;
+    if (mt) turno = mt[1] + mt[2];
+    else if (/^[A-D]$/.test(x) &amp;&amp; /^\d{1,2}$/.test(tok[k + 1] || &#x27;&#x27;)) turno = x + tok[k + 1];
+    if (turno) { cur.turno = turno; cur.fatto = true; attesa = true; return; }
+    cur.t.push(x);
   });
+  return out.filter(c =&gt; c.turno).map(c =&gt; ddsRiga_(c.qual, c.t, c.turno));
+}
+
+function ddsPersonaleB_(testo) {
+  const t = String(testo || &#x27;&#x27;).replace(/\r/g, &#x27; &#x27;).replace(/\s+/g, &#x27; &#x27;).toUpperCase();
+  const i = t.search(/RAPPORTO\s+PRESENZA/);
+  if (i &lt; 0) return [];
+  const src = t.slice(i);
+  const nome = &quot;(?:(?![A-D]\\d|PAGINA|DALLE|NOTE|FIRMA|IN\\b|SERV\\b)[A-ZÀ-Ý&#x27;’]+ ?){2,5}&quot;;
+  const re = new RegExp(&#x27;([A-D]\\d{1,2}) ?(&#x27; + DDS_QRE + &#x27;) ?(&#x27; + nome + &#x27;)&#x27;, &#x27;g&#x27;);
+  const out = [];
+  let m;
+  while ((m = re.exec(src))) out.push(ddsRiga_(m[2], m[3].trim().split(/\s+/), m[1]));
   return out;
 }
 
@@ -131,6 +161,10 @@ function ddsDati_(testo, req) {
   if (m) { d.luogo = m[1].trim(); d.manifestazione = m[2].trim(); }
   m = t.match(/INIZIO\s+SERVIZIO\s*:?\s*(\d{2}\/\d{2}\/\d{4})\s+(\d{1,2}[:.]\d{2})\s+FINE\s+SERVIZIO\s*:?\s*(\d{2}\/\d{2}\/\d{4})\s+(\d{1,2}[:.]\d{2})/i);
   if (m) { d.data = m[1]; d.inizio = m[2].replace(&#x27;.&#x27;, &#x27;:&#x27;); d.fine = m[4].replace(&#x27;.&#x27;, &#x27;:&#x27;); }
+  if (!d.data) {                                     // altra parte del documento (&quot;Rapporto tecnico&quot;)
+    m = t.match(/DATA\s+DEL\s+SERVIZIO:?\s*(\d{2}\/\d{2}\/\d{4})\s+DALLE\s+ORE:?\s*(\d{1,2}[:.]\d{2})\s+ALLE\s+ORE:?\s*(\d{1,2}[:.]\d{2})/i);
+    if (m) { d.data = m[1]; d.inizio = m[2].replace(&#x27;.&#x27;, &#x27;:&#x27;); d.fine = m[3].replace(&#x27;.&#x27;, &#x27;:&#x27;); }
+  }
   return d;
 }
 
@@ -172,7 +206,7 @@ function ddsGira_(req) {
       if (ac &amp;&amp; !req.prova) tgApi_(&#x27;sendMessage&#x27;, { chat_id: ac, parse_mode: &#x27;HTML&#x27;,
         text: &#x27;⚠️ &lt;b&gt;DDS &#x27; + tgHtml_(req.numero || &#x27;&#x27;) + &#x27; (vigilanza)&lt;/b&gt;\n\nNon sono riuscito a leggere la tabella del personale: controlla a mano se spetta al turno D.&#x27; });
     } catch (e) { console.warn(&#x27;admin: &#x27; + e); }
-    return { ok: true, inviati: [], note: &#x27;Tabella del personale non riconosciuta&#x27; };
+    return { ok: true, inviati: [], note: &#x27;Tabella del personale non riconosciuta&#x27;, anteprima: (function (t) { t = String(t || &#x27;&#x27;).replace(/\s+/g, &#x27; &#x27;); const i = Math.max(0, t.search(/DIPENDENTI|RAPPORTO PRESENZA/i)); return t.slice(i, i + 450); })(req.testo) };
   }
   const dati = ddsDati_(req.testo, req);
   const turnoD = personale.filter(p =&gt; p.lettera === &#x27;D&#x27;);
