@@ -241,6 +241,7 @@ function ddsMessaggio_(req, dati, turnoD, avviso, prova) {
   const L = [];
   if (prova) L.push(&#x27;🧪 &lt;i&gt;MESSAGGIO DI PROVA – lo ricevi tu; il DDS vero andrebbe a: &#x27; + tgHtml_(prova) + &#x27;&lt;/i&gt;&#x27;);
   L.push(&#x27;🚒 &lt;b&gt;VIGILANZA ASSEGNATA AL TURNO D&lt;/b&gt;&#x27;);
+  L.push(&#x27;📄 SERVIZIO DI VIGILANZA – DISPOSIZIONE DI SERVIZIO\n✅ PROTOCOLLATA – FIRMATA DAL COMANDANTE&#x27;);
   const ev = dati.manifestazione || req.titolo || &#x27;&#x27;;
   L.push(&#x27;🎭 &lt;b&gt;&#x27; + tgHtml_(dati.luogo ? dati.luogo + (ev ? &#x27; – &#x27; + ev : &#x27;&#x27;) : ev) + &#x27;&lt;/b&gt;&#x27;);
   if (dati.data) {
