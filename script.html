@@ -830,6 +830,14 @@ function collegaVigilanze() {
   console.log(&#x27;Collegato alla web app Vigilanze TD. Ora i DDS di vigilanza del turno D vengono girati ai CS/CR.&#x27;);
 }
 
+/** Controllo: mostra lunghezza e inizio/fine della chiave salvata e l&#x27;inizio dell&#x27;indirizzo. */
+function mostraChiaveVigilanze() {
+  const pr = PropertiesService.getScriptProperties(), k = pr.getProperty(&#x27;vig_chiave&#x27;) || &#x27;&#x27;, u = pr.getProperty(&#x27;vig_url&#x27;) || &#x27;&#x27;;
+  console.log(k ? &#x27;Chiave salvata nello script ODG: &#x27; + k.length + &#x27; caratteri, inizia con &quot;&#x27; + k.slice(0, 3) + &#x27;&quot; e finisce con &quot;&#x27; + k.slice(-3) + &#x27;&quot;&#x27;
+                : &#x27;Nessuna chiave salvata: esegui collegaVigilanze.&#x27;);
+  console.log(&#x27;Indirizzo: &#x27; + (u ? u.slice(0, 45) + &#x27;…&#x27; + u.slice(-6) : &#x27;non salvato&#x27;));
+}
+
 function eVigilanzaDds_(d) {
   return d.tipo === &#x27;DDS&#x27; &amp;&amp; /vigilanza/i.test((d.titolo || &#x27;&#x27;) + &#x27; &#x27; + (d.file || &#x27;&#x27;));
 }

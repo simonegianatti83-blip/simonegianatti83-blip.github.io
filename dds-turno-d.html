@@ -62,6 +62,13 @@ function ddsImpostaChiave() {
   console.log(&#x27;Chiave salvata. Ora puoi cancellarla dal codice.&#x27;);
 }
 
+/** Controllo: mostra lunghezza e inizio/fine della chiave salvata (non tutta). Da confrontare con lo script ODG. */
+function ddsMostraChiave() {
+  const k = PropertiesService.getScriptProperties().getProperty(&#x27;DDS_CHIAVE&#x27;) || &#x27;&#x27;;
+  console.log(k ? &#x27;Chiave salvata nella web app: &#x27; + k.length + &#x27; caratteri, inizia con &quot;&#x27; + k.slice(0, 3) + &#x27;&quot; e finisce con &quot;&#x27; + k.slice(-3) + &#x27;&quot;&#x27;
+                : &#x27;Nessuna chiave salvata: esegui ddsImpostaChiave.&#x27;);
+}
+
 /** Riceve il DDS dall&#x27;Archivio ODG. */
 function doPost(e) {
   const out = o =&gt; ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
