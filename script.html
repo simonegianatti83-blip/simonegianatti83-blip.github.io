@@ -844,7 +844,12 @@ function inviaVigilanzaDds_(d, prova) {
   const r = UrlFetchApp.fetch(url, { method: &#x27;post&#x27;, contentType: &#x27;application/json&#x27;, muteHttpExceptions: true, followRedirects: true,
     payload: JSON.stringify({ chiave, azione: &#x27;ddsVigilanza&#x27;, prova: !!prova, numero: d.numero, data: d.data ? d.data.split(&#x27;-&#x27;).reverse().join(&#x27;/&#x27;) : &#x27;&#x27;,
       titolo: d.titolo || d.file, testo: String(d.testo || &#x27;&#x27;).slice(0, 12000), pdf, nomePdf: d.file }) });
-  let j; try { j = JSON.parse(r.getContentText()); } catch (e) { throw new Error(&#x27;Risposta non valida dalla web app (controlla che sia pubblicata con &quot;Chi ha accesso: Chiunque&quot; e la Nuova versione)&#x27;); }
+  let j; try { j = JSON.parse(r.getContentText()); } catch (e) { 
+    const txt = String(r.getContentText()).replace(/&lt;[^&gt;]*&gt;/g, &#x27; &#x27;).replace(/\s+/g, &#x27; &#x27;).trim().slice(0, 160);
+    throw new Error(&#x27;La web app non risponde come previsto (codice &#x27; + r.getResponseCode() + &#x27;): &quot;&#x27; + txt + &#x27;&quot;. &#x27; +
+      (/doPost|funzione script/i.test(txt) ? &#x27;Manca la Nuova versione dopo aver aggiunto DdsTurnoD.gs.&#x27; :
+       /accedi|sign in|account/i.test(txt) ? &#x27;La web app non è pubblicata con &quot;Chi ha accesso: Chiunque&quot;.&#x27; :
+       &#x27;Controlla l\&#x27;indirizzo /exec, &quot;Chiunque&quot; e la Nuova versione.&#x27;)); }
   if (!j.ok) throw new Error(j.errore || &#x27;errore&#x27;);
   return j;
 }
