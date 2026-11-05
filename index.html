@@ -600,6 +600,7 @@ function openDoc(i){
   $("dActions").innerHTML=
     (d.pdfKey||(d.pdf&&linkGoogle)?`<button id="dPdfLoc">Apri il PDF</button><button id="dPdfDl">Scarica il PDF</button>`:"")+
     (d.pdf&&!d.pdfKey&&!linkGoogle?`<a href="${esc(d.pdf)}" target="_blank" rel="noopener">Apri il PDF</a>`:"")+
+    (!meta.solaLettura&&(d.pdfKey||d.pdf)?`<button id="dWa">Condividi su WhatsApp</button>`:"")+
     (d.oggettoEmail||d.gmail?`<button id="dMail">Vedi l’email</button>`:"")+
     (d.testo?`<button id="dCopy">Copia il testo</button>`:"")+
     (d.origine==="dispositivo"||(d.origine==="caricato"&&!meta.solaLettura)?`<button id="dDel">Elimina</button>`:"");
@@ -611,6 +612,7 @@ function openDoc(i){
     : "Il testo di questo documento non è ancora nell’archivio. Quando sei online puoi aprire il PDF o l’email originale."}</p>`;
   const pl=$("dPdfLoc"); if(pl) pl.onclick=()=>mostraPdf(d,i);
   const pd=$("dPdfDl"); if(pd) pd.onclick=()=>scaricaPdf(d,pd);
+  const wa=$("dWa"); if(wa) wa.onclick=()=>condividiWhatsApp(d,wa);
   const ml=$("dMail"); if(ml) ml.onclick=()=>mostraEmail(d);
   const dl=$("dDel"); if(dl) dl.onclick=()=>eliminaDoc(d);
   const c=$("dCopy"); if(c) c.onclick=()=>{try{navigator.clipboard.writeText((d.titolo||"")+"\n\n"+d.testo).then(()=>toast("Testo copiato"));}catch(e){}};
@@ -931,6 +933,40 @@ async function scaricaPdf(d,btn){
     }
   }catch(e){ toast(e&&e.message&&!/^[A-Z][a-z]+Error$/.test(e.name||"")?e.message:"Non riesco a scaricare il PDF"); }
   finally{ if(btn){btn.textContent=testo;btn.disabled=false;} }
+}
+/* Condivisione su WhatsApp (solo app master): su telefono/tablet apre il menu Condividi con il PDF
+   allegato (si sceglie WhatsApp e il contatto/gruppo); su computer scarica il PDF e apre WhatsApp
+   con il testo del messaggio pronto, da allegare. */
+async function condividiWhatsApp(d,btn){
+  if(meta.solaLettura) return;
+  const testo=(SIGLE[d.tipo]||"")+(d.numero!=null?" "+d.numero:"")+" del "+fmtData(d.data)+(d.titolo?"\n"+d.titolo:"");
+  const testoTrim=testo.trim();
+  const etichetta=btn.textContent;
+  try{
+    btn.textContent="Preparo il PDF…"; btn.disabled=true;
+    let file=null;
+    try{
+      let buf;
+      if(pdfPronto&&pdfPronto.d===d) buf=pdfPronto.buf;
+      else{ buf=await ottieniPdf(d); pdfPronto={d,buf}; }
+      file=new File([buf],nomePdf(d),{type:"application/pdf"});
+    }catch(e){ file=null; }
+    const touch=IOS||/Android/i.test(navigator.userAgent);
+    if(file&&touch&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:file.name,text:testoTrim}); return; }
+      catch(e){
+        if(e&&e.name==="AbortError") return;
+        if(e&&e.name==="NotAllowedError"){ toast("PDF pronto: tocca di nuovo “Condividi su WhatsApp”"); return; }
+      }
+    }
+    if(file){
+      const url=URL.createObjectURL(file);
+      const a=document.createElement("a"); a.href=url; a.download=file.name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      toast("PDF scaricato: allegalo nella chat di WhatsApp che si apre");
+    } else toast("PDF non disponibile qui: invio solo il testo");
+    window.open("https://wa.me/?text="+encodeURIComponent(testoTrim),"_blank","noopener");
+  }finally{ btn.textContent=etichetta; btn.disabled=false; }
 }
 /* PDF: copia sul dispositivo se c'è, altrimenti da Google (una sola richiesta per PDF, con un nuovo tentativo) */
 const pdfSalvati=new Set(), pdfInArrivo=new Map();
