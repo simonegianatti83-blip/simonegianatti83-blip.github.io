@@ -1,0 +1,1 @@
+pdf-lib 1.17.1 - MIT License - Copyright (c) 2019 Andrew Dillon - https://github.com/Hopding/pdf-lib

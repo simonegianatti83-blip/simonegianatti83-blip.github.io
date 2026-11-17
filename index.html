@@ -195,6 +195,12 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
 .pdfview canvas{width:100%;height:auto;background:#fff;border-radius:6px}
 .pdfview .pg{background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.18);overflow:hidden}
 .pdfview .pn{font-size:12.5px;color:var(--ink-3)}
+.modulo .pg{position:relative}
+.modulo .campo{position:absolute;box-sizing:border-box;margin:0;padding:0 3px;border:1px solid rgba(37,99,235,.55);background:rgba(219,234,254,.6);color:#111;font-family:Helvetica,Arial,sans-serif;border-radius:2px;outline:none;min-width:0}
+.modulo .campo:focus{background:#fff;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.35)}
+.modulo textarea.campo{resize:none;line-height:1.15;padding-top:1px}
+.modulo input[type=checkbox].campo,.modulo input[type=radio].campo{accent-color:#2563eb;padding:0}
+.modulo .nota{font-size:13px;color:var(--ink-2);text-align:center;margin:0 0 4px}
 .att{display:inline-block;font-size:12px;font-weight:650;color:var(--ink-2);background:var(--line-2);border-radius:5px;padding:1px 7px;margin-left:6px;vertical-align:1px}
 
 @media (max-width:640px){
@@ -600,6 +606,7 @@ function openDoc(i){
   $("dActions").innerHTML=
     (d.pdfKey||(d.pdf&&linkGoogle)?`<button id="dPdfLoc">Apri il PDF</button><button id="dPdfDl">Scarica il PDF</button>`:"")+
     (d.pdf&&!d.pdfKey&&!linkGoogle?`<a href="${esc(d.pdf)}" target="_blank" rel="noopener">Apri il PDF</a>`:"")+
+    (/editabil/i.test((d.file||"")+" "+(d.titolo||""))&&(d.pdfKey||d.pdf)?`<button id="dForm" class="primary">Compila</button>`:"")+
     (!meta.solaLettura&&(d.pdfKey||d.pdf)?`<button id="dWa">Condividi su WhatsApp</button>`:"")+
     (d.oggettoEmail||d.gmail?`<button id="dMail">Vedi l’email</button>`:"")+
     (d.testo?`<button id="dCopy">Copia il testo</button>`:"")+
@@ -613,6 +620,7 @@ function openDoc(i){
   const pl=$("dPdfLoc"); if(pl) pl.onclick=()=>mostraPdf(d,i);
   const pd=$("dPdfDl"); if(pd) pd.onclick=()=>scaricaPdf(d,pd);
   const wa=$("dWa"); if(wa) wa.onclick=()=>condividiWhatsApp(d,wa);
+  const fm=$("dForm"); if(fm) fm.onclick=()=>mostraModulo(d,i);
   const ml=$("dMail"); if(ml) ml.onclick=()=>mostraEmail(d);
   const dl=$("dDel"); if(dl) dl.onclick=()=>eliminaDoc(d);
   const c=$("dCopy"); if(c) c.onclick=()=>{try{navigator.clipboard.writeText((d.titolo||"")+"\n\n"+d.testo).then(()=>toast("Testo copiato"));}catch(e){}};
@@ -967,6 +975,103 @@ async function condividiWhatsApp(d,btn){
     } else toast("PDF non disponibile qui: invio solo il testo");
     window.open("https://wa.me/?text="+encodeURIComponent(testoTrim),"_blank","noopener");
   }finally{ btn.textContent=etichetta; btn.disabled=false; }
+}
+/* Modulo editabile: si compila direttamente nell'app e si salva una copia del PDF compilato.
+   Si legge la posizione dei campi con pdf.js e si scrivono i valori nel PDF con pdf-lib. */
+let pdfLibPronta=null;
+function caricaPdfLib(){
+  if(window.PDFLib) return Promise.resolve(window.PDFLib);
+  if(!pdfLibPronta) pdfLibPronta=new Promise((ok,ko)=>{
+    const sc=document.createElement("script"); sc.src="pdf-lib.min.js";
+    sc.onload=()=>window.PDFLib?ok(window.PDFLib):ko(new Error("pdf-lib")); sc.onerror=()=>{pdfLibPronta=null;ko(new Error("pdf-lib"));};
+    document.head.appendChild(sc);
+  });
+  return pdfLibPronta;
+}
+async function consegnaFile(file){
+  const touch=IOS||/Android/i.test(navigator.userAgent);
+  if(touch&&navigator.canShare&&navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file],title:file.name}); return; }
+    catch(e){ if(e&&e.name==="AbortError") return; if(e&&e.name==="NotAllowedError"){ toast("Copia pronta: tocca di nuovo “Salva copia compilata”"); return; } throw e; }
+  }
+  const url=URL.createObjectURL(file);
+  const a=document.createElement("a"); a.href=url; a.download=file.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  toast("Copia salvata: "+file.name);
+}
+async function mostraModulo(d,i){
+  const b=$("dBody"); b.classList.add("help");
+  b.innerHTML=`<div class="pdfview modulo"><p class="pn">Apro il modulo…</p></div>`;
+  $("dActions").innerHTML=`<button id="dBack">Torna al testo</button><button id="dSalvaForm" class="primary">Salva copia compilata</button>`;
+  $("dBack").onclick=()=>openDoc(docs.indexOf(d));
+  const campi=[];   // {nome, tipo, el, valore}
+  $("dSalvaForm").onclick=async()=>{
+    const bt=$("dSalvaForm"), et=bt.textContent; bt.disabled=true; bt.textContent="Preparo la copia…";
+    try{
+      const [L,buf]=await Promise.all([caricaPdfLib(),ottieniPdf(d)]);
+      const doc=await L.PDFDocument.load(new Uint8Array(buf.slice(0)),{ignoreEncryption:true});
+      const form=doc.getForm(), fatti=new Set();
+      const pulito=t=>String(t).replace(/[^ -~ -ÿ€]/g,"?").replace(/\r?\n/g," ");
+      for(const c of campi){
+        const chiave=c.tipo+"|"+c.nome; if(c.tipo!=="radio"&&fatti.has(chiave)) continue;
+        try{
+          if(c.tipo==="testo"){ fatti.add(chiave); form.getTextField(c.nome).setText(pulito(c.el.value)); }
+          else if(c.tipo==="check"){ const f=form.getCheckBox(c.nome); fatti.add(chiave); if(c.el.checked) f.check(); else f.uncheck(); }
+          else if(c.tipo==="radio"){ if(c.el.checked){ fatti.add(chiave); form.getRadioGroup(c.nome).select(c.valore); } }
+          else if(c.tipo==="scelta"){ fatti.add(chiave); try{ form.getDropdown(c.nome).select(c.el.value); }catch(e){ form.getOptionList(c.nome).select(c.el.value); } }
+        }catch(e){ console.warn("campo non scritto:",c.nome,e); }
+      }
+      try{ form.updateFieldAppearances(); }catch(e){ console.warn(e); }
+      const bytes=await doc.save();
+      const nome=nomePdf(d).replace(/\.pdf$/i,"").replace(/[_ ]*editabile/i,"")+" - compilato.pdf";
+      await consegnaFile(new File([bytes],nome,{type:"application/pdf"}));
+    }catch(e){ console.warn(e); toast("Non riesco a salvare la copia: "+(e&&e.message?e.message:"errore")); }
+    finally{ bt.disabled=false; bt.textContent=et; }
+  };
+  try{
+    const buf=await ottieniPdf(d);
+    const lib=await caricaPdfjs();
+    const task=lib.getDocument({data:new Uint8Array(buf.slice(0)),isEvalSupported:false});
+    const pdf=await task.promise;
+    const box=b.querySelector(".pdfview"); if(!box){ try{ await task.destroy(); }catch(e){} return; }
+    box.innerHTML="";
+    let trovati=0;
+    const w=Math.max(300,b.clientWidth-40), dpr=Math.min(window.devicePixelRatio||1,2);
+    for(let n=1;n<=pdf.numPages;n++){
+      const page=await pdf.getPage(n), v0=page.getViewport({scale:1}), vp=page.getViewport({scale:(w/v0.width)*dpr}), vv=v0;
+      const wrap=document.createElement("div"); wrap.className="pg"; wrap.style.cssText=`width:100%;aspect-ratio:${v0.width}/${v0.height};position:relative`;
+      const c=document.createElement("canvas"); c.width=Math.floor(vp.width); c.height=Math.floor(vp.height); c.style.cssText="width:100%;height:100%;display:block";
+      await page.render({canvasContext:c.getContext("2d"),viewport:vp}).promise; wrap.appendChild(c);
+      const ro=new ResizeObserver(()=>wrap.style.setProperty("--ph",wrap.clientHeight+"px")); ro.observe(wrap);
+      const ann=await page.getAnnotations({intent:"display"});
+      for(const a of ann){
+        if(a.subtype!=="Widget"||!a.fieldName||a.readOnly||a.hidden) continue;
+        const pa=v0.convertToViewportPoint(a.rect[0],a.rect[1]), pb=v0.convertToViewportPoint(a.rect[2],a.rect[3]), r=[pa[0],pa[1],pb[0],pb[1]], x=Math.min(r[0],r[2]), y=Math.min(r[1],r[3]), ww=Math.abs(r[2]-r[0]), hh=Math.abs(r[3]-r[1]);
+        if(ww<4||hh<4) continue;
+        const pos=`left:${x/v0.width*100}%;top:${y/v0.height*100}%;width:${ww/v0.width*100}%;height:${hh/v0.height*100}%;`;
+        const fs=`font-size:clamp(9px,calc(var(--ph) * ${(Math.min(hh,16)/v0.height)*0.72}),20px);`;
+        let el, tipo, valore="";
+        if(a.fieldType==="Tx"){
+          tipo="testo"; el=document.createElement(a.multiLine||hh>28?"textarea":"input"); if(el.tagName==="INPUT") el.type="text";
+          el.value=Array.isArray(a.fieldValue)?a.fieldValue.join(" "):(a.fieldValue||""); if(a.maxLen) el.maxLength=a.maxLen;
+          el.setAttribute("autocapitalize","sentences"); el.spellcheck=false;
+        } else if(a.fieldType==="Btn"&&a.checkBox){ tipo="check"; el=document.createElement("input"); el.type="checkbox"; el.checked=!!a.fieldValue&&a.fieldValue!=="Off"; }
+        else if(a.fieldType==="Btn"&&a.radioButton){ tipo="radio"; el=document.createElement("input"); el.type="radio"; el.name="r_"+a.fieldName; valore=a.buttonValue; el.checked=a.fieldValue===a.buttonValue; }
+        else if(a.fieldType==="Ch"&&a.options){ tipo="scelta"; el=document.createElement("select"); el.appendChild(new Option("",""));
+          for(const o of a.options) el.appendChild(new Option(o.displayValue||o.exportValue,o.exportValue));
+          el.value=Array.isArray(a.fieldValue)?(a.fieldValue[0]||""):(a.fieldValue||""); }
+        else continue;
+        el.className="campo"; el.style.cssText=pos+fs; el.setAttribute("aria-label",a.alternativeText||a.fieldName);
+        const rec={nome:a.fieldName,tipo,el,valore}; campi.push(rec); trovati++;
+        if(tipo==="testo") el.addEventListener("input",()=>{ for(const o of campi) if(o!==rec&&o.tipo==="testo"&&o.nome===rec.nome) o.el.value=el.value; });
+        wrap.appendChild(el);
+      }
+      box.appendChild(wrap);
+    }
+    if(!trovati){ const p=document.createElement("p"); p.className="none"; p.textContent="Questo PDF non ha campi da compilare."; box.prepend(p); $("dSalvaForm").disabled=true; }
+    else { const nt=document.createElement("p"); nt.className="nota"; nt.textContent="Tocca i campi azzurri per scrivere, poi “Salva copia compilata”."; box.prepend(nt); }
+    const guardia=setInterval(()=>{ if(!$("dlg").open||!b.contains(box)){ clearInterval(guardia); try{ task.destroy(); }catch(e){} } },700);
+  }catch(e){ console.warn("Modulo non aperto:",e); b.innerHTML=`<p class="none">${esc(e&&e.message&&!/^[A-Z][a-z]+Error$/.test(e.name||"")?e.message:"Non riesco ad aprire il modulo su questo dispositivo.")}</p>`; }
 }
 /* PDF: copia sul dispositivo se c'è, altrimenti da Google (una sola richiesta per PDF, con un nuovo tentativo) */
 const pdfSalvati=new Set(), pdfInArrivo=new Map();
