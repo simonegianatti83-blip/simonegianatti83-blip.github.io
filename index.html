@@ -1108,9 +1108,10 @@ async function mostraModulo(d,i){
       const wrap=document.createElement("div"); wrap.className="pg"; wrap.style.cssText=`width:100%;aspect-ratio:${v0.width}/${v0.height};position:relative`;
       const c=document.createElement("canvas"); c.width=Math.floor(vp.width); c.height=Math.floor(vp.height); c.style.cssText="width:100%;height:100%;display:block";
       await page.render({canvasContext:c.getContext("2d"),viewport:vp}).promise; wrap.appendChild(c);
-      const ro=new ResizeObserver(()=>wrap.style.setProperty("--ph",wrap.clientHeight+"px")); ro.observe(wrap);
+      wrap.style.setProperty("--ph",Math.round(w*v0.height/v0.width)+"px"); try{ const ro=new ResizeObserver(()=>wrap.style.setProperty("--ph",wrap.clientHeight+"px")); ro.observe(wrap); }catch(x){}
       const ann=await page.getAnnotations({intent:"display"});
       for(const a of ann){
+       try{
         if(a.subtype!=="Widget"||!a.fieldName||a.readOnly||a.hidden) continue;
         const pa=v0.convertToViewportPoint(a.rect[0],a.rect[1]), pb=v0.convertToViewportPoint(a.rect[2],a.rect[3]), r=[pa[0],pa[1],pb[0],pb[1]], x=Math.min(r[0],r[2]), y=Math.min(r[1],r[3]), ww=Math.abs(r[2]-r[0]), hh=Math.abs(r[3]-r[1]);
         if(ww<4||hh<4) continue;
@@ -1147,13 +1148,17 @@ async function mostraModulo(d,i){
           };
         } else if(tipo==="testo") el.addEventListener("input",()=>{ for(const o of campi) if(o!==rec&&o.tipo==="testo"&&o.nome===rec.nome) o.el.value=el.value; });
         wrap.appendChild(el);
+       }catch(err){ console.warn("campo saltato:",a&&a.fieldName,err); }
       }
       box.appendChild(wrap);
     }
     if(!trovati){ const p=document.createElement("p"); p.className="none"; p.textContent="Questo PDF non ha campi da compilare."; box.prepend(p); $("dSalvaForm").disabled=true; }
     else { const nt=document.createElement("p"); nt.className="nota"; nt.textContent="Tocca i campi azzurri per scrivere (e il campo Firma per firmare), poi “Salva copia compilata”."; box.prepend(nt); }
     const guardia=setInterval(()=>{ if(!$("dlg").open||!b.contains(box)){ clearInterval(guardia); try{ task.destroy(); }catch(e){} } },700);
-  }catch(e){ console.warn("Modulo non aperto:",e); b.innerHTML=`<p class="none">${esc(e&&e.message&&!/^[A-Z][a-z]+Error$/.test(e.name||"")?e.message:"Non riesco ad aprire il modulo su questo dispositivo.")}</p>`; }
+  }catch(e){ console.warn("Modulo non aperto:",e);
+    const tecnico=e&&(e.name||e.message)?` <small>(${esc(((e.name&&e.name!=="Error"?e.name+": ":"")+(e.message||"")).slice(0,160))})</small>`:"";
+    b.innerHTML=`<p class="none">${esc(e&&e.message&&!/^[A-Z][a-z]+Error$/.test(e.name||"")?e.message:"Non riesco ad aprire il modulo su questo dispositivo.")}${tecnico}</p><p><button class="ghostbtn" id="modRiprova">Riprova</button></p>`;
+    const rp=$("modRiprova"); if(rp) rp.onclick=()=>mostraModulo(d,i); }
 }
 /* PDF: copia sul dispositivo se c'è, altrimenti da Google (una sola richiesta per PDF, con un nuovo tentativo) */
 const pdfSalvati=new Set(), pdfInArrivo=new Map();
