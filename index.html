@@ -200,6 +200,20 @@ dialog::backdrop{background:rgba(10,16,24,.55)}
 .modulo .campo:focus{background:#fff;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.35)}
 .modulo textarea.campo{resize:none;line-height:1.15;padding-top:1px}
 .modulo input[type=checkbox].campo,.modulo input[type=radio].campo{accent-color:#2563eb;padding:0}
+.modulo .campo.firma{display:flex;align-items:flex-end;justify-content:center;cursor:pointer;color:#1d4ed8;font-size:12px;font-weight:650;background:rgba(219,234,254,.6);padding:0}
+.modulo .campo.firma img{width:100%;height:100%;object-fit:contain;object-position:center bottom;display:block;pointer-events:none}
+.modulo .campo.firma.fatta{background:transparent;border:1px dashed rgba(37,99,235,.45)}
+.modulo .campo.firma span{width:100%;text-align:center;align-self:center}
+.firmaov{position:absolute;inset:0;z-index:50;background:var(--surface);display:flex;flex-direction:column;gap:10px;padding:16px 18px 18px;overflow-y:auto}
+.firmaov h4{margin:0;font-size:18px}
+.firmaov .fnote{font-size:13.5px;color:var(--ink-2);margin:0}
+.firmaov canvas{width:100%;height:180px;background:#fff;border:1.5px dashed var(--line);border-radius:var(--r-md);touch-action:none;cursor:crosshair}
+.firmaov .frow{display:flex;gap:8px;flex-wrap:wrap}
+.firmaov .frow button{border:1px solid var(--line);background:var(--surface);border-radius:var(--r-sm);padding:9px 14px;font-size:14.5px;font-weight:650;color:var(--ink)}
+.firmaov .frow .primary{background:var(--ink);color:var(--surface);border:0}
+.firmaov label{font-size:14px;display:flex;gap:8px;align-items:center}
+.firmaov .salvata{border:1px solid var(--line-2);border-radius:var(--r-md);padding:10px;background:#fff;display:flex;align-items:center;gap:12px}
+.firmaov .salvata img{height:54px;max-width:55%;object-fit:contain}
 .modulo .nota{font-size:13px;color:var(--ink-2);text-align:center;margin:0 0 4px}
 .att{display:inline-block;font-size:12px;font-weight:650;color:var(--ink-2);background:var(--line-2);border-radius:5px;padding:1px 7px;margin-left:6px;vertical-align:1px}
 
@@ -999,6 +1013,48 @@ async function consegnaFile(file){
   setTimeout(()=>URL.revokeObjectURL(url),60000);
   toast("Copia salvata: "+file.name);
 }
+/* Pannello per disegnare la firma (come "Compila e firma" di Adobe). Restituisce un PNG trasparente. */
+function chiediFirma(salvata,haFirma){
+  return new Promise(ris=>{
+    const ov=document.createElement("div"); ov.className="firmaov";
+    ov.innerHTML=`<h4>La tua firma</h4>
+      ${salvata?`<div class="salvata"><img src="${salvata}" alt="Firma salvata"><div class="frow" style="margin-left:auto"><button class="primary" id="fUsa">Usa questa</button></div></div><p class="fnote">Oppure disegnane una nuova qui sotto.</p>`:`<p class="fnote">Firma con il dito (o il mouse) nel riquadro.</p>`}
+      <canvas id="fCv"></canvas>
+      <label><input type="checkbox" id="fRicorda" ${salvata?"":"checked"}> Ricorda la firma su questo dispositivo</label>
+      <div class="frow"><button class="primary" id="fOk">Applica</button><button id="fPulisci">Cancella</button><button id="fAnnulla">Annulla</button>
+        ${haFirma?'<button id="fTogli">Togli la firma dal modulo</button>':""}${salvata?'<button id="fDel">Elimina quella salvata</button>':""}</div>`;
+    $("dlg").appendChild(ov);
+    const cv=ov.querySelector("#fCv"), dpr=Math.max(1,Math.min(window.devicePixelRatio||1,3));
+    cv.width=Math.round(cv.clientWidth*dpr); cv.height=Math.round(180*dpr);
+    const g=cv.getContext("2d"); g.lineWidth=2.6*dpr; g.lineCap="round"; g.lineJoin="round"; g.strokeStyle="#0b2a6f";
+    let giu=false, ult=null, scritto=false;
+    const pt=e=>{ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height}; };
+    cv.addEventListener("pointerdown",e=>{ e.preventDefault(); giu=true; ult=pt(e); try{cv.setPointerCapture(e.pointerId);}catch(x){}
+      g.beginPath(); g.arc(ult.x,ult.y,g.lineWidth/2,0,7); g.fillStyle="#0b2a6f"; g.fill(); scritto=true; });
+    cv.addEventListener("pointermove",e=>{ if(!giu) return; e.preventDefault(); const p=pt(e);
+      g.beginPath(); g.moveTo(ult.x,ult.y); g.lineTo(p.x,p.y); g.stroke(); ult=p; });
+    const su=()=>{ giu=false; }; cv.addEventListener("pointerup",su); cv.addEventListener("pointercancel",su);
+    const chiudi=v=>{ ov.remove(); ris(v); };
+    const ritaglia=()=>{
+      const w=cv.width,h=cv.height,d=g.getImageData(0,0,w,h).data; let x0=w,y0=h,x1=0,y1=0;
+      for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(d[(y*w+x)*4+3]>20){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+      if(x1<x0) return null; const pad=Math.round(6*dpr); x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad); x1=Math.min(w-1,x1+pad); y1=Math.min(h-1,y1+pad);
+      const o=document.createElement("canvas"); o.width=x1-x0+1; o.height=y1-y0+1; o.getContext("2d").drawImage(cv,x0,y0,o.width,o.height,0,0,o.width,o.height);
+      return o.toDataURL("image/png");
+    };
+    ov.querySelector("#fPulisci").onclick=()=>{ g.clearRect(0,0,cv.width,cv.height); scritto=false; };
+    ov.querySelector("#fAnnulla").onclick=()=>chiudi(null);
+    ov.querySelector("#fOk").onclick=async()=>{
+      if(!scritto){ toast("Disegna prima la firma nel riquadro"); return; }
+      const png=ritaglia(); if(!png){ toast("Disegna prima la firma nel riquadro"); return; }
+      if(ov.querySelector("#fRicorda").checked) await idbSet("firma",png);
+      chiudi(png);
+    };
+    const usa=ov.querySelector("#fUsa"); if(usa) usa.onclick=()=>chiudi(salvata);
+    const togli=ov.querySelector("#fTogli"); if(togli) togli.onclick=()=>chiudi("");
+    const del=ov.querySelector("#fDel"); if(del) del.onclick=async()=>{ await idbDel("firma"); toast("Firma salvata eliminata"); chiudi(null); };
+  });
+}
 async function mostraModulo(d,i){
   const b=$("dBody"); b.classList.add("help");
   b.innerHTML=`<div class="pdfview modulo"><p class="pn">Apro il modulo…</p></div>`;
@@ -1015,6 +1071,7 @@ async function mostraModulo(d,i){
       for(const c of campi){
         const chiave=c.tipo+"|"+c.nome; if(c.tipo!=="radio"&&fatti.has(chiave)) continue;
         try{
+          if(c.firma){ fatti.add(chiave); try{ form.getTextField(c.nome).setText(""); }catch(e){} continue; }
           if(c.tipo==="testo"){ fatti.add(chiave); form.getTextField(c.nome).setText(pulito(c.el.value)); }
           else if(c.tipo==="check"){ const f=form.getCheckBox(c.nome); fatti.add(chiave); if(c.el.checked) f.check(); else f.uncheck(); }
           else if(c.tipo==="radio"){ if(c.el.checked){ fatti.add(chiave); form.getRadioGroup(c.nome).select(c.valore); } }
@@ -1022,6 +1079,15 @@ async function mostraModulo(d,i){
         }catch(e){ console.warn("campo non scritto:",c.nome,e); }
       }
       try{ form.updateFieldAppearances(); }catch(e){ console.warn(e); }
+      for(const c of campi){            // firme disegnate: si incollano come immagine sopra il campo
+        if(!c.firma||!c.img) continue;
+        try{
+          const im=await doc.embedPng(c.img), pg=doc.getPage(c.pagina-1);
+          const x=Math.min(c.rect[0],c.rect[2]), y=Math.min(c.rect[1],c.rect[3]), w=Math.abs(c.rect[2]-c.rect[0]), h=Math.abs(c.rect[3]-c.rect[1]);
+          const sc=Math.min(w/im.width,(h*2.5)/im.height), dw=im.width*sc, dh=im.height*sc;
+          pg.drawImage(im,{x:x+(w-dw)/2,y:y,width:dw,height:dh});
+        }catch(e){ console.warn("firma non inserita:",e); }
+      }
       const bytes=await doc.save();
       const nome=nomePdf(d).replace(/\.pdf$/i,"").replace(/[_ ]*editabile/i,"")+" - compilato.pdf";
       await consegnaFile(new File([bytes],nome,{type:"application/pdf"}));
@@ -1051,7 +1117,10 @@ async function mostraModulo(d,i){
         const pos=`left:${x/v0.width*100}%;top:${y/v0.height*100}%;width:${ww/v0.width*100}%;height:${hh/v0.height*100}%;`;
         const fs=`font-size:clamp(9px,calc(var(--ph) * ${(Math.min(hh,16)/v0.height)*0.72}),20px);`;
         let el, tipo, valore="";
-        if(a.fieldType==="Tx"){
+        const eFirma=a.fieldType==="Tx"&&/firm/i.test(a.fieldName+" "+(a.alternativeText||""));
+        if(eFirma){
+          tipo="testo"; el=document.createElement("button"); el.type="button"; el.innerHTML="<span>✍ Tocca per firmare</span>";
+        } else if(a.fieldType==="Tx"){
           tipo="testo"; el=document.createElement(a.multiLine||hh>28?"textarea":"input"); if(el.tagName==="INPUT") el.type="text";
           el.value=Array.isArray(a.fieldValue)?a.fieldValue.join(" "):(a.fieldValue||""); if(a.maxLen) el.maxLength=a.maxLen;
           el.setAttribute("autocapitalize","sentences"); el.spellcheck=false;
@@ -1061,15 +1130,28 @@ async function mostraModulo(d,i){
           for(const o of a.options) el.appendChild(new Option(o.displayValue||o.exportValue,o.exportValue));
           el.value=Array.isArray(a.fieldValue)?(a.fieldValue[0]||""):(a.fieldValue||""); }
         else continue;
-        el.className="campo"; el.style.cssText=pos+fs; el.setAttribute("aria-label",a.alternativeText||a.fieldName);
+        el.className="campo"+(eFirma?" firma":""); el.style.cssText=pos+(eFirma?"":fs); el.setAttribute("aria-label",a.alternativeText||a.fieldName);
         const rec={nome:a.fieldName,tipo,el,valore}; campi.push(rec); trovati++;
-        if(tipo==="testo") el.addEventListener("input",()=>{ for(const o of campi) if(o!==rec&&o.tipo==="testo"&&o.nome===rec.nome) o.el.value=el.value; });
+        if(eFirma){
+          Object.assign(rec,{firma:true,pagina:n,rect:a.rect,img:""});
+          el.classList.add("firma"); el.style.cssText=pos;   // il testo del segnaposto resta piccolo
+          const base={top:y/v0.height*100,height:hh/v0.height*100};
+          el.onclick=async()=>{
+            const salvata=await idbGet("firma");
+            const r=await chiediFirma(salvata,!!rec.img);
+            if(r===null) return;
+            rec.img=r;
+            if(r){ el.classList.add("fatta"); el.innerHTML=`<img alt="Firma" src="${r}">`;
+              el.style.top=(base.top-base.height*1.5)+"%"; el.style.height=(base.height*2.5)+"%"; }
+            else{ el.classList.remove("fatta"); el.innerHTML="<span>✍ Tocca per firmare</span>"; el.style.top=base.top+"%"; el.style.height=base.height+"%"; }
+          };
+        } else if(tipo==="testo") el.addEventListener("input",()=>{ for(const o of campi) if(o!==rec&&o.tipo==="testo"&&o.nome===rec.nome) o.el.value=el.value; });
         wrap.appendChild(el);
       }
       box.appendChild(wrap);
     }
     if(!trovati){ const p=document.createElement("p"); p.className="none"; p.textContent="Questo PDF non ha campi da compilare."; box.prepend(p); $("dSalvaForm").disabled=true; }
-    else { const nt=document.createElement("p"); nt.className="nota"; nt.textContent="Tocca i campi azzurri per scrivere, poi “Salva copia compilata”."; box.prepend(nt); }
+    else { const nt=document.createElement("p"); nt.className="nota"; nt.textContent="Tocca i campi azzurri per scrivere (e il campo Firma per firmare), poi “Salva copia compilata”."; box.prepend(nt); }
     const guardia=setInterval(()=>{ if(!$("dlg").open||!b.contains(box)){ clearInterval(guardia); try{ task.destroy(); }catch(e){} } },700);
   }catch(e){ console.warn("Modulo non aperto:",e); b.innerHTML=`<p class="none">${esc(e&&e.message&&!/^[A-Z][a-z]+Error$/.test(e.name||"")?e.message:"Non riesco ad aprire il modulo su questo dispositivo.")}</p>`; }
 }
