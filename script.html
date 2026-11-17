@@ -134,7 +134,7 @@ const CONFIG = {
 };
 // ==========================================================
 
-const VERSIONE_SCRIPT = 12;
+const VERSIONE_SCRIPT = 13;
 
 // Token del bot Telegram (vedi istruzioni in alto). Dopo "attivaAvvisi" resta salvato.
 const VIGILANZE_URL = '';     // indirizzo /exec della web app "Vigilanze TD" (vedi DdsTurnoD.gs)
@@ -490,6 +490,72 @@ async function rileggiIncompleti() {
   salvaUnendo_(cartella, [], modifiche);
   console.log('Documenti riletti: ' + sistemati);
 }
+
+// ------------------------------------------------------- recupero allegati zip (una tantum)
+
+/**
+ * Recupera i PDF contenuti negli zip (anche annidati) delle email dall'inizio del 2026 che non erano
+ * stati letti. Si può rilanciare finché scrive "COMPLETATO": riprende da dove si era fermata.
+ * I documenti recuperati NON generano avvisi Telegram né compaiono come "nuovi" nell'app.
+ * Per cambiare periodo: modifica DAL qui sotto. Per ricominciare da capo: esegui azzeraRecuperoZip.
+ */
+async function recuperaAllegatiZip() {
+  const DAL = '2026/01/01';
+  const inizio = Date.now();
+  const pr = PropertiesService.getScriptProperties();
+  const cartella = cartellaPrincipale_();
+  const cartellaPdf = CONFIG.SALVA_PDF ? sottocartella_(cartella, 'PDF') : null;
+  const db = leggiDb_(cartella);
+  const visti = new Set(db.documenti.map(d =&gt; d.id));
+  const aggiunti = [];
+  let start = parseInt(pr.getProperty('zip_ripresa') || '0', 10) || 0;
+  let finito = false, emailViste = 0;
+  const query = CONFIG.QUERY + ' filename:zip after:' + DAL;
+
+  while (true) {
+    let threads;
+    try { threads = GmailApp.search(query, start, 20); }
+    catch (e) { console.warn('Gmail non risponde (limite giornaliero?): ' + e); break; }
+    if (!threads.length) { finito = true; break; }
+    let tempoFinito = false;
+    for (const thread of threads) {
+      for (const msg of thread.getMessages()) {
+        if (msg.getFrom().indexOf(CONFIG.MITTENTE) === -1) continue;
+        emailViste++;
+        for (const voce of pdfDelMessaggio_(msg)) {
+          if (!voce.zip) continue;
+          const id = msg.getId() + '|' + voce.chiave;
+          if (visti.has(id)) continue;
+          const meta = analizzaNome_(voce.nome, msg, voce.zip);
+          let estratto = { testo: '', pagine: null, completo: false };
+          try { estratto = await estraiTestoCompleto_(voce.blob, voce.nome); }
+          catch (e) { console.warn('Testo non estratto: ' + voce.nome + ' – ' + e); }
+          let pdfUrl = '';
+          if (cartellaPdf) pdfUrl = salvaPdf_(cartellaPdf, voce.blob, voce.nome);
+          aggiunti.push({
+            id: id, tipo: meta.tipo, numero: meta.numero, data: meta.data, titolo: meta.titolo,
+            file: voce.nome, allegatoDi: voce.zip, testo: estratto.testo, pagine: estratto.pagine,
+            testoCompleto: estratto.completo, oggettoEmail: msg.getSubject(),
+            dataEmail: Utilities.formatDate(msg.getDate(), 'Europe/Rome', "yyyy-MM-dd'T'HH:mm"),
+            gmail: linkEmail_(msg.getId()), pdf: pdfUrl,
+            aggiuntoIl: msg.getDate().toISOString()      // data dell'email: nessun avviso "nuovo"
+          });
+          visti.add(id);
+        }
+      }
+      start++;
+      if (Date.now() - inizio &gt; CONFIG.TEMPO_MAX_MS) { tempoFinito = true; break; }
+    }
+    if (tempoFinito) break;
+  }
+
+  if (aggiunti.length) salvaUnendo_(cartella, aggiunti, {});
+  if (finito) pr.deleteProperty('zip_ripresa'); else pr.setProperty('zip_ripresa', String(start));
+  console.log('Email controllate: ' + emailViste + ' – allegati zip recuperati: ' + aggiunti.length +
+    (finito ? ' – COMPLETATO (dal ' + DAL + ')' : ' – non finito: rilancia recuperaAllegatiZip per continuare (ripresa da ' + start + ')'));
+}
+
+function azzeraRecuperoZip() { PropertiesService.getScriptProperties().deleteProperty('zip_ripresa'); console.log('Recupero zip azzerato.'); }
 
 // ------------------------------------------------------- allegati del messaggio
 
