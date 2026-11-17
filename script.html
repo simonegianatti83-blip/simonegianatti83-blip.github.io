@@ -134,7 +134,7 @@ const CONFIG = {
 };
 // ==========================================================
 
-const VERSIONE_SCRIPT = 13;
+const VERSIONE_SCRIPT = 14;
 
 // Token del bot Telegram (vedi istruzioni in alto). Dopo "attivaAvvisi" resta salvato.
 const VIGILANZE_URL = '';     // indirizzo /exec della web app "Vigilanze TD" (vedi DdsTurnoD.gs)
@@ -550,9 +550,19 @@ async function recuperaAllegatiZip() {
   }
 
   if (aggiunti.length) salvaUnendo_(cartella, aggiunti, {});
-  if (finito) pr.deleteProperty('zip_ripresa'); else pr.setProperty('zip_ripresa', String(start));
+  if (finito) { pr.deleteProperty('zip_ripresa'); fermaRecuperoZip_(); } else pr.setProperty('zip_ripresa', String(start));
   console.log('Email controllate: ' + emailViste + ' – allegati zip recuperati: ' + aggiunti.length +
     (finito ? ' – COMPLETATO (dal ' + DAL + ')' : ' – non finito: rilancia recuperaAllegatiZip per continuare (ripresa da ' + start + ')'));
+}
+
+/** Esegui UNA volta: il recupero parte da solo ogni 15 minuti e si spegne appena ha finito. */
+function avviaRecuperoZip() {
+  fermaRecuperoZip_();
+  ScriptApp.newTrigger('recuperaAllegatiZip').timeBased().everyMinutes(15).create();
+  console.log('Recupero automatico avviato: gira da solo ogni 15 minuti e si ferma quando ha finito. Non devi fare altro.');
+}
+function fermaRecuperoZip_() {
+  ScriptApp.getProjectTriggers().filter(t =&gt; t.getHandlerFunction() === 'recuperaAllegatiZip').forEach(t =&gt; ScriptApp.deleteTrigger(t));
 }
 
 function azzeraRecuperoZip() { PropertiesService.getScriptProperties().deleteProperty('zip_ripresa'); console.log('Recupero zip azzerato.'); }
