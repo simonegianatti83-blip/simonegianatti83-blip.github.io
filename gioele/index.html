@@ -1,0 +1,1248 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E746E">
+<meta name="robots" content="noindex, nofollow">
+<title>Gioele – Salute</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icona-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gioele">
+<style>
+:root{
+  --bg:#F3F7F6; --surface:#FFFFFF; --ink:#14302D; --ink-2:#4B605D; --ink-3:#7C8E8B;
+  --line:#D5E1DF; --line-2:#E7EFED; --brand:#0E746E; --brand-ink:#FFFFFF; --brand-soft:#E0F1EF;
+  --warn:#B45309; --warn-soft:#FDF1E3; --bad:#B42318; --bad-soft:#FDECEA; --ok:#1F7A3D; --ok-soft:#E5F4EA;
+  --accent:#F2B705;
+  --r-lg:16px; --r-md:11px; --r-sm:8px;
+  --font:"Avenir Next","Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1716; --surface:#152321; --ink:#E4EFED; --ink-2:#A9BDB9; --ink-3:#7A8F8B;
+    --line:#263A37; --line-2:#1D2E2C; --brand:#3DB8AE; --brand-ink:#06201E; --brand-soft:#16342F;
+    --warn:#F0A24B; --warn-soft:#3A2A14; --bad:#F2776C; --bad-soft:#3B1C19; --ok:#5BC47E; --ok-soft:#173222;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1716; --surface:#152321; --ink:#E4EFED; --ink-2:#A9BDB9; --ink-3:#7A8F8B;
+  --line:#263A37; --line-2:#1D2E2C; --brand:#3DB8AE; --brand-ink:#06201E; --brand-soft:#16342F;
+  --warn:#F0A24B; --warn-soft:#3A2A14; --bad:#F2776C; --bad-soft:#3B1C19; --ok:#5BC47E; --ok-soft:#173222;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 var(--font);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--brand)}
+:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px;border-radius:6px}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+.hidden{display:none!important}
+
+/* testata */
+header.top{background:var(--brand);color:#fff;padding:calc(14px + env(safe-area-inset-top)) 0 14px;position:sticky;top:0;z-index:10}
+:root[data-theme="dark"] header.top{background:#0F3F3B}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) header.top{background:#0F3F3B}}
+.top .row{display:flex;align-items:center;gap:12px}
+.top img{width:38px;height:38px;border-radius:10px;flex:none}
+.top h1{margin:0;font-size:20px;line-height:1.1}
+.top .sub{font-size:13px;opacity:.85}
+.top .grow{flex:1;min-width:0}
+.sync{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;border-radius:999px;padding:6px 11px;font-size:13px;font-weight:600;white-space:nowrap}
+
+main{padding:16px 0 calc(96px + env(safe-area-inset-bottom))}
+h2{font-size:18px;margin:22px 0 10px}
+h2:first-child{margin-top:4px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:12px}
+.muted{color:var(--ink-2)} .small{font-size:13.5px} .tiny{font-size:12.5px;color:var(--ink-3)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-md);padding:10px 14px;font-weight:600;font-size:15px;text-decoration:none;color:var(--ink)}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn.bad{color:var(--bad);border-color:var(--bad-soft)}
+.btn.sm{padding:7px 11px;font-size:14px}
+.btn:disabled{opacity:.5}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--line-2);color:var(--ink-2)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.bad{background:var(--bad-soft);color:var(--bad)} .chip.brand{background:var(--brand-soft);color:var(--brand)}
+.notice{border-radius:var(--r-md);padding:11px 13px;margin:10px 0;font-size:14.5px}
+.notice.warn{background:var(--warn-soft);color:var(--warn)} .notice.info{background:var(--brand-soft)} .notice.bad{background:var(--bad-soft);color:var(--bad)}
+
+/* elenchi */
+.item{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:12px 14px;margin-bottom:9px;cursor:pointer;width:100%;text-align:left}
+.item:hover{border-color:var(--brand)}
+.date{flex:none;width:52px;text-align:center;border-radius:10px;background:var(--brand-soft);color:var(--brand);padding:5px 0;line-height:1.1}
+.date b{display:block;font-size:21px}
+.date span{font-size:11.5px;font-weight:700;text-transform:uppercase}
+.date.past{background:var(--line-2);color:var(--ink-3)}
+.item .t{font-weight:700}
+.item .m{font-size:14px;color:var(--ink-2)}
+.item .grow{flex:1;min-width:0}
+.ico{flex:none;width:44px;height:44px;border-radius:10px;background:var(--line-2);display:grid;place-items:center;font-size:21px;overflow:hidden}
+.ico img{width:100%;height:100%;object-fit:cover}
+.empty{text-align:center;color:var(--ink-3);padding:26px 10px}
+
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.toolbar input,.toolbar select{flex:1;min-width:140px}
+input[type=text],input[type=date],input[type=time],input[type=email],input[type=search],select,textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-sm);padding:10px 11px;font-size:16px}
+textarea{min-height:76px;resize:vertical}
+label.f{display:block;margin:11px 0 0;font-size:13.5px;font-weight:700;color:var(--ink-2)}
+label.f > input,label.f > select,label.f > textarea{margin-top:4px;font-weight:400;color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.check{display:flex;gap:9px;align-items:center;margin-top:12px;font-size:15px}
+.check input{width:20px;height:20px}
+
+/* barra in basso */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom);z-index:20}
+nav.tabs button{flex:1;max-width:150px;border:0;background:none;padding:8px 2px 9px;font-size:11.5px;font-weight:700;color:var(--ink-3);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button .e{font-size:21px;line-height:1.1;filter:grayscale(1);opacity:.75}
+nav.tabs button[aria-current=page]{color:var(--brand)}
+nav.tabs button[aria-current=page] .e{filter:none;opacity:1}
+.fab{position:fixed;right:max(16px, calc(50vw - 364px));bottom:calc(76px + env(safe-area-inset-bottom));z-index:21;width:56px;height:56px;border-radius:18px;border:0;background:var(--brand);color:var(--brand-ink);font-size:30px;line-height:1;box-shadow:0 6px 18px rgba(0,0,0,.22)}
+
+/* finestra a foglio */
+dialog{border:0;padding:0;border-radius:var(--r-lg);width:min(640px,calc(100vw - 20px));max-height:calc(100dvh - 30px);background:var(--surface);color:var(--ink)}
+dialog::backdrop{background:rgba(5,20,18,.5)}
+.sheet-h{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);z-index:2}
+.sheet-h h3{margin:0;font-size:18px;flex:1}
+.x{border:0;background:var(--line-2);width:34px;height:34px;border-radius:50%;font-size:18px}
+.sheet-b{padding:4px 16px 18px}
+.sheet-f{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--surface)}
+.files{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.fthumb{position:relative;width:92px;border:1px solid var(--line);border-radius:10px;padding:5px;font-size:11.5px;text-align:center;word-break:break-all;background:var(--bg)}
+.fthumb img,.fthumb .pdf{width:80px;height:80px;object-fit:cover;border-radius:7px;display:grid;place-items:center;font-size:30px;background:var(--line-2);margin:0 auto 3px}
+.fthumb .del{position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;border:0;background:var(--bad);color:#fff;font-size:14px;line-height:1}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:15px;margin-top:8px}
+.kv dt{color:var(--ink-3);font-weight:700;font-size:13.5px;padding-top:1px} .kv dd{margin:0;white-space:pre-wrap}
+
+/* pediatra */
+.slot{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line-2);font-size:15px}
+.slot:first-of-type{border-top:0}
+.slot b{min-width:92px}
+.days .d{padding:9px 0;border-top:1px solid var(--line-2)}
+.days .d:first-child{border-top:0}
+.days .d .n{font-weight:700}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(140px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14.5px;z-index:100;max-width:calc(100vw - 32px);box-shadow:0 6px 18px rgba(0,0,0,.25)}
+ol.steps{padding-left:20px;margin:6px 0} ol.steps li{margin:6px 0}
+code{background:var(--line-2);padding:1px 5px;border-radius:5px;font-size:13.5px;word-break:break-all}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap row">
+    <img src="icona-192.png" alt="">
+    <div class="grow"><h1>Gioele</h1><div class="sub" id="subtitolo">Visite e documenti</div></div>
+    <button class="sync" id="btnSync" type="button">…</button>
+  </div>
+</header>
+
+<main class="wrap" id="vista"></main>
+
+<button class="fab" id="fab" type="button" aria-label="Aggiungi">+</button>
+<nav class="tabs" aria-label="Sezioni">
+  <button type="button" data-tab="home"><span class="e">🏠</span>Home</button>
+  <button type="button" data-tab="visite"><span class="e">🩺</span>Visite</button>
+  <button type="button" data-tab="documenti"><span class="e">📄</span>Documenti</button>
+  <button type="button" data-tab="pediatra"><span class="e">👩‍⚕️</span>Pediatra</button>
+  <button type="button" data-tab="impostazioni"><span class="e">⚙️</span>Impostazioni</button>
+</nav>
+
+<dialog id="sheet"><form method="dialog" id="sheetForm" novalidate>
+  <div class="sheet-h"><h3 id="sheetTitolo"></h3><button class="x" value="annulla" aria-label="Chiudi" formnovalidate>✕</button></div>
+  <div class="sheet-b" id="sheetBody"></div>
+  <div class="sheet-f" id="sheetFoot"></div>
+</form></dialog>
+
+<input type="file" id="inFoto" accept="image/*" capture="environment" class="hidden">
+<input type="file" id="inFile" accept="application/pdf,image/*,.pdf,.heic" multiple class="hidden">
+<input type="file" id="inBackup" accept="application/json,.json" class="hidden">
+
+<script>
+"use strict";
+/* =====================================================================
+   DATI FISSI: la pediatra di Gioele
+   ===================================================================== */
+const PEDIATRA = {
+  nome: "Dr.ssa Lopez Rios Norma Beatriz",
+  breve: "Dr.ssa Lopez",
+  ruolo: "Pediatra di Famiglia",
+  associazione: ["Dr.ssa Erba Daniela", "Dr.ssa Lopez Rios Norma Beatriz", "Dr.ssa Masa Giulia"],
+  prenotazioni: { tel: "+393911781054", label: "391 178 1054", giorni: [1,2,3,4,5], fasce: [["09:00","11:00"]] },
+  consulti:     { tel: "+393478984952", label: "347 898 4952", giorni: [1,2,3,4,5], fasce: [["08:30","09:30"],["14:00","14:30"]] },
+  studi: [
+    { id: "sondrio", nome: "Ambulatorio Sondrio", indirizzo: "Via Parolo, 18 – Sondrio",
+      orari: { 1: [["10:00","13:00"]], 3: [["15:00","19:00"]], 5: [["09:30","13:30"], ["17:00","19:00","pediatra dell'associazione a turno"]] } },
+    { id: "chiesa", nome: "Ambulatorio Chiesa in Valmalenco", indirizzo: "Via Roma, 120 – Chiesa in Valmalenco",
+      orari: { 2: [["15:00","19:00"]], 4: [["10:00","13:00"]] } }
+  ]
+};
+const FSE_URL = "https://www.fascicolosanitario.regione.lombardia.it/";
+const LUOGHI = [
+  "Ambulatorio Sondrio – Via Parolo, 18 – Sondrio",
+  "Ambulatorio Chiesa in Valmalenco – Via Roma, 120 – Chiesa in Valmalenco",
+  "Ospedale di Sondrio – Via Stelvio, 25 – Sondrio"
+];
+const TIPI = {
+  pediatra: "🩺 Pediatra", bilancio: "📏 Bilancio di salute", specialista: "👨‍⚕️ Specialista",
+  ospedale: "🏥 Ospedale / Pronto soccorso", vaccino: "💉 Vaccinazione", esami: "🧪 Esami / analisi", altro: "📌 Altro"
+};
+const CATEGORIE = {
+  referto: "📋 Referto", ricetta: "💊 Ricetta", impegnativa: "📝 Impegnativa", esami: "🧪 Esami / analisi",
+  dimissione: "🏥 Lettera di dimissione", certificato: "📃 Certificato", vaccini: "💉 Vaccinazioni", altro: "📎 Altro"
+};
+const STATI = { programmata: "Programmata", fatta: "Fatta", annullata: "Annullata" };
+const GIORNI = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
+const GG = ["dom","lun","mar","mer","gio","ven","sab"];
+const MESI = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+const NOME_FILE_DATI = "gioele-dati.json";
+const NOME_CARTELLA = "Gioele – Salute";
+const NOME_CALENDARIO = "Gioele – Visite";
+const SCOPE = "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email";
+
+/* =====================================================================
+   UTILITÀ
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const pad = n => String(n).padStart(2, "0");
+const oggiISO = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const min = hhmm => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+const daMin = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+const parseISO = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const dataLunga = s => { const d = parseISO(s); return `${GIORNI[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]} ${d.getFullYear()}`; };
+const dataBreve = s => { if (!s) return ""; const d = parseISO(s); return `${d.getDate()} ${MESI[d.getMonth()]} ${d.getFullYear()}`; };
+function toast(msg, ms = 2800) {
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), ms);
+}
+const ls = {
+  get(k, d = null) { try { const v = localStorage.getItem("gioele." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("gioele." + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem("gioele." + k); } catch {} }
+};
+
+/* =====================================================================
+   ARCHIVIO SUL TELEFONO (IndexedDB)
+   ===================================================================== */
+let _db;
+function db() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((ok, ko) => {
+    const r = indexedDB.open("gioele-salute", 1);
+    r.onupgradeneeded = () => { for (const s of ["kv","file","inbox"]) if (!r.result.objectStoreNames.contains(s)) r.result.createObjectStore(s); };
+    r.onsuccess = () => { _db = r.result; ok(_db); }; r.onerror = () => ko(r.error);
+  });
+}
+async function idb(store, mode, fn) {
+  const d = await db();
+  return new Promise((ok, ko) => {
+    const t = d.transaction(store, mode); const s = t.objectStore(store); let out;
+    const r = fn(s); if (r) r.onsuccess = () => { out = r.result; };
+    t.oncomplete = () => ok(out); t.onerror = () => ko(t.error);
+  });
+}
+const kvGet = k => idb("kv", "readonly", s => s.get(k));
+const kvSet = (k, v) => idb("kv", "readwrite", s => s.put(v, k));
+const fileGet = k => idb("file", "readonly", s => s.get(k));
+const fileSet = (k, v) => idb("file", "readwrite", s => s.put(v, k));
+const fileDel = k => idb("file", "readwrite", s => s.delete(k));
+
+/* =====================================================================
+   STATO
+   ===================================================================== */
+function statoVuoto() {
+  return { v: 1, profilo: { nome: "Gioele", updatedAt: 0 }, visite: [], documenti: [], config: {} };
+}
+let S = statoVuoto();
+let vista = ls.get("tab", "home");
+let filtroDoc = { q: "", cat: "" };
+let filtroVis = { q: "", quando: "future" };
+
+const visiteAttive = () => S.visite.filter(v => !v.deleted);
+const docAttivi = () => S.documenti.filter(d => !d.deleted);
+async function salva(spingi = true) {
+  await kvSet("stato", S);
+  render();
+  if (spingi) pianificaSync();
+}
+
+/* unione tra due copie (telefono / Drive): per ogni voce vince la modifica più recente */
+function unisci(a, b) {
+  const out = statoVuoto();
+  out.profilo = (a.profilo?.updatedAt || 0) >= (b.profilo?.updatedAt || 0) ? a.profilo : b.profilo;
+  out.config = { ...(a.config || {}), ...(b.config || {}) };
+  for (const k of ["visite", "documenti"]) {
+    const m = new Map();
+    for (const x of [...(a[k] || []), ...(b[k] || [])]) {
+      const p = m.get(x.id);
+      if (!p || (x.updatedAt || 0) > (p.updatedAt || 0)) m.set(x.id, p ? { ...x, files: unisciFiles(p, x) } : x);
+      else if (p) m.set(x.id, { ...p, files: unisciFiles(x, p) });
+    }
+    out[k] = [...m.values()];
+  }
+  return out;
+}
+/* tiene l'eventuale driveId già noto per un allegato */
+function unisciFiles(vecchio, nuovo) {
+  if (!nuovo.files) return nuovo.files;
+  const ids = new Map((vecchio.files || []).map(f => [f.fid, f.driveId]));
+  return nuovo.files.map(f => f.driveId || !ids.get(f.fid) ? f : { ...f, driveId: ids.get(f.fid) });
+}
+const firmaStato = s => JSON.stringify({ p: s.profilo, c: s.config, v: s.visite, d: s.documenti });
+
+/* =====================================================================
+   GOOGLE: accesso, Drive, Calendar
+   ===================================================================== */
+const G = { token: null, exp: 0, email: ls.get("email", ""), client: null, gisPronto: null };
+(function () { const t = (() => { ls.get("tok") })();
+  if (t && t.exp > Date.now() + 60000) { G.token = t.token; G.exp = t.exp; } })();
+const clientId = () => ls.get("clientId", "");
+const googleAttivo = () => !!clientId() && !!ls.get("collegato", false);
+const tokenValido = () => G.token && G.exp > Date.now() + 60000;
+
+function caricaGIS() {
+  if (G.gisPronto) return G.gisPronto;
+  G.gisPronto = new Promise((ok, ko) => {
+    const s = document.createElement("script"); s.src = "https://accounts.google.com/gsi/client"; s.async = true;
+    s.onload = ok; s.onerror = () => { G.gisPronto = null; ko(new Error("Impossibile caricare l'accesso Google (sei offline?)")); };
+    document.head.appendChild(s);
+  });
+  return G.gisPronto;
+}
+async function accedi(interattivo = true) {
+  if (tokenValido()) return G.token;
+  if (!interattivo) throw new Error("serve-accesso");
+  await caricaGIS();
+  return new Promise((ok, ko) => {
+    const c = google.accounts.oauth2.initTokenClient({
+      client_id: clientId(), scope: SCOPE, hint: G.email || undefined,
+      callback: r => {
+        if (r.error) return ko(new Error(r.error_description || r.error));
+        if (!google.accounts.oauth2.hasGrantedAllScopes(r, ...SCOPE.split(" "))) return ko(new Error("Per funzionare servono tutti i permessi (Drive e Calendar): riprova e spunta tutte le caselle."));
+        G.token = r.access_token; G.exp = Date.now() + (r.expires_in - 60) * 1000;
+        ls.set("tok", { token: G.token, exp: G.exp });
+        ok(G.token);
+      },
+      error_callback: e => ko(new Error(e.type === "popup_closed" ? "Accesso annullato" : (e.message || "Accesso non riuscito")))
+    });
+    c.requestAccessToken({ prompt: ls.get("giaAutorizzato", false) ? "" : "consent" });
+  });
+}
+async function gapi(url, opt = {}) {
+  if (!tokenValido()) throw new Error("serve-accesso");
+  const r = await fetch(url, { ...opt, headers: { Authorization: "Bearer " + G.token, ...(opt.headers || {}) } });
+  if (r.status === 401) { G.token = null; ls.del("tok"); throw new Error("serve-accesso"); }
+  if (!r.ok) {
+    let msg = r.status + " " + r.statusText;
+    try { const j = await r.json(); msg = j.error?.message || msg; } catch {}
+    throw new Error(msg);
+  }
+  if (r.status === 204) return null;
+  const ct = r.headers.get("content-type") || "";
+  return opt.blob ? r.blob() : ct.includes("json") ? r.json() : r.text();
+}
+const DRIVE = "https://www.googleapis.com/drive/v3", UP = "https://www.googleapis.com/upload/drive/v3", CAL = "https://www.googleapis.com/calendar/v3";
+const qs = o => new URLSearchParams(o).toString();
+
+async function driveCerca(q, fields = "files(id,name,modifiedTime,parents,owners(emailAddress))") {
+  const j = await gapi(`${DRIVE}/files?${qs({ q, fields, pageSize: 50, orderBy: "modifiedTime desc", supportsAllDrives: true, includeItemsFromAllDrives: true })}`);
+  return j.files || [];
+}
+async function driveCarica({ id, nome, mime, parents, blob }) {
+  const meta = id ? {} : { name: nome, mimeType: mime, parents };
+  const fd = new FormData();
+  fd.append("metadata", new Blob([JSON.stringify(meta)], { type: "application/json" }));
+  fd.append("file", blob, nome || "file");
+  const url = id ? `${UP}/files/${id}?uploadType=multipart&supportsAllDrives=true&fields=id` : `${UP}/files?uploadType=multipart&supportsAllDrives=true&fields=id`;
+  return gapi(url, { method: id ? "PATCH" : "POST", body: fd });
+}
+const driveScarica = id => gapi(`${DRIVE}/files/${id}?alt=media&supportsAllDrives=true`, { blob: true, cache: "no-store" });
+
+/* trova (o crea) l'archivio condiviso su Drive e il calendario */
+async function preparaArchivio(creaSeManca) {
+  if (!G.email) {
+    try { const u = await gapi("https://www.googleapis.com/oauth2/v3/userinfo"); G.email = u.email || ""; ls.set("email", G.email); } catch {}
+  }
+  let fileId = ls.get("fileId", "");
+  if (fileId) {
+    try { await gapi(`${DRIVE}/files/${fileId}?fields=id,trashed&supportsAllDrives=true`).then(f => { if (f.trashed) fileId = ""; }); }
+    catch { fileId = ""; }
+  }
+  if (!fileId) {
+    const trovati = await driveCerca(`name='${NOME_FILE_DATI}' and trashed=false`);
+    if (trovati.length) fileId = trovati[0].id;
+  }
+  if (!fileId) {
+    if (!creaSeManca) return null;
+    const cart = await gapi(`${DRIVE}/files?fields=id&supportsAllDrives=true`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: NOME_CARTELLA, mimeType: "application/vnd.google-apps.folder" }) });
+    const sub = await gapi(`${DRIVE}/files?fields=id&supportsAllDrives=true`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Documenti", mimeType: "application/vnd.google-apps.folder", parents: [cart.id] }) });
+    S.config.folderId = cart.id; S.config.docsFolderId = sub.id;
+    const f = await driveCarica({ nome: NOME_FILE_DATI, mime: "application/json", parents: [cart.id], blob: new Blob([JSON.stringify(S)], { type: "application/json" }) });
+    fileId = f.id;
+  }
+  ls.set("fileId", fileId);
+  return fileId;
+}
+async function preparaCalendario() {
+  if (!S.config.calendarId) {
+    const c = await gapi(`${CAL}/calendars`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ summary: NOME_CALENDARIO, description: "Visite mediche di Gioele (gestite dall'app Gioele)", timeZone: "Europe/Rome" }) });
+    S.config.calendarId = c.id; S.config.calendarioDi = G.email;
+    try { await gapi(`${CAL}/users/me/calendarList/${encodeURIComponent(c.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colorId: "8" }) }); } catch {}
+    return;
+  }
+  /* calendario creato dall'altro genitore: lo aggiunge alla propria lista (se condiviso) */
+  if (S.config.calendarioDi !== G.email && !ls.get("calInLista_" + S.config.calendarId)) {
+    try {
+      await gapi(`${CAL}/users/me/calendarList`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: S.config.calendarId }) });
+    } catch (e) { if (!/already|exists|duplicate|conflict/i.test(e.message)) throw new Error("il calendario “" + NOME_CALENDARIO + "” non è ancora condiviso con te"); }
+    ls.set("calInLista_" + S.config.calendarId, true);
+  }
+}
+
+/* ---------- sincronizzazione ---------- */
+const SY = { stato: "locale", ultimo: ls.get("ultimoSync", 0), inCorso: false, timer: null, errore: "" };
+function pianificaSync() {
+  if (!googleAttivo()) return aggiornaBadge();
+  SY.stato = "da-fare"; aggiornaBadge();
+  clearTimeout(SY.timer); SY.timer = setTimeout(() => sincronizza(false), 1200);
+}
+async function sincronizza(interattivo) {
+  if (!clientId()) return;
+  if (SY.inCorso) return;
+  SY.inCorso = true; SY.stato = "in-corso"; SY.errore = ""; aggiornaBadge();
+  try {
+    await accedi(interattivo);
+    ls.set("giaAutorizzato", true);
+    let fileId = await preparaArchivio(false);
+    if (!fileId && interattivo && confirm("Non ho trovato un archivio di Gioele condiviso con " + (G.email || "questo account") + ".\n\nOK = crea ora l'archivio nel tuo Google Drive (fallo se sei il primo dei due genitori).\nAnnulla = aspetta che l'altro genitore te lo condivida, poi riprova.")) fileId = await preparaArchivio(true);
+    if (!fileId) { SY.stato = "nessun-archivio"; SY.errore = "Nessun archivio condiviso trovato"; return; }
+    ls.set("collegato", true);
+    const remoto = JSON.parse(await (await driveScarica(fileId)).text() || "{}");
+    const prima = firmaStato(remoto.v ? remoto : statoVuoto());
+    S = unisci(S, remoto.v ? remoto : statoVuoto());
+    if (!S.config.docsFolderId && S.config.folderId) S.config.docsFolderId = S.config.folderId;
+    await caricaAllegatiInSospeso();
+    SY.avvisoCal = "";
+    try { await preparaCalendario(); await allineaCalendario(); }
+    catch (e) { if (e.message === "serve-accesso") throw e; SY.avvisoCal = "Calendario Google non aggiornato: " + e.message; }
+    if (firmaStato(S) !== prima) await driveCarica({ id: fileId, blob: new Blob([JSON.stringify(S)], { type: "application/json" }) });
+    await kvSet("stato", S);
+    SY.ultimo = Date.now(); ls.set("ultimoSync", SY.ultimo); SY.stato = "ok";
+    if (interattivo && SY.avvisoCal) toast(SY.avvisoCal, 6000);
+    render();
+  } catch (e) {
+    SY.stato = e.message === "serve-accesso" ? "serve-accesso" : "errore";
+    SY.errore = e.message === "serve-accesso" ? "" : e.message;
+    if (interattivo && SY.errore) toast("Sincronizzazione: " + SY.errore, 5000);
+  } finally { SY.inCorso = false; aggiornaBadge(); }
+}
+async function caricaAllegatiInSospeso() {
+  for (const d of S.documenti) {
+    if (d.deleted || !d.files) continue;
+    for (const f of d.files) {
+      if (f.driveId) continue;
+      const blob = await fileGet(f.fid);
+      if (!blob) continue;  // il file è sul telefono dell'altro genitore: lo caricherà lui
+      const nome = `${d.data || ""} ${d.titolo || "documento"} – ${f.nome}`.trim().replace(/[\\/]/g, "-");
+      const r = await driveCarica({ nome, mime: f.mime, parents: [S.config.docsFolderId || S.config.folderId], blob });
+      f.driveId = r.id; d.updatedAt = Date.now();
+    }
+  }
+}
+async function allineaCalendario() {
+  if (!S.config.calendarId) return;
+  const cal = encodeURIComponent(S.config.calendarId);
+  for (const v of S.visite) {
+    const toglie = v.deleted || v.stato === "annullata" || v.noCal;
+    if (toglie) {
+      if (v.calEventId) {
+        try { await gapi(`${CAL}/calendars/${cal}/events/${v.calEventId}`, { method: "DELETE" }); } catch (e) { if (!/not found|deleted|410|404/i.test(e.message)) throw e; }
+        v.calEventId = ""; v.calSig = ""; v.updatedAt = Date.now();
+      }
+      continue;
+    }
+    if (!v.data || !v.ora) continue;
+    const ev = eventoDaVisita(v), sig = JSON.stringify(ev);
+    if (v.calEventId && v.calSig === sig) continue;
+    let r;
+    if (v.calEventId) {
+      try { r = await gapi(`${CAL}/calendars/${cal}/events/${v.calEventId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev) }); }
+      catch (e) { if (!/not found|404|410/i.test(e.message)) throw e; }
+    }
+    if (!r) r = await gapi(`${CAL}/calendars/${cal}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev) });
+    v.calEventId = r.id; v.calSig = sig; v.updatedAt = Date.now();
+  }
+}
+function eventoDaVisita(v) {
+  const fine = daMin(Math.min(min(v.ora) + (+v.durata || 30), 23 * 60 + 59));
+  return {
+    summary: `${TIPI[v.tipo]?.split(" ")[0] || "🩺"} Gioele – ${etichettaVisita(v)}`,
+    location: v.luogo || "",
+    description: testoVisita(v, false),
+    start: { dateTime: `${v.data}T${v.ora}:00`, timeZone: "Europe/Rome" },
+    end: { dateTime: `${v.data}T${fine}:00`, timeZone: "Europe/Rome" },
+    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 24 * 60 }, { method: "popup", minutes: 120 }] }
+  };
+}
+async function condividiArchivio(email) {
+  await accedi(true);
+  if (!S.config.folderId) throw new Error("Prima crea l'archivio su Google Drive.");
+  await gapi(`${DRIVE}/files/${S.config.folderId}/permissions?sendNotificationEmail=true&supportsAllDrives=true&${qs({ emailMessage: "Ti ho condiviso le visite e i documenti di Gioele. Apri l'app dal link che ti mando su WhatsApp." })}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role: "writer", emailAddress: email }) });
+  if (S.config.calendarId) {
+    await gapi(`${CAL}/calendars/${encodeURIComponent(S.config.calendarId)}/acl?sendNotifications=true`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "writer", scope: { type: "user", value: email } }) });
+  }
+  S.config.condivisoCon = [...new Set([...(S.config.condivisoCon || []), email.toLowerCase()])];
+  await salva();
+}
+async function chiConAccesso() {
+  if (!S.config.folderId || !tokenValido()) return null;
+  const j = await gapi(`${DRIVE}/files/${S.config.folderId}/permissions?fields=permissions(emailAddress,role,displayName)&supportsAllDrives=true`);
+  return j.permissions || [];
+}
+
+function aggiornaBadge() {
+  const b = $("#btnSync");
+  const t = {
+    "locale": "📱 Solo qui", "da-fare": "⏳ Da salvare", "in-corso": "🔄 Sincronizzo…", "ok": "✓ Condiviso",
+    "serve-accesso": "🔑 Accedi", "errore": "⚠️ Riprova", "nessun-archivio": "☁️ Collega"
+  }[googleAttivo() || SY.stato !== "locale" ? SY.stato : "locale"];
+  b.textContent = clientId() ? t : "📱 Solo qui";
+  b.title = SY.errore || (SY.ultimo ? "Ultima sincronizzazione: " + new Date(SY.ultimo).toLocaleString("it-IT") : "");
+}
+
+/* =====================================================================
+   PEDIATRA: orari
+   ===================================================================== */
+function fasceDelGiorno(cfg, d) { return cfg.giorni.includes(d.getDay()) ? cfg.fasce : []; }
+/* "aperto ora fino alle X" oppure "prossima apertura" */
+function statoFascia(cfg, ora = new Date()) {
+  const m = ora.getHours() * 60 + ora.getMinutes();
+  for (const [a, b] of fasceDelGiorno(cfg, ora)) if (m >= min(a) && m < min(b)) return { aperto: true, fino: b };
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(ora.getFullYear(), ora.getMonth(), ora.getDate() + i);
+    for (const [a] of fasceDelGiorno(cfg, d)) if (i > 0 || min(a) > m) return { aperto: false, giorno: d, da: a, oggi: i === 0, domani: i === 1 };
+  }
+  return { aperto: false };
+}
+function fraseProssima(s) {
+  if (s.aperto) return `Aperto ora, fino alle ${s.fino}`;
+  if (!s.giorno) return "";
+  return `Riapre ${s.oggi ? "oggi" : s.domani ? "domani" : GIORNI[s.giorno.getDay()]} alle ${s.da}`;
+}
+function ambulatoriDelGiorno(d) {
+  const out = [];
+  for (const st of PEDIATRA.studi) for (const f of st.orari[d.getDay()] || []) out.push({ studio: st, da: f[0], a: f[1], nota: f[2] || "" });
+  return out.sort((x, y) => min(x.da) - min(y.da));
+}
+/* verifica che una visita dalla pediatra cada negli orari di ambulatorio */
+function controllaOrarioPediatra(v) {
+  if (!["pediatra", "bilancio"].includes(v.tipo) || !v.data || !v.ora) return "";
+  const studio = PEDIATRA.studi.find(s => (v.luogo || "").toLowerCase().includes(s.id === "sondrio" ? "parolo" : "valmalenco"));
+  if (!studio) return "";
+  const d = parseISO(v.data), fasce = studio.orari[d.getDay()] || [];
+  if (!fasce.length) {
+    const giorni = Object.keys(studio.orari).map(g => GIORNI[g]).join(" e ");
+    return `Di ${GIORNI[d.getDay()]} l'${studio.nome} è chiuso (è aperto ${giorni}).`;
+  }
+  const m = min(v.ora);
+  const f = fasce.find(([a, b]) => m >= min(a) && m < min(b));
+  if (!f) return `Orario fuori ambulatorio: di ${GIORNI[d.getDay()]} ${studio.nome} è aperto ${fasce.map(x => x[0] + "–" + x[1]).join(" e ")}.`;
+  if (f[2]) return `Attenzione: venerdì ${f[0]}–${f[1]} visita il ${f[2]}.`;
+  return "";
+}
+
+/* =====================================================================
+   TESTI / CONDIVISIONE
+   ===================================================================== */
+function etichettaVisita(v) {
+  const t = (TIPI[v.tipo] || "").replace(/^\S+\s/, "");
+  return [t, v.medico].filter(Boolean).join(" · ") || "Visita";
+}
+function testoVisita(v, intestazione = true) {
+  const righe = [];
+  if (intestazione) righe.push(`🩺 Visita di Gioele – ${etichettaVisita(v)}`);
+  if (v.data) righe.push(`📅 ${dataLunga(v.data)}${v.ora ? " ore " + v.ora : ""}`);
+  if (v.luogo) righe.push(`📍 ${v.luogo}`);
+  if (v.motivo) righe.push(`❓ Motivo: ${v.motivo}`);
+  if (v.esito) righe.push(`✅ Esito: ${v.esito}`);
+  if (v.note) righe.push(`📝 ${v.note}`);
+  const docs = docAttivi().filter(d => d.visitaId === v.id);
+  if (docs.length) righe.push(`📎 Documenti: ${docs.map(d => d.titolo).join(", ")}`);
+  if (["pediatra", "bilancio"].includes(v.tipo)) righe.push(`☎️ Prenotazioni ${PEDIATRA.prenotazioni.label} · Consulti ${PEDIATRA.consulti.label}`);
+  return righe.join("\n");
+}
+function linkCalendarioGoogle(v) {
+  const a = v.data.replace(/-/g, "") + "T" + v.ora.replace(":", "") + "00";
+  const f = daMin(Math.min(min(v.ora) + (+v.durata || 30), 1439)).replace(":", "");
+  return "https://calendar.google.com/calendar/render?" + qs({ action: "TEMPLATE", text: `Gioele – ${etichettaVisita(v)}`,
+    dates: `${a}/${v.data.replace(/-/g, "")}T${f}00`, ctz: "Europe/Rome", location: v.luogo || "", details: testoVisita(v, false) });
+}
+async function condividi({ titolo, testo, files = [] }) {
+  try {
+    if (files.length && navigator.canShare && navigator.canShare({ files })) { await navigator.share({ title: titolo, text: testo, files }); return; }
+    if (navigator.share) { await navigator.share({ title: titolo, text: testo }); return; }
+  } catch (e) { if (e.name === "AbortError") return; }
+  window.open("https://wa.me/?text=" + encodeURIComponent(testo), "_blank");
+}
+
+/* =====================================================================
+   ALLEGATI: recupero del file (telefono o Drive)
+   ===================================================================== */
+const urlCache = new Map();
+async function blobAllegato(f) {
+  let b = await fileGet(f.fid);
+  if (!b && f.driveId) {
+    if (!tokenValido()) await accedi(true);
+    b = await driveScarica(f.driveId);
+    if (f.mime && b.type !== f.mime) b = new Blob([b], { type: f.mime });
+    await fileSet(f.fid, b);
+  }
+  return b || null;
+}
+async function urlAllegato(f) {
+  if (urlCache.has(f.fid)) return urlCache.get(f.fid);
+  const b = await blobAllegato(f); if (!b) return null;
+  const u = URL.createObjectURL(b); urlCache.set(f.fid, u); return u;
+}
+/* riduce le foto molto grandi per non riempire Drive */
+async function preparaFile(file) {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 1.5e6) return file;
+  try {
+    const img = await createImageBitmap(file);
+    const k = Math.min(1, 2400 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const b = await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+    return b && b.size < file.size ? new File([b], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
+  } catch { return file; }
+}
+
+/* =====================================================================
+   VISTE
+   ===================================================================== */
+function render() {
+  document.querySelectorAll("nav.tabs button").forEach(b => b.dataset.tab === vista ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+  $("#fab").classList.toggle("hidden", vista === "impostazioni");
+  const el = $("#vista");
+  el.innerHTML = ({ home: vHome, visite: vVisite, documenti: vDocumenti, pediatra: vPediatra, impostazioni: vImpostazioni }[vista] || vHome)();
+  aggiornaBadge();
+  if (vista === "documenti" || vista === "home") caricaMiniature();
+  if (vista === "impostazioni") riempiAccessi();
+}
+
+function rigaVisita(v) {
+  const d = parseISO(v.data || oggiISO()), passata = (v.data || "") < oggiISO();
+  const ndoc = docAttivi().filter(x => x.visitaId === v.id).length;
+  const chip = v.stato === "annullata" ? `<span class="chip bad">Annullata</span>` : v.stato === "fatta" ? `<span class="chip ok">Fatta</span>` : passata ? `<span class="chip warn">Da completare</span>` : "";
+  return `<button class="item" data-act="apri-visita" data-id="${v.id}">
+    <div class="date ${passata ? "past" : ""}"><span>${GG[d.getDay()]}</span><b>${d.getDate()}</b><span>${MESI[d.getMonth()]}</span></div>
+    <div class="grow"><div class="t">${esc(etichettaVisita(v))}</div>
+      <div class="m">${v.ora ? "🕐 " + esc(v.ora) + " · " : ""}${esc((v.luogo || "").split(" – ")[0] || "Luogo da definire")}</div>
+      ${v.motivo ? `<div class="m">${esc(v.motivo)}</div>` : ""}
+      <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">${chip}${ndoc ? `<span class="chip">📎 ${ndoc}</span>` : ""}${d.getFullYear() !== new Date().getFullYear() ? `<span class="chip">${d.getFullYear()}</span>` : ""}</div>
+    </div></button>`;
+}
+function rigaDoc(d) {
+  const f0 = (d.files || [])[0];
+  const img = f0 && /^image\//.test(f0.mime);
+  const vis = d.visitaId && S.visite.find(v => v.id === d.visitaId && !v.deleted);
+  return `<button class="item" data-act="apri-doc" data-id="${d.id}">
+    <div class="ico" ${img ? `data-thumb="${f0.fid}"` : ""}>${(CATEGORIE[d.categoria] || "📎").split(" ")[0]}</div>
+    <div class="grow"><div class="t">${esc(d.titolo || "Documento")}</div>
+      <div class="m">${esc((CATEGORIE[d.categoria] || "").replace(/^\S+\s/, ""))}${d.data ? " · " + dataBreve(d.data) : ""}${(d.files || []).length > 1 ? ` · ${d.files.length} file` : ""}</div>
+      ${vis ? `<div class="tiny">🩺 ${esc(etichettaVisita(vis))} del ${dataBreve(vis.data)}</div>` : ""}
+    </div></button>`;
+}
+async function caricaMiniature() {
+  for (const el of document.querySelectorAll("[data-thumb]")) {
+    const fid = el.dataset.thumb, b = await fileGet(fid);   // solo se già sul telefono: niente download automatici
+    if (b && document.body.contains(el)) { const u = URL.createObjectURL(b); el.innerHTML = `<img alt="" src="${u}">`; }
+  }
+}
+
+function bannerGoogle() {
+  if (!clientId()) return `<div class="notice info">📱 I dati per ora sono salvati <b>solo su questo telefono</b>. Per condividerli con Silvia e collegare Google Calendar vai in <a href="#" data-act="tab" data-tab="impostazioni">Impostazioni</a>.</div>`;
+  if (SY.stato === "serve-accesso" || (!googleAttivo() && SY.stato !== "in-corso")) return `<div class="notice warn">🔑 Accedi a Google per sincronizzare con Silvia e con il calendario. <button type="button" class="btn sm pri" data-act="sync">Accedi</button></div>`;
+  if (SY.stato === "ok" && SY.avvisoCal) return `<div class="notice warn">📅 ${esc(SY.avvisoCal)}</div>`;
+  if (SY.stato === "errore") return `<div class="notice bad">⚠️ Sincronizzazione non riuscita: ${esc(SY.errore)} <button type="button" class="btn sm" data-act="sync">Riprova</button></div>`;
+  return "";
+}
+
+function vHome() {
+  const oggi = oggiISO();
+  const prossime = visiteAttive().filter(v => v.data >= oggi && v.stato !== "annullata").sort((a, b) => (a.data + a.ora).localeCompare(b.data + b.ora));
+  const daCompletare = visiteAttive().filter(v => v.data < oggi && v.stato === "programmata");
+  const ultimiDoc = docAttivi().sort((a, b) => (b.creato || 0) - (a.creato || 0)).slice(0, 3);
+  const pren = statoFascia(PEDIATRA.prenotazioni), cons = statoFascia(PEDIATRA.consulti);
+  const amb = ambulatoriDelGiorno(new Date());
+  const p = S.profilo;
+  return `${bannerGoogle()}
+  <h2>Prossime visite</h2>
+  ${prossime.length ? prossime.slice(0, 4).map(rigaVisita).join("") : `<div class="card empty">Nessuna visita in programma.<div class="btns" style="justify-content:center"><button type="button" class="btn pri" data-act="nuova-visita">+ Nuova visita</button><button type="button" class="btn" data-act="tab" data-tab="pediatra">Prenota dalla pediatra</button></div></div>`}
+  ${prossime.length > 4 ? `<button type="button" class="btn sm" data-act="tab" data-tab="visite">Vedi tutte (${prossime.length})</button>` : ""}
+  ${daCompletare.length ? `<h2>Da completare</h2><div class="tiny" style="margin:-6px 0 8px">Visite passate: segna com'è andata e aggiungi i referti.</div>${daCompletare.slice(0, 3).map(rigaVisita).join("")}` : ""}
+  <h2>Pediatra oggi</h2>
+  <div class="card">
+    <div class="t" style="font-weight:700">${esc(PEDIATRA.nome)}</div>
+    <div class="small muted">${amb.length ? "Oggi in ambulatorio: " + amb.map(a => `${esc(a.studio.nome.replace("Ambulatorio ", ""))} ${a.da}–${a.a}${a.nota ? " (" + esc(a.nota) + ")" : ""}`).join(" · ") : `Oggi (${GIORNI[new Date().getDay()]}) niente ambulatorio.`}</div>
+    <div class="btns">
+      <a class="btn ${pren.aperto ? "pri" : ""}" href="tel:${PEDIATRA.prenotazioni.tel}">📅 Prenota ${PEDIATRA.prenotazioni.label}</a>
+      <a class="btn ${cons.aperto ? "pri" : ""}" href="tel:${PEDIATRA.consulti.tel}">🩺 Consulto ${PEDIATRA.consulti.label}</a>
+    </div>
+    <div class="tiny" style="margin-top:8px">Prenotazioni: ${fraseProssima(pren)} · Consulti: ${fraseProssima(cons)}</div>
+  </div>
+  ${ultimiDoc.length ? `<h2>Ultimi documenti</h2>${ultimiDoc.map(rigaDoc).join("")}` : ""}
+  <h2>Gioele</h2>
+  <div class="card" data-act="profilo" style="cursor:pointer">
+    <dl class="kv">
+      <dt>Nato il</dt><dd>${p.nascita ? dataBreve(p.nascita) + " · " + eta(p.nascita) : "<span class='muted'>tocca per completare</span>"}</dd>
+      ${p.cf ? `<dt>Cod. fiscale</dt><dd>${esc(p.cf)}</dd>` : ""}
+      ${p.sangue ? `<dt>Gruppo</dt><dd>${esc(p.sangue)}</dd>` : ""}
+      <dt>Allergie</dt><dd>${esc(p.allergie || "nessuna nota")}</dd>
+      ${p.note ? `<dt>Note</dt><dd>${esc(p.note)}</dd>` : ""}
+    </dl>
+  </div>`;
+}
+function eta(nascita) {
+  const n = parseISO(nascita), o = new Date();
+  let mesi = (o.getFullYear() - n.getFullYear()) * 12 + o.getMonth() - n.getMonth() - (o.getDate() < n.getDate() ? 1 : 0);
+  if (mesi < 0) return "";
+  if (mesi < 24) return mesi + (mesi === 1 ? " mese" : " mesi");
+  const a = Math.floor(mesi / 12), r = mesi % 12;
+  return a + " anni" + (r ? " e " + r + (r === 1 ? " mese" : " mesi") : "");
+}
+
+function vVisite() {
+  const oggi = oggiISO(), q = filtroVis.q.toLowerCase();
+  let l = visiteAttive().filter(v => !q || [etichettaVisita(v), v.luogo, v.motivo, v.esito, v.note].join(" ").toLowerCase().includes(q));
+  l = filtroVis.quando === "future" ? l.filter(v => v.data >= oggi).sort((a, b) => (a.data + a.ora).localeCompare(b.data + b.ora))
+    : l.filter(v => filtroVis.quando === "tutte" || v.data < oggi).sort((a, b) => (b.data + b.ora).localeCompare(a.data + a.ora));
+  return `${bannerGoogle()}
+  <div class="toolbar">
+    <input type="search" id="qVis" placeholder="Cerca (es. otorino, febbre…)" value="${esc(filtroVis.q)}">
+    <select id="quandoVis" style="flex:0 1 150px">
+      <option value="future" ${filtroVis.quando === "future" ? "selected" : ""}>In programma</option>
+      <option value="passate" ${filtroVis.quando === "passate" ? "selected" : ""}>Passate</option>
+      <option value="tutte" ${filtroVis.quando === "tutte" ? "selected" : ""}>Tutte</option>
+    </select>
+  </div>
+  ${l.length ? l.map(rigaVisita).join("") : `<div class="empty">Nessuna visita ${filtroVis.quando === "future" ? "in programma" : "trovata"}.</div>`}
+  <div class="btns"><button type="button" class="btn" data-act="importa-cal">📥 Importa visite dal mio Google Calendar</button></div>`;
+}
+
+function vDocumenti() {
+  const q = filtroDoc.q.toLowerCase();
+  const l = docAttivi().filter(d => (!filtroDoc.cat || d.categoria === filtroDoc.cat) && (!q || [d.titolo, d.note, d.struttura, CATEGORIE[d.categoria]].join(" ").toLowerCase().includes(q)))
+    .sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.creato || 0) - (a.creato || 0));
+  return `${bannerGoogle()}
+  <div class="toolbar">
+    <input type="search" id="qDoc" placeholder="Cerca nei documenti" value="${esc(filtroDoc.q)}">
+    <select id="catDoc" style="flex:0 1 170px"><option value="">Tutte le categorie</option>${Object.entries(CATEGORIE).map(([k, t]) => `<option value="${k}" ${filtroDoc.cat === k ? "selected" : ""}>${t}</option>`).join("")}</select>
+  </div>
+  ${l.length ? l.map(rigaDoc).join("") : `<div class="empty">Nessun documento${filtroDoc.q || filtroDoc.cat ? " trovato" : ". Fotografa un referto o carica un PDF con il tasto +"}.</div>`}
+  <div class="card" style="margin-top:16px">
+    <b>🏥 Referti dell'ospedale</b>
+    <div class="small muted" style="margin-top:4px">I referti di ospedale e laboratori si scaricano dal <b>Fascicolo Sanitario Elettronico</b> (app/sito Regione Lombardia, con SPID o CIE: dentro trovi anche i documenti di Gioele come figlio a carico). Scarica il PDF e poi: <b>Condividi → Gioele</b> (Android, con l'app installata) oppure il tasto <b>+</b> qui → “Scegli file”.</div>
+    <div class="btns"><a class="btn sm" href="${FSE_URL}" target="_blank" rel="noopener">Apri Fascicolo Sanitario ↗</a></div>
+  </div>`;
+}
+
+function vPediatra() {
+  const pren = statoFascia(PEDIATRA.prenotazioni), cons = statoFascia(PEDIATRA.consulti);
+  const giorni = [];
+  for (let i = 0; i < 14 && giorni.length < 8; i++) {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
+    const a = ambulatoriDelGiorno(d); if (a.length) giorni.push({ d, a });
+  }
+  const orari = st => [1,2,3,4,5,6,0].filter(g => st.orari[g]).map(g => st.orari[g].map(f => `<div class="slot"><b>${GIORNI[g][0].toUpperCase() + GIORNI[g].slice(1)}</b><span>${f[0]} – ${f[1]}${f[2] ? `<br><span class="tiny">${esc(f[2])}</span>` : ""}</span></div>`).join("")).join("");
+  return `<div class="card">
+    <div style="font-weight:800;font-size:17px">👩‍⚕️ ${esc(PEDIATRA.nome)}</div>
+    <div class="small muted">${PEDIATRA.ruolo}</div>
+    <div class="tiny" style="margin-top:6px">Associazione pediatrica: ${PEDIATRA.associazione.map(esc).join(", ")}<br>Infermiere: no · Segretaria: no</div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>📅 Per prenotare</b><span class="chip ${pren.aperto ? "ok" : ""}">${pren.aperto ? "Linea aperta" : "Chiuso ora"}</span></div>
+    <div class="small muted">Dal lunedì al venerdì, 9:00 – 11:00 · ${fraseProssima(pren)}</div>
+    <div class="btns"><a class="btn ${pren.aperto ? "pri" : ""}" href="tel:${PEDIATRA.prenotazioni.tel}">📞 ${PEDIATRA.prenotazioni.label}</a><button type="button" class="btn" data-act="nuova-visita-ped">✍️ Segna l'appuntamento</button></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>🩺 Consulti telefonici</b><span class="chip ${cons.aperto ? "ok" : ""}">${cons.aperto ? "Si può chiamare" : "Chiuso ora"}</span></div>
+    <div class="small muted">Ore 8:30 – 9:30 e 14:00 – 14:30 · ${fraseProssima(cons)}</div>
+    <div class="btns"><a class="btn ${cons.aperto ? "pri" : ""}" href="tel:${PEDIATRA.consulti.tel}">📞 ${PEDIATRA.consulti.label}</a><button type="button" class="btn" data-act="nota-consulto">📝 Annota un consulto</button></div>
+  </div>
+  <h2>Prossimi giorni di ambulatorio</h2>
+  <div class="card days">${giorni.map(g => `<div class="d"><div class="n">${GIORNI[g.d.getDay()][0].toUpperCase() + GIORNI[g.d.getDay()].slice(1)} ${g.d.getDate()} ${MESI[g.d.getMonth()]}${oggiISO(g.d) === oggiISO() ? ' <span class="chip brand">oggi</span>' : ""}</div>
+     ${g.a.map(a => `<div class="small muted">${a.da}–${a.a} · ${esc(a.studio.nome.replace("Ambulatorio ", ""))}${a.nota ? ` <span class="chip warn">${esc(a.nota)}</span>` : ""}</div>`).join("")}</div>`).join("")}
+    <div class="tiny" style="margin-top:6px">Sempre su appuntamento. Festivi e ferie non sono considerati.</div></div>
+  ${PEDIATRA.studi.map(st => `<h2>📍 ${esc(st.nome)}</h2><div class="card">
+    <div class="small"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(st.indirizzo)}" target="_blank" rel="noopener">${esc(st.indirizzo)} ↗</a></div>
+    <div style="margin-top:6px">${orari(st)}</div></div>`).join("")}`;
+}
+
+function vImpostazioni() {
+  const cid = clientId(), coll = googleAttivo();
+  const link = cid ? `${location.origin}${location.pathname}#cid=${encodeURIComponent(cid)}` : "";
+  return `<h2>Condivisione con Silvia e Google Calendar</h2>
+  <div class="card">
+    ${!cid ? `<p class="small" style="margin-top:0">Per salvare tutto sul tuo <b>Google Drive</b> (cartella “${NOME_CARTELLA}”), mettere le visite in un calendario Google <b>“${NOME_CALENDARIO}”</b> e condividerli con Silvia serve un “Client ID” Google: si crea una volta sola, gratis, in circa 10 minuti.</p>
+      <details><summary><b>Come si crea il Client ID</b></summary>${istruzioniGoogle()}</details>
+      <label class="f">Client ID Google<input type="text" id="inCid" placeholder="123456-abc.apps.googleusercontent.com" autocomplete="off"></label>
+      <div class="btns"><button type="button" class="btn pri" data-act="salva-cid">Salva e collega</button></div>`
+    : `<dl class="kv"><dt>Stato</dt><dd>${coll ? (SY.stato === "ok" ? "✓ Sincronizzato" : esc(SY.errore || "collegato")) : "non ancora collegato"}</dd>
+        ${G.email ? `<dt>Account</dt><dd>${esc(G.email)}</dd>` : ""}
+        ${SY.ultimo ? `<dt>Ultima sinc.</dt><dd>${new Date(SY.ultimo).toLocaleString("it-IT")}</dd>` : ""}
+        ${S.config.calendarId ? `<dt>Calendario</dt><dd>${NOME_CALENDARIO}</dd>` : ""}</dl>
+      <div class="btns">
+        ${coll ? `<button type="button" class="btn pri" data-act="sync">🔄 Sincronizza ora</button>` : `<button type="button" class="btn pri" data-act="collega">☁️ Collega Google</button>`}
+        ${S.config.folderId ? `<a class="btn" href="https://drive.google.com/drive/folders/${encodeURIComponent(S.config.folderId)}" target="_blank" rel="noopener">📁 Apri cartella Drive</a>` : ""}
+      </div>`}
+  </div>
+  ${cid && coll && S.config.folderId ? `<div class="card">
+    <b>👩 Condividi con Silvia</b>
+    <ol class="steps small">
+      <li>Scrivi l'indirizzo Gmail di Silvia e tocca “Condividi”: le arriva l'accesso alla cartella Drive e al calendario “${NOME_CALENDARIO}”.</li>
+      <li>Mandale il link dell'app su WhatsApp: lo apre, tocca “Accedi” con il suo account Google e vede tutto quello che vedi tu. Ogni visita o referto che aggiunge uno dei due compare subito all'altro.</li>
+    </ol>
+    <label class="f">Email Google di Silvia<input type="email" id="inEmailSilvia" placeholder="silvia…@gmail.com" value="${esc(ls.get("emailSilvia", ""))}"></label>
+    <div class="btns"><button type="button" class="btn pri" data-act="condividi-silvia">Condividi</button>
+      <button type="button" class="btn" data-act="link-silvia">💬 Manda il link dell'app a Silvia</button></div>
+    <div id="accessi" class="tiny" style="margin-top:10px"></div>
+    <div class="tiny" style="margin-top:6px">Ricorda: Silvia deve essere anche tra gli “Utenti di test” del progetto Google (passo 3 delle istruzioni).</div>
+  </div>` : ""}
+  ${cid && !coll ? `<div class="card small"><b>Sei Silvia?</b> Tocca “Collega Google” e accedi col tuo account: se Simone ti ha già condiviso l'archivio lo trovo da solo.</div>` : ""}
+  ${link ? `<div class="card small"><b>Link dell'app</b> (contiene già il Client ID)<div style="margin-top:6px"><code>${esc(link)}</code></div></div>` : ""}
+
+  <h2>Copia di sicurezza</h2>
+  <div class="card small">
+    Salva un file con visite, profilo e documenti (anche i file degli allegati presenti su questo telefono).
+    <div class="btns"><button type="button" class="btn" data-act="esporta">⬇️ Esporta</button><button type="button" class="btn" data-act="importa">⬆️ Importa</button></div>
+  </div>
+
+  <h2>Installa sul telefono</h2>
+  <div class="card small">
+    <b>iPhone</b>: apri con Safari → tasto Condividi → “Aggiungi alla schermata Home”.<br>
+    <b>Android</b>: Chrome → menu ⋮ → “Installa app”. Così compare anche “Gioele” nel menu Condividi, per mandare all'app i PDF dei referti.
+  </div>
+
+  <h2>Privacy</h2>
+  <div class="card tiny">
+    Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
+    ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
+  </div>
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v1</div>`;
+}
+function istruzioniGoogle() {
+  return `<ol class="steps small">
+    <li>Vai su <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">console.cloud.google.com</a> con il tuo account Google e crea un progetto (es. “Gioele Salute”).</li>
+    <li>Menu <b>API e servizi → Libreria</b>: cerca e <b>abilita</b> “Google Drive API” e “Google Calendar API”.</li>
+    <li>Menu <b>Google Auth Platform</b> (o “Schermata consenso OAuth”): tipo <b>Esterno</b>, nome app “Gioele”, la tua email. In <b>Pubblico → Utenti di test</b> aggiungi la tua Gmail <b>e quella di Silvia</b>. Lascia l'app “In test”.</li>
+    <li><b>Client → Crea client</b> → tipo <b>Applicazione web</b>. In “Origini JavaScript autorizzate” aggiungi <code>${esc(location.origin)}</code>. Salva e copia il <b>Client ID</b> (finisce con <code>.apps.googleusercontent.com</code>).</li>
+    <li>Incollalo qui sotto. Al primo accesso Google dirà “app non verificata”: tocca <b>Avanzate → Vai a Gioele</b> e spunta tutte le caselle (è la tua app, i dati restano tuoi).</li>
+  </ol>`;
+}
+async function riempiAccessi() {
+  const el = $("#accessi"); if (!el) return;
+  try {
+    const p = await chiConAccesso(); if (!p) return;
+    el.innerHTML = "Hanno accesso: " + p.filter(x => x.emailAddress).map(x => `${esc(x.displayName || x.emailAddress)} (${x.role === "owner" ? "proprietario" : x.role === "writer" ? "può modificare" : "può vedere"})`).join(", ");
+  } catch {}
+}
+
+/* =====================================================================
+   FOGLI (moduli)
+   ===================================================================== */
+const sheet = $("#sheet");
+let azioneSheet = null;
+function apriSheet(titolo, corpo, piede, onSubmit) {
+  $("#sheetTitolo").textContent = titolo;
+  $("#sheetBody").innerHTML = corpo;
+  $("#sheetFoot").innerHTML = piede;
+  azioneSheet = onSubmit;
+  if (!sheet.open) sheet.showModal();
+  $("#sheetBody").scrollTop = 0;
+}
+sheet.addEventListener("close", () => { azioneSheet = null; bozzaFiles = []; });
+$("#sheetForm").addEventListener("submit", async e => {
+  const v = e.submitter?.value;
+  if (v === "ok" && azioneSheet) {
+    e.preventDefault();
+    try { const fine = await azioneSheet(); if (fine !== false) sheet.close(); } catch (err) { toast(err.message, 5000); }
+  }
+});
+
+/* ---------- visita ---------- */
+function formVisita(v = {}, preset = {}) {
+  v = { tipo: "pediatra", durata: 30, stato: "programmata", ...preset, ...v };
+  const nuova = !v.id;
+  const docs = v.id ? docAttivi().filter(d => d.visitaId === v.id) : [];
+  apriSheet(nuova ? "Nuova visita" : "Visita", `
+    <div id="avvisoOrario"></div>
+    <label class="f">Tipo<select name="tipo">${Object.entries(TIPI).map(([k, t]) => `<option value="${k}" ${v.tipo === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+    <div class="grid2">
+      <label class="f">Data<input type="date" name="data" value="${esc(v.data || oggiISO())}" required></label>
+      <label class="f">Ora<input type="time" name="ora" value="${esc(v.ora || "")}" step="300"></label>
+    </div>
+    <div class="grid2">
+      <label class="f">Durata<select name="durata">${[15, 20, 30, 45, 60, 90, 120, 180].map(m => `<option value="${m}" ${+v.durata === m ? "selected" : ""}>${m < 60 ? m + " min" : m / 60 + " h"}</option>`).join("")}</select></label>
+      <label class="f">Stato<select name="stato">${Object.entries(STATI).map(([k, t]) => `<option value="${k}" ${v.stato === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+    </div>
+    <label class="f">Luogo<input type="text" name="luogo" list="dlLuoghi" value="${esc(v.luogo || "")}" placeholder="Scegli o scrivi"></label>
+    <datalist id="dlLuoghi">${[...new Set([...LUOGHI, ...visiteAttive().map(x => x.luogo).filter(Boolean)])].map(l => `<option value="${esc(l)}">`).join("")}</datalist>
+    <label class="f">Medico / reparto<input type="text" name="medico" list="dlMedici" value="${esc(v.medico ?? "")}"></label>
+    <datalist id="dlMedici">${[...new Set([...PEDIATRA.associazione, ...visiteAttive().map(x => x.medico).filter(Boolean)])].map(l => `<option value="${esc(l)}">`).join("")}</datalist>
+    <label class="f">Motivo<input type="text" name="motivo" value="${esc(v.motivo || "")}" placeholder="es. febbre, controllo, vaccino esavalente"></label>
+    <label class="f">Esito / cosa ha detto il medico<textarea name="esito" placeholder="Diagnosi, terapia, prossimi controlli…">${esc(v.esito || "")}</textarea></label>
+    <label class="f">Note (cosa portare, domande da fare…)<textarea name="note">${esc(v.note || "")}</textarea></label>
+    ${googleAttivo() ? `<label class="check"><input type="checkbox" name="cal" ${v.noCal ? "" : "checked"}> Metti nel calendario Google “${NOME_CALENDARIO}”</label>` : ""}
+    ${!nuova ? `<h3 style="font-size:16px;margin:18px 0 6px">📎 Documenti della visita</h3>
+      ${docs.length ? docs.map(rigaDoc).join("") : `<div class="tiny">Nessun documento collegato.</div>`}
+      <div class="btns">
+        <button type="button" class="btn sm" data-act="doc-per-visita" data-id="${v.id}">+ Aggiungi referto / documento</button>
+        <button type="button" class="btn sm" data-act="condividi-visita" data-id="${v.id}">💬 Invia a Silvia</button>
+        ${v.data && v.ora && !googleAttivo() ? `<a class="btn sm" target="_blank" rel="noopener" href="${esc(linkCalendarioGoogle(v))}">📅 Aggiungi a Google Calendar</a>` : ""}
+      </div>` : ""}
+  `, `${!nuova ? `<button type="button" class="btn bad" data-act="elimina-visita" data-id="${v.id}">Elimina</button><span style="flex:1"></span>` : ""}
+      <button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
+  async () => {
+    const f = $("#sheetForm"), val = n => f.elements[n]?.value.trim() ?? "";
+    if (!val("data")) throw new Error("Indica la data");
+    const dati = { tipo: val("tipo"), data: val("data"), ora: val("ora"), durata: +val("durata") || 30, stato: val("stato"), luogo: val("luogo"),
+      medico: val("medico"), motivo: val("motivo"), esito: val("esito"), note: val("note"), noCal: f.elements.cal ? !f.elements.cal.checked : !!v.noCal };
+    if (nuova) S.visite.push({ id: uid(), ...dati, creato: Date.now(), creatoDa: G.email || "", updatedAt: Date.now() });
+    else Object.assign(S.visite.find(x => x.id === v.id), dati, { updatedAt: Date.now() });
+    await salva();
+    toast(nuova ? "Visita salvata" : "Modifiche salvate");
+    if (nuova && !googleAttivo() && dati.ora) setTimeout(() => toast("Suggerimento: apri la visita e tocca “Aggiungi a Google Calendar”", 4000), 2900);
+  });
+  const f = $("#sheetForm");
+  const verifica = () => {
+    const x = { tipo: f.elements.tipo.value, data: f.elements.data.value, ora: f.elements.ora.value, luogo: f.elements.luogo.value };
+    const a = controllaOrarioPediatra(x);
+    $("#avvisoOrario").innerHTML = a ? `<div class="notice warn">⚠️ ${esc(a)}</div>` : "";
+  };
+  f.elements.tipo.addEventListener("change", () => {
+    if (["pediatra", "bilancio"].includes(f.elements.tipo.value) && !f.elements.medico.value) f.elements.medico.value = PEDIATRA.nome;
+    if (["pediatra", "bilancio"].includes(f.elements.tipo.value) && !f.elements.luogo.value) f.elements.luogo.value = luogoPerData(f.elements.data.value);
+    verifica();
+  });
+  f.elements.data.addEventListener("change", () => {
+    if (["pediatra", "bilancio"].includes(f.elements.tipo.value)) { const l = luogoPerData(f.elements.data.value); if (l && LUOGHI.slice(0, 2).includes(f.elements.luogo.value)) f.elements.luogo.value = l; }
+    verifica();
+  });
+  ["ora", "luogo"].forEach(n => f.elements[n].addEventListener("change", verifica));
+  if (nuova && ["pediatra", "bilancio"].includes(v.tipo)) {
+    if (!v.medico) f.elements.medico.value = PEDIATRA.nome;
+    if (!v.luogo) f.elements.luogo.value = luogoPerData(f.elements.data.value);
+  }
+  verifica();
+}
+/* l'ambulatorio aperto in quel giorno della settimana */
+function luogoPerData(iso) {
+  if (!iso) return "";
+  const g = parseISO(iso).getDay();
+  if (PEDIATRA.studi[0].orari[g]) return LUOGHI[0];
+  if (PEDIATRA.studi[1].orari[g]) return LUOGHI[1];
+  return "";
+}
+
+/* ---------- documento ---------- */
+let bozzaFiles = [];  // {fid, nome, mime, size, blob?, nuovo}
+function formDoc(d = {}, preset = {}) {
+  d = { categoria: "referto", data: oggiISO(), ...preset, ...d };
+  const nuovo = !d.id;
+  bozzaFiles = (d.files || []).map(f => ({ ...f }));
+  if (preset._files) bozzaFiles.push(...preset._files);
+  const visite = visiteAttive().sort((a, b) => b.data.localeCompare(a.data));
+  apriSheet(nuovo ? "Nuovo documento" : "Documento", `
+    <div class="files" id="bozzaFiles"></div>
+    <div class="btns">
+      <button type="button" class="btn sm" data-act="scatta">📷 Fotografa</button>
+      <button type="button" class="btn sm" data-act="scegli">📁 Scegli file / PDF</button>
+    </div>
+    <label class="f">Titolo<input type="text" name="titolo" value="${esc(d.titolo || "")}" placeholder="es. Referto ecografia delle anche" required></label>
+    <div class="grid2">
+      <label class="f">Categoria<select name="categoria">${Object.entries(CATEGORIE).map(([k, t]) => `<option value="${k}" ${d.categoria === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <label class="f">Data del documento<input type="date" name="data" value="${esc(d.data || "")}"></label>
+    </div>
+    <label class="f">Struttura / medico<input type="text" name="struttura" list="dlLuoghi2" value="${esc(d.struttura || "")}"></label>
+    <datalist id="dlLuoghi2">${[...new Set([PEDIATRA.nome, ...LUOGHI.map(l => l.split(" – ")[0]), ...docAttivi().map(x => x.struttura).filter(Boolean)])].map(l => `<option value="${esc(l)}">`).join("")}</datalist>
+    <label class="f">Visita collegata<select name="visitaId"><option value="">— nessuna —</option>${visite.map(v => `<option value="${v.id}" ${d.visitaId === v.id ? "selected" : ""}>${dataBreve(v.data)} · ${esc(etichettaVisita(v))}</option>`).join("")}</select></label>
+    <label class="f">Note<textarea name="note" placeholder="es. valori da ricontrollare fra 3 mesi">${esc(d.note || "")}</textarea></label>
+    ${!nuovo ? `<div class="btns"><button type="button" class="btn sm" data-act="condividi-doc" data-id="${d.id}">💬 Invia a Silvia / al medico</button></div>` : ""}
+  `, `${!nuovo ? `<button type="button" class="btn bad" data-act="elimina-doc" data-id="${d.id}">Elimina</button><span style="flex:1"></span>` : ""}
+      <button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
+  async () => {
+    const f = $("#sheetForm"), val = n => f.elements[n]?.value.trim() ?? "";
+    if (!bozzaFiles.length) throw new Error("Aggiungi almeno una foto o un file");
+    const titolo = val("titolo") || (CATEGORIE[val("categoria")] || "Documento").replace(/^\S+\s/, "");
+    for (const x of bozzaFiles) if (x.blob) { await fileSet(x.fid, x.blob); }
+    const files = bozzaFiles.map(({ fid, nome, mime, size, driveId }) => ({ fid, nome, mime, size, ...(driveId ? { driveId } : {}) }));
+    const dati = { titolo, categoria: val("categoria"), data: val("data"), struttura: val("struttura"), visitaId: val("visitaId"), note: val("note"), files, updatedAt: Date.now() };
+    if (nuovo) S.documenti.push({ id: uid(), ...dati, creato: Date.now(), creatoDa: G.email || "" });
+    else {
+      const old = S.documenti.find(x => x.id === d.id);
+      for (const of of old.files || []) if (!files.some(n => n.fid === of.fid)) fileDel(of.fid);
+      Object.assign(old, dati);
+    }
+    await salva();
+    toast(googleAttivo() ? "Documento salvato: lo carico su Drive per Silvia" : "Documento salvato");
+    const tornaA = preset._tornaVisita;
+    if (tornaA) { const v = S.visite.find(x => x.id === tornaA); if (v) { setTimeout(() => formVisita(v), 50); } }
+  });
+  disegnaBozza();
+}
+async function disegnaBozza() {
+  const el = $("#bozzaFiles"); if (!el) return;
+  el.innerHTML = bozzaFiles.length ? "" : `<div class="tiny">Nessun file: fotografa il referto (anche più pagine) o scegli un PDF.</div>`;
+  for (const [i, f] of bozzaFiles.entries()) {
+    const div = document.createElement("div"); div.className = "fthumb";
+    const img = /^image\//.test(f.mime);
+    div.innerHTML = `<div class="pdf">${img ? "🖼️" : "📄"}</div><a href="#" data-act="apri-file" data-i="${i}">${esc(f.nome.length > 24 ? f.nome.slice(0, 21) + "…" : f.nome)}</a><button type="button" class="del" data-act="togli-file" data-i="${i}" aria-label="Togli">✕</button>`;
+    el.appendChild(div);
+    if (img) {
+      const b = f.blob || await fileGet(f.fid);
+      if (b) { const u = URL.createObjectURL(b); div.querySelector(".pdf").outerHTML = `<img alt="" src="${u}">`; }
+    }
+  }
+}
+async function aggiungiFiles(list) {
+  for (const file of list) {
+    const p = await preparaFile(file);
+    bozzaFiles.push({ fid: uid(), nome: p.name || "foto.jpg", mime: p.type || "application/octet-stream", size: p.size, blob: p, nuovo: true });
+  }
+  const t = $("#sheetForm").elements.titolo;
+  if (t && !t.value && bozzaFiles.length === 1 && bozzaFiles[0].mime === "application/pdf") t.value = bozzaFiles[0].nome.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ");
+  disegnaBozza();
+}
+async function apriFile(f) {
+  const w = window.open("", "_blank");  // aperta subito (altrimenti iPhone la blocca)
+  try {
+    const u = f.blob ? URL.createObjectURL(f.blob) : await urlAllegato(f);
+    if (!u) { w?.close(); return toast("File non disponibile: è sul telefono dell'altro genitore e non è ancora stato caricato su Drive.", 5000); }
+    if (w) w.location.href = u; else location.href = u;
+  } catch (e) { w?.close(); toast(e.message === "serve-accesso" ? "Accedi a Google per scaricare il file" : e.message, 5000); }
+}
+
+/* ---------- profilo ---------- */
+function formProfilo() {
+  const p = S.profilo;
+  apriSheet("Dati di Gioele", `
+    <label class="f">Data di nascita<input type="date" name="nascita" value="${esc(p.nascita || "")}"></label>
+    <label class="f">Codice fiscale / tessera sanitaria<input type="text" name="cf" value="${esc(p.cf || "")}" autocapitalize="characters"></label>
+    <label class="f">Gruppo sanguigno<input type="text" name="sangue" value="${esc(p.sangue || "")}"></label>
+    <label class="f">Allergie / intolleranze<textarea name="allergie">${esc(p.allergie || "")}</textarea></label>
+    <label class="f">Note (terapie in corso, peso ultimo controllo…)<textarea name="note">${esc(p.note || "")}</textarea></label>`,
+  `<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
+  async () => {
+    const f = $("#sheetForm"), val = n => f.elements[n].value.trim();
+    S.profilo = { nome: "Gioele", nascita: val("nascita"), cf: val("cf").toUpperCase(), sangue: val("sangue"), allergie: val("allergie"), note: val("note"), updatedAt: Date.now() };
+    await salva();
+  });
+}
+
+/* ---------- importa dal calendario personale ---------- */
+async function importaDaCalendario() {
+  if (!clientId()) return toast("Prima collega Google in Impostazioni", 4000);
+  try { await accedi(true); } catch (e) { return toast(e.message, 4000); }
+  const da = new Date(); da.setFullYear(da.getFullYear() - 2);
+  const a = new Date(); a.setFullYear(a.getFullYear() + 1);
+  let ev = [];
+  try {
+    for (const q of ["Gioele", "pediatra", "Lopez"]) {
+      const j = await gapi(`${CAL}/calendars/primary/events?${qs({ q, timeMin: da.toISOString(), timeMax: a.toISOString(), singleEvents: true, orderBy: "startTime", maxResults: 250 })}`);
+      ev.push(...(j.items || []));
+    }
+  } catch (e) { return toast(e.message, 5000); }
+  const noti = new Set(S.visite.map(v => v.importDa).filter(Boolean));
+  ev = [...new Map(ev.map(e => [e.id, e])).values()].filter(e => !noti.has(e.id) && e.start);
+  apriSheet("Importa dal calendario", ev.length ? `<p class="small muted">Eventi del tuo calendario principale che parlano di Gioele o della pediatra. Spunta quelli da importare come visite.</p>
+    ${ev.map(e => { const s = e.start.dateTime || e.start.date; return `<label class="check"><input type="checkbox" name="ev" value="${esc(e.id)}"> <span><b>${esc(e.summary || "(senza titolo)")}</b><br><span class="tiny">${new Date(s).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: e.start.dateTime ? "short" : undefined })}${e.location ? " · " + esc(e.location) : ""}</span></span></label>`; }).join("")}`
+    : `<div class="empty">Nessun evento trovato con “Gioele”, “pediatra” o “Lopez” negli ultimi 2 anni.</div>`,
+  `<button class="btn" value="annulla" formnovalidate>Chiudi</button>${ev.length ? `<button class="btn pri" value="ok">Importa</button>` : ""}`,
+  async () => {
+    const scelti = [...$("#sheetForm").querySelectorAll("input[name=ev]:checked")].map(i => i.value);
+    for (const id of scelti) {
+      const e = ev.find(x => x.id === id), s = e.start.dateTime ? new Date(e.start.dateTime) : parseISO(e.start.date);
+      const fine = e.end?.dateTime ? new Date(e.end.dateTime) : null;
+      const testo = (e.summary || "").toLowerCase();
+      const tipo = /pediatr|lopez|bilancio/.test(testo) ? "pediatra" : /vaccin/.test(testo) ? "vaccino" : /esam|prelievo|analisi/.test(testo) ? "esami" : /ospedal|pronto/.test(testo) ? "ospedale" : "specialista";
+      S.visite.push({ id: uid(), tipo, data: oggiISO(s), ora: e.start.dateTime ? `${pad(s.getHours())}:${pad(s.getMinutes())}` : "", durata: fine ? Math.max(15, Math.round((fine - s) / 60000)) : 30,
+        stato: s < new Date() ? "fatta" : "programmata", luogo: e.location || "", medico: tipo === "pediatra" ? PEDIATRA.nome : "", motivo: e.summary || "", note: e.description ? e.description.replace(/<[^>]+>/g, " ").slice(0, 1000) : "",
+        importDa: e.id, noCal: s < new Date(), creato: Date.now(), updatedAt: Date.now() });
+    }
+    await salva();
+    toast(`${scelti.length} visite importate`);
+  });
+}
+
+/* ---------- copia di sicurezza ---------- */
+const b64 = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+async function esporta() {
+  const allegati = {};
+  for (const d of docAttivi()) for (const f of d.files || []) { const b = await fileGet(f.fid); if (b) allegati[f.fid] = await b64(b); }
+  const blob = new Blob([JSON.stringify({ ...S, allegati })], { type: "application/json" });
+  const nome = `gioele-backup-${oggiISO()}.json`;
+  const file = new File([blob], nome, { type: "application/json" });
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: nome }); return; } catch (e) { if (e.name === "AbortError") return; } }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; a.click();
+}
+async function importa(file) {
+  try {
+    const j = JSON.parse(await file.text());
+    if (!j.v || !Array.isArray(j.visite)) throw new Error("File non valido");
+    for (const [fid, data] of Object.entries(j.allegati || {})) await fileSet(fid, await (await fetch(data)).blob());
+    delete j.allegati;
+    S = unisci(S, j); await salva();
+    toast("Copia importata");
+  } catch (e) { toast("Importazione non riuscita: " + e.message, 5000); }
+}
+
+/* =====================================================================
+   EVENTI
+   ===================================================================== */
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act, id = b.dataset.id;
+  if (b.tagName === "A" && b.getAttribute("href") === "#") e.preventDefault();
+  switch (act) {
+    case "tab": e.preventDefault(); vai(b.dataset.tab); break;
+    case "nuova-visita": formVisita(); break;
+    case "nuova-visita-ped": formVisita({}, { tipo: "pediatra" }); break;
+    case "nota-consulto": formVisita({}, { tipo: "pediatra", data: oggiISO(), ora: `${pad(new Date().getHours())}:${pad(new Date().getMinutes() - new Date().getMinutes() % 5)}`, durata: 15, stato: "fatta", luogo: "Consulto telefonico", medico: PEDIATRA.nome, noCal: true }); break;
+    case "apri-visita": formVisita(S.visite.find(v => v.id === id)); break;
+    case "apri-doc": formDoc(S.documenti.find(d => d.id === id)); break;
+    case "doc-per-visita": { const v = S.visite.find(x => x.id === id);
+      formDoc({}, { visitaId: id, data: v.data, struttura: v.medico || (v.luogo || "").split(" – ")[0], categoria: v.tipo === "esami" ? "esami" : "referto", _tornaVisita: id }); break; }
+    case "profilo": formProfilo(); break;
+    case "scatta": $("#inFoto").click(); break;
+    case "scegli": $("#inFile").click(); break;
+    case "togli-file": bozzaFiles.splice(+b.dataset.i, 1); disegnaBozza(); break;
+    case "apri-file": e.preventDefault(); apriFile(bozzaFiles[+b.dataset.i]); break;
+    case "elimina-visita": {
+      const v = S.visite.find(x => x.id === id);
+      if (!confirm(`Eliminare la visita del ${dataBreve(v.data)}? (i documenti collegati restano)`)) return;
+      Object.assign(v, { deleted: true, updatedAt: Date.now() }); sheet.close(); await salva(); toast("Visita eliminata"); break;
+    }
+    case "elimina-doc": {
+      const d = S.documenti.find(x => x.id === id);
+      if (!confirm(`Eliminare “${d.titolo}”?${d.files?.some(f => f.driveId) ? " Il file resta comunque nella cartella Drive." : ""}`)) return;
+      Object.assign(d, { deleted: true, updatedAt: Date.now() }); sheet.close(); await salva(); toast("Documento eliminato"); break;
+    }
+    case "condividi-visita": { const v = S.visite.find(x => x.id === id); condividi({ titolo: "Visita di Gioele", testo: testoVisita(v) }); break; }
+    case "condividi-doc": {
+      const d = S.documenti.find(x => x.id === id);
+      b.disabled = true; b.textContent = "Preparo…";
+      try {
+        const files = [];
+        for (const f of d.files || []) { const bl = await blobAllegato(f); if (bl) files.push(new File([bl], f.nome, { type: f.mime })); }
+        b.disabled = false; b.textContent = "💬 Invia ora";
+        b.dataset.act = "condividi-doc-pronto"; b._files = files;   // serve un secondo tocco: la condivisione vuole un gesto “fresco”
+        if (navigator.userActivation?.isActive) { condividi({ titolo: d.titolo, testo: `📄 ${d.titolo} – Gioele${d.data ? " (" + dataBreve(d.data) + ")" : ""}`, files }); }
+      } catch (err) { b.disabled = false; b.textContent = "💬 Invia a Silvia / al medico"; toast(err.message === "serve-accesso" ? "Accedi a Google per scaricare il file" : err.message, 5000); }
+      break;
+    }
+    case "condividi-doc-pronto": { const d = S.documenti.find(x => x.id === id); condividi({ titolo: d.titolo, testo: `📄 ${d.titolo} – Gioele${d.data ? " (" + dataBreve(d.data) + ")" : ""}`, files: b._files || [] }); break; }
+    case "importa-cal": importaDaCalendario(); break;
+    case "sync": case "collega": sincronizza(true); break;
+    case "salva-cid": {
+      const v = $("#inCid").value.trim();
+      if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(v)) return toast("Il Client ID deve finire con .apps.googleusercontent.com", 4000);
+      ls.set("clientId", v); render(); sincronizza(true); break;
+    }
+    case "condividi-silvia": {
+      const em = $("#inEmailSilvia").value.trim();
+      if (!/^\S+@\S+\.\S+$/.test(em)) return toast("Scrivi un indirizzo email valido");
+      ls.set("emailSilvia", em);
+      b.disabled = true;
+      try { await condividiArchivio(em); toast("Condiviso con " + em + " ✓"); riempiAccessi(); }
+      catch (err) { toast("Condivisione non riuscita: " + err.message, 6000); }
+      finally { b.disabled = false; }
+      break;
+    }
+    case "link-silvia": {
+      const link = `${location.origin}${location.pathname}#cid=${encodeURIComponent(clientId())}`;
+      condividi({ titolo: "App Gioele", testo: `Ciao! Questa è l'app con le visite e i referti di Gioele 👶🩺\nAprila, tocca “Accedi” con il tuo account Google e vedi tutto:\n${link}\n(Su iPhone: Condividi → Aggiungi alla schermata Home)` });
+      break;
+    }
+    case "scollega":
+      if (!confirm("Scollegare Google da questo telefono? I dati restano su Drive e su questo telefono.")) return;
+      ["collegato", "fileId", "email", "giaAutorizzato"].forEach(ls.del);
+      if (G.token && window.google?.accounts) google.accounts.oauth2.revoke(G.token, () => {});
+      G.token = null; G.email = ""; ls.del("tok");
+      SY.stato = "locale"; render(); break;
+    case "esporta": esporta(); break;
+    case "importa": $("#inBackup").click(); break;
+  }
+});
+document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => vai(b.dataset.tab)));
+function vai(tab) { vista = tab; ls.set("tab", tab); render(); window.scrollTo(0, 0); }
+$("#fab").addEventListener("click", () => {
+  if (vista === "documenti") return formDoc();
+  if (vista === "visite" || vista === "pediatra") return formVisita();
+  apriSheet("Aggiungi", `<div class="btns" style="flex-direction:column">
+      <button type="button" class="btn pri" data-act="nuova-visita">🩺 Nuova visita / appuntamento</button>
+      <button type="button" class="btn" data-act="scatta-nuovo">📷 Fotografa un referto</button>
+      <button type="button" class="btn" data-act="pdf-nuovo">📄 Carica un PDF / file</button>
+      <button type="button" class="btn" data-act="nota-consulto">📞 Annota un consulto telefonico</button></div>`,
+    `<button class="btn" value="annulla" formnovalidate>Chiudi</button>`, null);
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-act=scatta-nuovo],[data-act=pdf-nuovo]"); if (!b) return;
+  formDoc(); (b.dataset.act === "scatta-nuovo" ? $("#inFoto") : $("#inFile")).click();
+});
+$("#inFoto").addEventListener("change", e => { aggiungiFiles([...e.target.files]); e.target.value = ""; });
+$("#inFile").addEventListener("change", e => { aggiungiFiles([...e.target.files]); e.target.value = ""; });
+$("#inBackup").addEventListener("change", e => { if (e.target.files[0]) importa(e.target.files[0]); e.target.value = ""; });
+document.addEventListener("input", e => {
+  if (e.target.id === "qDoc") { filtroDoc.q = e.target.value; rinfrescaConFocus("qDoc"); }
+  if (e.target.id === "qVis") { filtroVis.q = e.target.value; rinfrescaConFocus("qVis"); }
+});
+document.addEventListener("change", e => {
+  if (e.target.id === "catDoc") { filtroDoc.cat = e.target.value; render(); }
+  if (e.target.id === "quandoVis") { filtroVis.quando = e.target.value; render(); }
+});
+function rinfrescaConFocus(id) {
+  const el = $("#" + id), pos = el.selectionStart; render();
+  const n = $("#" + id); n.focus(); try { n.setSelectionRange(pos, pos); } catch {}
+}
+$("#btnSync").addEventListener("click", () => clientId() ? sincronizza(true) : vai("impostazioni"));
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && googleAttivo() && tokenValido()) sincronizza(false); });
+setInterval(() => { if (document.visibilityState === "visible" && googleAttivo() && tokenValido()) sincronizza(false); }, 90000);
+setInterval(() => { if (["home", "pediatra"].includes(vista) && !sheet.open) render(); }, 60000);
+
+/* =====================================================================
+   AVVIO
+   ===================================================================== */
+async function controllaInbox() {
+  const voci = await idb("inbox", "readonly", s => s.getAll());
+  if (!voci?.length) return;
+  await idb("inbox", "readwrite", s => s.clear());
+  const files = voci.flatMap(v => v.files || []);
+  if (!files.length) return;
+  vai("documenti");
+  formDoc({}, { titolo: voci[0].titolo || "" });
+  aggiungiFiles(files);
+  toast("File ricevuto: completa i dati e salva");
+}
+(async function avvio() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("cid")) { ls.set("clientId", h.get("cid")); history.replaceState(null, "", location.pathname); vista = "impostazioni"; }
+  try { const s = await kvGet("stato"); if (s && s.v) S = { ...statoVuoto(), ...s }; } catch (e) { console.warn(e); }
+  if (googleAttivo()) SY.stato = tokenValido() ? "da-fare" : "serve-accesso";
+  render();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+  if (googleAttivo() && tokenValido()) sincronizza(false);
+  await controllaInbox();
+  if (new URLSearchParams(location.search).has("ricevuto")) history.replaceState(null, "", location.pathname);
+})();
+</script>
+</body>
+</html>
