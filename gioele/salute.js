@@ -657,7 +657,7 @@ async function pdfEmergenza() {
 /* =====================================================================
    VISTA "SALUTE" E AZIONI
    ===================================================================== */
-const SEZ_SALUTE = { pasti: "🍼 Pasti", crescita: "📏 Crescita", vaccini: "💉 Vaccini", bilanci: "🩺 Bilanci", screening: "👶 Screening", farmaci: "💊 Farmaci", febbre: "🌡️ Febbre", tappe: "⭐ Tappe" };
+const SEZ_SALUTE = { pasti: "🍼 Pasti e pannolini", crescita: "📏 Crescita", vaccini: "💉 Vaccini", bilanci: "🩺 Bilanci", screening: "👶 Screening", farmaci: "💊 Farmaci", febbre: "🌡️ Febbre", tappe: "⭐ Tappe" };
 let sezSalute = ls.get("sezSalute", "pasti");
 function vSalute() {
   const viste = { pasti: vPasti, crescita: vCrescita, vaccini: vVaccini, bilanci: vBilanci, screening: vScreening, farmaci: vFarmaci, febbre: vFebbre, tappe: vTappe };
@@ -682,6 +682,7 @@ function cardHomeSalute() {
   const ap = domandeAperte().length;
   return `<div class="btns" style="margin-top:4px">
       <button type="button" class="btn pri" data-act="nuovo-pasto">🍼 Pasto</button>
+      <button type="button" class="btn" data-act="nuovo-pannolino">🧷 Pannolino</button>
       <button type="button" class="btn" data-act="nuova-dose">💊 Farmaco</button>
       <button type="button" class="btn" data-act="nuova-febbre">🌡️ Febbre</button>
       <button type="button" class="btn" data-act="nuova-misura">📏 Misure</button>

@@ -293,14 +293,15 @@ async function creaRiepilogoPdf({ da, allegati, note, avanzamento }) {
     w.tabella([{ t: "Data", w: .14 }, { t: "Dove / chi", w: .3 }, { t: "Note", w: .56 }], R.altri.map(v => [dIt(v.data), [v.luogo, v.medico].filter(Boolean).join("\n"), [v.motivo, v.esito, v.note].filter(Boolean).join("\n")]));
   }
   /* alimentazione: ultimi 7 giorni */
-  if (typeof giornata === "function" && attivi("pasti").length && p.nascita) {
-    const gg = []; for (let i = 6; i >= 0; i--) { const g = giornata(oggiISO(new Date(Date.now() - i * 864e5))); if (g.n) gg.push(g); }
+  if (typeof giornata === "function" && (attivi("pasti").length || attivi("pannolini").length) && p.nascita) {
+    const gg = []; for (let i = 6; i >= 0; i--) { const iso = oggiISO(new Date(Date.now() - i * 864e5)), g = giornata(iso); if (g.n || pannoliniGiorno(iso).lista.length) gg.push(g); }
     if (gg.length) {
       const r = regolaPasti(); w.spazio(280);
-      w.titolo("Alimentazione (ultimi 7 giorni)", `Indicazione seguita: ${r.incremento} ml in più per ogni giorno di vita, ${r.pastiMin}-${r.pastiMax} pasti nelle 24 ore.`);
+      w.titolo("Alimentazione e pannolini (ultimi 7 giorni)", `Indicazione seguita: ${r.incremento} ml in più per ogni giorno di vita, ${r.pastiMin}-${r.pastiMax} pasti nelle 24 ore.`);
       try { await w.immagine(await svgInPng(graficoPasti(7, { larg: 640, alt: 200, perStampa: true }), 640, 200), w.W - 2 * w.M); } catch (e) { console.warn(e); }
-      w.tabella([{ t: "Giorno", w: .2 }, { t: "Pasti", w: .1 }, { t: "Poppate (min al seno)", w: .25 }, { t: "Rinforzi (ml totali)", w: .23 }, { t: "Indicati a pasto", w: .22 }],
-        gg.map(g => [`${dIt(g.iso)}\n${giornoDiVita(g.iso)}° giorno`, String(g.n), `${g.poppate}${g.minuti ? " (" + g.minuti + " min)" : ""}`, `${g.rinforzi}${g.ml ? " (" + g.ml + " ml)" : ""}`, g.obiettivo ? g.obiettivo + " ml" : ""]));
+      w.tabella([{ t: "Giorno", w: .17 }, { t: "Pasti", w: .08 }, { t: "Poppate (min)", w: .17 }, { t: "Rinforzi (ml)", w: .17 }, { t: "Indicati", w: .11 }, { t: "Pipì", w: .1 }, { t: "Cacche", w: .2 }],
+        gg.map(g => { const pn = pannoliniGiorno(g.iso), col = [...new Set(pn.lista.filter(x => x.cacca && x.colore).map(x => COLORI_CACCA[x.colore].split(" (")[0].toLowerCase()))].join(", ");
+          return [`${dIt(g.iso)}\n${giornoDiVita(g.iso)}° giorno`, String(g.n), `${g.poppate}${g.minuti ? " (" + g.minuti + ")" : ""}`, `${g.rinforzi}${g.ml ? " (" + g.ml + ")" : ""}`, g.obiettivo ? g.obiettivo + " ml" : "", String(pn.pipi), `${pn.cacca}${col ? "\n" + col : ""}`]; }));
     }
   }
   /* ultimi 30 giorni: febbre, sintomi, farmaci */
