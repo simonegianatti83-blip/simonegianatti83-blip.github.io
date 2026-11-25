@@ -1,0 +1,27 @@
+{
+  "name": "Gioele – Visite e documenti",
+  "short_name": "Gioele",
+  "description": "Visite, referti e documenti sanitari di Gioele, condivisi in famiglia",
+  "lang": "it",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3F7F6",
+  "theme_color": "#0E746E",
+  "icons": [
+    { "src": "icona-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icona-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icona-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "share_target": {
+    "action": "./ricevi",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "files": [{ "name": "file", "accept": ["application/pdf", "image/*", ".pdf", ".jpg", ".jpeg", ".png", ".heic"] }]
+    }
+  }
+}

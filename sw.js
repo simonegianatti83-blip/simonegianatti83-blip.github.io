@@ -2,7 +2,7 @@
    Online: la pagina viene sempre presa fresca dal sito (così gli aggiornamenti arrivano subito).
    Offline: si usa la copia salvata sul dispositivo.
    Per pubblicare una nuova versione dell'app, cambia il numero qui sotto. */
-const VERSIONE = "archivio-odg-v29";
+const VERSIONE = "archivio-odg-v30";
 const FILE_APP = [
   "./", "./index.html", "./manifest.webmanifest",
   "./apple-touch-icon.png", "./icona-192.png",
@@ -38,8 +38,8 @@ function conTimeout(promessa, ms) {
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
-  // le cartelle dei moduli QR (gestionali Ricerca Persona e Zona Rossa) non fanno parte di questa app
-  if (/^\/moduli-(pca|zona-rossa)\//.test(new URL(req.url).pathname)) return;
+  // le cartelle dei moduli QR (gestionali Ricerca Persona e Zona Rossa) e l'app Gioele non fanno parte di questa app
+  if (/^\/(moduli-(pca|zona-rossa)|gioele)\//.test(new URL(req.url).pathname)) return;
 
   // La pagina dell'app: prima la rete (versione aggiornata), poi la copia salvata.
   if (req.mode === "navigate") {
