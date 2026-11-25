@@ -657,16 +657,16 @@ async function pdfEmergenza() {
 /* =====================================================================
    VISTA "SALUTE" E AZIONI
    ===================================================================== */
-const SEZ_SALUTE = { crescita: "📏 Crescita", vaccini: "💉 Vaccini", bilanci: "🩺 Bilanci", screening: "👶 Screening", farmaci: "💊 Farmaci", febbre: "🌡️ Febbre", tappe: "⭐ Tappe" };
-let sezSalute = ls.get("sezSalute", "crescita");
+const SEZ_SALUTE = { pasti: "🍼 Pasti", crescita: "📏 Crescita", vaccini: "💉 Vaccini", bilanci: "🩺 Bilanci", screening: "👶 Screening", farmaci: "💊 Farmaci", febbre: "🌡️ Febbre", tappe: "⭐ Tappe" };
+let sezSalute = ls.get("sezSalute", "pasti");
 function vSalute() {
-  const viste = { crescita: vCrescita, vaccini: vVaccini, bilanci: vBilanci, screening: vScreening, farmaci: vFarmaci, febbre: vFebbre, tappe: vTappe };
+  const viste = { pasti: vPasti, crescita: vCrescita, vaccini: vVaccini, bilanci: vBilanci, screening: vScreening, farmaci: vFarmaci, febbre: vFebbre, tappe: vTappe };
   return `${typeof bannerGoogle === "function" ? bannerGoogle() : ""}
     <div class="chips-sez">${Object.entries(SEZ_SALUTE).map(([k, t]) => `<button type="button" class="btn sm ${k === sezSalute ? "pri" : ""}" data-act="sez-salute" data-sez="${k}" ${k === sezSalute ? 'aria-current="true"' : ""}>${t}</button>`).join("")}</div>
     ${(viste[sezSalute] || vCrescita)()}`;
 }
 function fabSalute() {
-  ({ crescita: () => formMisura(), vaccini: () => formVisita({}, { tipo: "vaccino" }), bilanci: () => formVisita({}, { tipo: "bilancio" }), screening: () => formDoc(),
+  ({ pasti: () => formPasto(), crescita: () => formMisura(), vaccini: () => formVisita({}, { tipo: "vaccino" }), bilanci: () => formVisita({}, { tipo: "bilancio" }), screening: () => formDoc(),
     farmaci: () => formDose(), febbre: () => formFebbre(), tappe: () => formTappa() }[sezSalute] || (() => formMisura()))();
 }
 /* salva una voce nuova o modificata in una raccolta */
@@ -681,10 +681,12 @@ function cardHomeSalute() {
   const dosi24 = attivi("dosi").filter(d => Date.now() - daOraLocale(d.quando) < 864e5);
   const ap = domandeAperte().length;
   return `<div class="btns" style="margin-top:4px">
+      <button type="button" class="btn pri" data-act="nuovo-pasto">🍼 Pasto</button>
       <button type="button" class="btn" data-act="nuova-dose">💊 Farmaco</button>
       <button type="button" class="btn" data-act="nuova-febbre">🌡️ Febbre</button>
       <button type="button" class="btn" data-act="nuova-misura">📏 Misure</button>
       <button type="button" class="btn bad" data-act="emergenza">🆘 Emergenze</button></div>
+    ${cardHomePasti()}
     ${ultimaT || dosi24.length ? `<div class="notice ${ultimaT?.temp >= 38 ? "warn" : "info"} small" data-act="vai-salute" data-sez="${dosi24.length ? "farmaci" : "febbre"}" style="cursor:pointer">${ultimaT ? `🌡️ Ultima temperatura: <b>${fmt(ultimaT.temp, 1)}°</b> ${quandoBreve(ultimaT.quando)}. ` : ""}${dosi24.length ? `💊 ${dosi24.length} ${dosi24.length === 1 ? "dose" : "dosi"} nelle ultime 24 ore, l'ultima: ${esc(dosiOrd()[0].farmaco)} ${quandoBreve(dosiOrd()[0].quando)}${dosiOrd()[0].chi ? " (" + esc(dosiOrd()[0].chi) + ")" : ""}.` : ""}</div>` : ""}
     ${prossimi.length ? `<div class="card"><b>📅 In arrivo</b>${prossimi.map(p => `<div class="slot" data-act="vai-salute" data-sez="${p.k.startsWith("bil") ? "bilanci" : "vaccini"}" style="cursor:pointer"><span>${esc(p.titolo.replace(/^\S+ Gioele: /, ""))}</span><span class="small">${dataBreve(p.data)}</span></div>`).join("")}</div>` : ""}
     ${ap ? `<div class="notice info small" data-act="tab" data-tab="visite" style="cursor:pointer">❓ ${ap} ${ap === 1 ? "domanda" : "domande"} da fare alla prossima visita.</div>` : ""}`;
@@ -693,6 +695,7 @@ function cardHomeSalute() {
 /* azioni dei pulsanti (chiamata dal gestore principale) */
 async function azioneSalute(act, b, e) {
   const id = b.dataset.id;
+  if (await azionePasti(act, b)) return true;
   switch (act) {
     case "sez-salute": sezSalute = b.dataset.sez; ls.set("sezSalute", sezSalute); render(); return true;
     case "vai-salute": sezSalute = b.dataset.sez; ls.set("sezSalute", sezSalute); vai("salute"); return true;
