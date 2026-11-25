@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Gioele">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
 :root{
   --bg:#F3F7F6; --surface:#FFFFFF; --ink:#14302D; --ink-2:#4B605D; --ink-3:#7C8E8B;
@@ -737,6 +738,15 @@ function bannerGoogle() {
   return "";
 }
 
+/* su iPhone/iPad aperta da Safari: spiega come installarla a schermo intero */
+function bannerInstalla() {
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const installata = navigator.standalone || matchMedia("(display-mode: standalone)").matches;
+  if (!ios || installata || ls.get("noBannerInstalla", false)) return "";
+  return `<div class="notice info" style="position:relative;padding-right:40px">📲 <b>Usala a schermo intero, senza barre di Safari:</b> tocca <b>Condividi</b> <span aria-hidden="true">⬆️</span> (o i “…” in basso) → <b>Aggiungi alla schermata Home</b> → lascia attivo “Apri come app web” → <b>Aggiungi</b>. Poi aprila dall'icona verde.
+    <div class="tiny" style="margin-top:4px">Prima, se hai già inserito dati qui in Safari, fai Impostazioni → Esporta e poi Importa nell'app (iPhone tiene separati i dati di Safari e dell'app), oppure collega Google.</div>
+    <button type="button" class="x" data-act="chiudi-installa" aria-label="Chiudi" style="position:absolute;top:8px;right:8px;width:28px;height:28px;font-size:14px">✕</button></div>`;
+}
 function vHome() {
   const oggi = oggiISO();
   const prossime = visiteAttive().filter(v => v.data >= oggi && v.stato !== "annullata").sort((a, b) => (a.data + a.ora).localeCompare(b.data + b.ora));
@@ -745,7 +755,7 @@ function vHome() {
   const pren = statoFascia(PEDIATRA.prenotazioni), cons = statoFascia(PEDIATRA.consulti);
   const amb = ambulatoriDelGiorno(new Date());
   const p = S.profilo;
-  return `${bannerGoogle()}
+  return `${bannerInstalla()}${bannerGoogle()}
   <h2>Prossime visite</h2>
   ${prossime.length ? prossime.slice(0, 4).map(rigaVisita).join("") : `<div class="card empty">Nessuna visita in programma.<div class="btns" style="justify-content:center"><button type="button" class="btn pri" data-act="nuova-visita">+ Nuova visita</button><button type="button" class="btn" data-act="tab" data-tab="pediatra">Prenota dalla pediatra</button></div></div>`}
   ${prossime.length > 4 ? `<button type="button" class="btn sm" data-act="tab" data-tab="visite">Vedi tutte (${prossime.length})</button>` : ""}
@@ -932,7 +942,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v4</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v5</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1583,6 +1593,7 @@ document.addEventListener("click", async e => {
       G.token = null; G.email = ""; ls.del("tok");
       SY.stato = "locale"; render(); break;
     case "esporta": esporta(); break;
+    case "chiudi-installa": ls.set("noBannerInstalla", true); render(); break;
     case "importa": $("#inBackup").click(); break;
   }
 });
