@@ -394,7 +394,12 @@ function analizzaTestoPersonale(testo, nascita) {
   }[an.cat];
   const mNum = num && T.match(num);
   if (mNum) an.numero = mNum[1].replace(/\s/g, "");
-  else { const m = testo.match(/\b(?:n(?:umero|r)?\.?|n°)\s*(?:documento|tessera|polizza|atto|pratica|protocollo)?\s*[:.]?\s*([A-Z0-9][A-Z0-9\/\-]{3,24})/i); if (m && /\d/.test(m[1])) an.numero = m[1]; }
+  else {
+    /* il codice fiscale ha il suo campo: non va scambiato per il numero del documento */
+    const eCF = v => v.length === 16 && CF_RE.test(correggiCF(v.toUpperCase()));
+    for (const m of testo.matchAll(/(?:\bnumero|\bn\.|\bnr\.?|\bn°)\s*(?:del(?:la|l')?\s*)?(?:documento|tessera|polizza|atto|pratica|protocollo|registro)?\s*[:.]?\s*([A-Z0-9][A-Z0-9\/\-]{1,24})/gi))
+      if (/\d/.test(m[1]) && !eCF(m[1])) { an.numero = m[1]; break; }
+  }
   /* date */
   const date = tutteLeDate(testo);
   const dopo = re => date.find(d => re.test(d.prima));
