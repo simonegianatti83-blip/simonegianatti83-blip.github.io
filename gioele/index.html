@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
 :root{
-  --bg:#F3F7F6; --surface:#FFFFFF; --ink:#14302D; --ink-2:#4B605D; --ink-3:#7C8E8B;
+  --bg:#F3F7F6; --surface:#FFFFFF; --ink:#14302D; --ink-2:#3F5451; --ink-3:#566966;
   --line:#D5E1DF; --line-2:#E7EFED; --brand:#0E746E; --brand-ink:#FFFFFF; --brand-soft:#E0F1EF;
   --warn:#B45309; --warn-soft:#FDF1E3; --bad:#B42318; --bad-soft:#FDECEA; --ok:#1F7A3D; --ok-soft:#E5F4EA;
   --accent:#F2B705;
@@ -24,13 +24,13 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0D1716; --surface:#152321; --ink:#E4EFED; --ink-2:#A9BDB9; --ink-3:#7A8F8B;
+    --bg:#0D1716; --surface:#152321; --ink:#E4EFED; --ink-2:#B9CBC7; --ink-3:#9AAFAB;
     --line:#263A37; --line-2:#1D2E2C; --brand:#3DB8AE; --brand-ink:#06201E; --brand-soft:#16342F;
     --warn:#F0A24B; --warn-soft:#3A2A14; --bad:#F2776C; --bad-soft:#3B1C19; --ok:#5BC47E; --ok-soft:#173222;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0D1716; --surface:#152321; --ink:#E4EFED; --ink-2:#A9BDB9; --ink-3:#7A8F8B;
+  --bg:#0D1716; --surface:#152321; --ink:#E4EFED; --ink-2:#B9CBC7; --ink-3:#9AAFAB;
   --line:#263A37; --line-2:#1D2E2C; --brand:#3DB8AE; --brand-ink:#06201E; --brand-soft:#16342F;
   --warn:#F0A24B; --warn-soft:#3A2A14; --bad:#F2776C; --bad-soft:#3B1C19; --ok:#5BC47E; --ok-soft:#173222;
 }
@@ -54,11 +54,11 @@ header.top{background:var(--brand);color:#fff;padding:calc(14px + env(safe-area-
 .top .grow{flex:1;min-width:0}
 .sync{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;border-radius:999px;padding:6px 11px;font-size:13px;font-weight:600;white-space:nowrap}
 
-main{padding:16px 0 calc(96px + env(safe-area-inset-bottom))}
+main.wrap{padding:16px 16px calc(170px + env(safe-area-inset-bottom))}
 h2{font-size:18px;margin:22px 0 10px}
 h2:first-child{margin-top:4px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:12px}
-.muted{color:var(--ink-2)} .small{font-size:13.5px} .tiny{font-size:12.5px;color:var(--ink-3)}
+.muted{color:var(--ink-2)} .small{font-size:14.5px} .tiny{font-size:13.5px;line-height:1.45;color:var(--ink-3)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-md);padding:10px 14px;font-weight:600;font-size:15px;text-decoration:none;color:var(--ink)}
 .btn.pri{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
 .btn.bad{color:var(--bad);border-color:var(--bad-soft)}
@@ -82,7 +82,7 @@ h2:first-child{margin-top:4px}
 .item .grow{flex:1;min-width:0}
 .ico{flex:none;width:44px;height:44px;border-radius:10px;background:var(--line-2);display:grid;place-items:center;font-size:21px;overflow:hidden}
 .ico img{width:100%;height:100%;object-fit:cover}
-.empty{text-align:center;color:var(--ink-3);padding:26px 10px}
+.empty{text-align:center;color:var(--ink-2);padding:26px 10px}
 
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .toolbar input,.toolbar select{flex:1;min-width:140px}
@@ -95,10 +95,10 @@ label.f > input,label.f > select,label.f > textarea{margin-top:4px;font-weight:4
 .check input{width:20px;height:20px}
 
 /* barra in basso */
-nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom);z-index:20}
-nav.tabs button{flex:1;max-width:150px;border:0;background:none;padding:8px 2px 9px;font-size:11.5px;font-weight:700;color:var(--ink-3);display:flex;flex-direction:column;align-items:center;gap:2px}
-nav.tabs button .e{font-size:21px;line-height:1.1;filter:grayscale(1);opacity:.75}
-nav.tabs button[aria-current=page]{color:var(--brand)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 10px rgba(0,0,0,.06);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom);z-index:20}
+nav.tabs button{flex:1;max-width:150px;border:0;background:none;padding:8px 2px 9px;font-size:12.5px;font-weight:700;color:var(--ink-2);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button .e{font-size:23px;line-height:1.1;filter:grayscale(.6);opacity:.9}
+nav.tabs button[aria-current=page]{color:var(--brand);background:var(--brand-soft);border-radius:12px}
 nav.tabs button[aria-current=page] .e{filter:none;opacity:1}
 .fab{position:fixed;right:max(16px, calc(50vw - 364px));bottom:calc(76px + env(safe-area-inset-bottom));z-index:21;width:56px;height:56px;border-radius:18px;border:0;background:var(--brand);color:var(--brand-ink);font-size:30px;line-height:1;box-shadow:0 6px 18px rgba(0,0,0,.22)}
 
@@ -124,6 +124,7 @@ dialog::backdrop{background:rgba(5,20,18,.5)}
 .days .d{padding:9px 0;border-top:1px solid var(--line-2)}
 .days .d:first-child{border-top:0}
 .days .d .n{font-weight:700}
+@media (max-width:380px){nav.tabs button{font-size:11.5px}}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(140px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14.5px;z-index:100;max-width:calc(100vw - 32px);box-shadow:0 6px 18px rgba(0,0,0,.25)}
 ol.steps{padding-left:20px;margin:6px 0} ol.steps li{margin:6px 0}
 code{background:var(--line-2);padding:1px 5px;border-radius:5px;font-size:13.5px;word-break:break-all}
@@ -942,7 +943,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v5</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v6</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
