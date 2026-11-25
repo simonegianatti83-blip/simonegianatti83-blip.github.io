@@ -973,7 +973,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v7</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v8</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1606,8 +1606,10 @@ document.addEventListener("click", async e => {
     case "togli-chiusura": { const c = S.chiusure.find(x => x.id === id); if (c && confirm("Togliere questa chiusura?")) { Object.assign(c, { deleted: true, updatedAt: Date.now() }); await salva(); } break; }
     case "sync": case "collega": sincronizza(true); break;
     case "salva-cid": {
-      const v = $("#inCid").value.trim();
-      if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(v)) return toast("Il Client ID deve finire con .apps.googleusercontent.com", 4000);
+      /* accetta anche il codice incollato con https://, spazi, barre o testo intorno */
+      const m = $("#inCid").value.replace(/\s+/g, "").match(/[\w-]+\.apps\.googleusercontent\.com/);
+      if (!m) return toast("Non trovo il Client ID: deve finire con .apps.googleusercontent.com", 4000);
+      const v = m[0]; $("#inCid").value = v;
       ls.set("clientId", v); render(); sincronizza(true); break;
     }
     case "condividi-silvia": {
