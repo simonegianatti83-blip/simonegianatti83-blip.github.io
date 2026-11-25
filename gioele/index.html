@@ -776,7 +776,7 @@ function vHome() {
   <div class="card" data-act="profilo" style="cursor:pointer">
     <dl class="kv">
       <dt>Nato il</dt><dd>${p.nascita ? dataBreve(p.nascita) + " · " + eta(p.nascita) : "<span class='muted'>tocca per completare</span>"}</dd>
-      ${p.cf ? `<dt>Cod. fiscale</dt><dd>${esc(p.cf)}</dd>` : ""}
+      ${p.cf ? `<dt>Cod. fiscale</dt><dd>${esc(p.cf)}${typeof cfCoerente === "function" && cfCoerente(p.cf, p.nascita) === false ? ` <span class="chip bad">non corrisponde alla data di nascita: controllalo</span>` : ""}</dd>` : ""}
       ${p.sangue ? `<dt>Gruppo</dt><dd>${esc(p.sangue)}</dd>` : ""}
       <dt>Allergie</dt><dd>${esc(p.allergie || "nessuna nota")}</dd>
       ${p.note ? `<dt>Note</dt><dd>${esc(p.note)}</dd>` : ""}
@@ -932,7 +932,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v3</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v4</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1288,7 +1288,7 @@ function formDocPers(d = {}, preset = {}) {
     else Object.assign(S.documenti.find(x => x.id === d.id), dati);
     /* completa da solo i dati di Gioele che mancano */
     const an = bozzaAnalisi || {}, p = S.profilo, aggiunti = [];
-    if (!p.cf && an.cf) { p.cf = an.cf; aggiunti.push("codice fiscale"); }
+    if (!p.cf && an.cf && an.cfVerificato) { p.cf = an.cf; aggiunti.push("codice fiscale"); }
     if (categoria === "nascita" && !p.nascita && an.nascita) { p.nascita = an.nascita; aggiunti.push("data di nascita"); }
     if (categoria === "nascita" && !p.luogoNascita && an.luogoNascita) { p.luogoNascita = an.luogoNascita; aggiunti.push("luogo di nascita"); }
     if (aggiunti.length) p.updatedAt = Date.now();
@@ -1309,7 +1309,7 @@ function disegnaAnalisiPers() {
   const conf = { alta: ["ok", "sicuro"], media: ["warn", "probabile"], bassa: ["bad", "incerto: controlla"] }[a.conf] || ["", ""];
   const voci = [
     a.cat !== "altro_pers" ? `<b>${esc((CATEGORIE_PERS[a.cat] || "").replace(/^\S+\s/, ""))}</b> <span class="chip ${conf[0]}">${conf[1]}</span>` : "<b>Tipo non riconosciuto</b> – sceglilo tu",
-    a.numero && `N. ${esc(a.numero)}`, a.cf && `Codice fiscale: ${esc(a.cf)}`,
+    a.numero && `N. ${esc(a.numero)}`, a.cf && `Codice fiscale di Gioele: ${esc(a.cf)}${a.cfVerificato ? " ✓" : " (controllalo)"}`,
     a.rilascio && `Rilasciato il ${dataBreve(a.rilascio)}`, a.scadenza && `Scade il ${dataBreve(a.scadenza)}`,
     a.nascita && `Nato il ${dataBreve(a.nascita)}${a.luogoNascita ? " a " + esc(a.luogoNascita) : ""}`, a.ente && esc(a.ente)
   ].filter(Boolean);
@@ -1324,7 +1324,7 @@ function applicaAnalisiPers(a) {
 /* un documento caricato tra i sanitari che in realtà è personale */
 function suggerisciPersonale(a) {
   if (!a || a.cat !== "referto" || !a.testo) return;
-  const p = analizzaTestoPersonale(a.testo);
+  const p = analizzaTestoPersonale(a.testo, S.profilo.nascita);
   if (p.cat === "altro_pers" || p.conf === "bassa" || !$("#boxAnalisi")) return;
   $("#boxAnalisi").insertAdjacentHTML("beforeend", `<div class="notice warn">Sembra un documento personale (<b>${esc(TITOLI_PERS[p.cat] || "")}</b>), non sanitario. <button type="button" class="btn sm pri" data-act="passa-personale">Spostalo tra i personali</button></div>`);
 }
@@ -1335,7 +1335,7 @@ async function analizzaBozzaPers() {
   const mio = ++analisiInCorso, btn = $("#btnAnalizza"); if (btn) btn.disabled = true;
   try {
     disegnaAnalisi({ testo: "Leggo il documento…", p: 0 });
-    const a = await analizzaFilesPersonali(daLeggere, (testo, p) => { if (mio === analisiInCorso) disegnaAnalisi({ testo, p }); });
+    const a = await analizzaFilesPersonali(daLeggere, (testo, p) => { if (mio === analisiInCorso) disegnaAnalisi({ testo, p }); }, S.profilo.nascita);
     if (mio !== analisiInCorso || !$("#boxAnalisi")) return;
     bozzaAnalisi = a; disegnaAnalisiPers(); applicaAnalisiPers(a);
   } catch (e) {
@@ -1512,7 +1512,7 @@ document.addEventListener("click", async e => {
     case "doc-ambito": filtroDoc.ambito = b.dataset.amb; ls.set("docAmbito", filtroDoc.ambito); render(); break;
     case "doc-personali": e.preventDefault(); filtroDoc.ambito = "personali"; ls.set("docAmbito", "personali"); vai("documenti"); break;
     case "nuovo-pers": formDocPers({}, { categoria: b.dataset.cat || "altro_pers" }); break;
-    case "passa-personale": formDocPers({}, { _files: bozzaFiles.slice(), _analisi: { ...analizzaTestoPersonale(bozzaAnalisi.testo), testo: bozzaAnalisi.testo } }); break;
+    case "passa-personale": formDocPers({}, { _files: bozzaFiles.slice(), _analisi: { ...analizzaTestoPersonale(bozzaAnalisi.testo, S.profilo.nascita), testo: bozzaAnalisi.testo } }); break;
     case "doc-per-visita": { const v = S.visite.find(x => x.id === id);
       formDoc({}, { visitaId: id, data: v.data, struttura: v.medico || (v.luogo || "").split(" – ")[0], categoria: v.tipo === "esami" ? "esami" : "referto", _tornaVisita: id }); break; }
     case "profilo": e.preventDefault(); formProfilo(); break;
