@@ -749,7 +749,9 @@ async function caricaMiniature() {
   }
 }
 
+const CID_RE = /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i;
 function bannerGoogle() {
+  if (clientId() && !CID_RE.test(clientId())) return `<div class="notice bad">⚠️ Il Client ID salvato è incompleto (mancano i numeri iniziali). Vai in <a href="#" data-act="tab" data-tab="impostazioni">Altro</a>, tocca <b>“Cambia Client ID”</b> e incollalo intero.</div>`;
   if (!clientId()) return `<div class="notice info">📱 I dati per ora sono salvati <b>solo su questo telefono</b>. Per condividerli con Silvia e collegare Google Calendar vai in <a href="#" data-act="tab" data-tab="impostazioni">Impostazioni</a>.</div>`;
   if (SY.stato === "serve-accesso" || (!googleAttivo() && SY.stato !== "in-corso")) return `<div class="notice warn">🔑 Accedi a Google per sincronizzare con Silvia e con il calendario. <button type="button" class="btn sm pri" data-act="sync">Accedi</button></div>`;
   if (soloLettura()) return `<div class="notice info small">👀 Sei in <b>sola lettura</b>: vedi tutto, ma solo i genitori possono modificare.</div>`;
@@ -976,7 +978,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v9</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v10</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1610,9 +1612,14 @@ document.addEventListener("click", async e => {
     case "sync": case "collega": sincronizza(true); break;
     case "salva-cid": {
       /* accetta anche il codice incollato con https://, spazi, barre o testo intorno */
-      const m = $("#inCid").value.replace(/\s+/g, "").match(/[\w-]+\.apps\.googleusercontent\.com/);
-      if (!m) return toast("Non trovo il Client ID: deve finire con .apps.googleusercontent.com", 4000);
-      const v = m[0]; $("#inCid").value = v;
+      /* trattini "tipografici" e caratteri invisibili che il copia-incolla a volte inserisce */
+      const pulito = $("#inCid").value.replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, "-").replace(/[\s\u00AD\u200B-\u200D\u2060\uFEFF]+/g, "");
+      const m = pulito.match(/\d+-[a-z0-9]+\.apps\.googleusercontent\.com/i);
+      if (!m) {
+        if (/\.apps\.googleusercontent\.com/i.test(pulito)) return toast("Il Client ID è incompleto: deve cominciare con dei numeri e un trattino (es. 123456789012-abc….apps.googleusercontent.com). Ricopialo intero dalla console Google.", 7000);
+        return toast("Non trovo il Client ID: deve finire con .apps.googleusercontent.com", 5000);
+      }
+      const v = m[0].toLowerCase().replace(/^(\d+-)/, "$1"); $("#inCid").value = v;
       ls.set("clientId", v); render(); sincronizza(true); break;
     }
     case "condividi-silvia": {
@@ -1708,8 +1715,10 @@ async function controllaInbox() {
   toast("File ricevuto: completa i dati e salva");
 }
 (async function avvio() {
+  /* aspetta che siano caricati anche analisi.js, riepilogo.js, oms.js e salute.js */
+  if (document.readyState === "loading") await new Promise(r => document.addEventListener("DOMContentLoaded", r, { once: true }));
   const h = new URLSearchParams(location.hash.slice(1));
-  if (h.get("cid")) { ls.set("clientId", h.get("cid")); history.replaceState(null, "", location.pathname); vista = "impostazioni"; }
+  if (h.get("cid")) { if (CID_RE.test(h.get("cid"))) ls.set("clientId", h.get("cid")); history.replaceState(null, "", location.pathname); vista = "impostazioni"; }
   try { const s = await kvGet("stato"); if (s && s.v) S = { ...statoVuoto(), ...s }; } catch (e) { console.warn(e); }
   if (googleAttivo()) SY.stato = tokenValido() ? "da-fare" : "serve-accesso";
   render();
