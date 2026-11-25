@@ -69,7 +69,7 @@ function finePoppata() {
   p[p.seno === "sx" ? "minSx" : "minDx"] += minutiSegmento(p);
   ls.del("poppataInCorso");
   const minSx = Math.round(p.minSx), minDx = Math.round(p.minDx);
-  formPasto({}, { quando: p.inizio, fine: piuMinuti(p.inizio, Math.max(1, Math.round(p.minSx + p.minDx))), seno: minSx && minDx ? "entrambi" : minDx ? "dx" : "sx", primo: p.primo || p.seno, cambio: p.primo ? hhmm(piuMinuti(p.inizio, Math.max(1, Math.round(p.minPrimo)))) : "", finito: p.seno });
+  formPasto({}, { quando: p.inizio, fine: piuMinuti(p.inizio, Math.max(1, Math.round(p.minSx + p.minDx))), seno: minSx && minDx ? "entrambi" : minDx ? "dx" : "sx", primo: p.primo || p.seno, finito: p.seno });
 }
 function boxCronometro() {
   const p = poppataInCorso();
@@ -151,9 +151,8 @@ function formPasto(p = {}, preset = {}) {
     <label class="f">Data<input type="date" name="data" value="${esc(p.quando.slice(0, 10))}"></label>
     <div class="grid2"><label class="f">Ora di inizio<input type="time" name="inizio" value="${esc(hhmm(p.quando))}"></label>
     <label class="f" id="rigaFine">Ora di fine<input type="time" name="fine" value="${esc(fineIni)}"></label></div>
-    <div id="rigaEntrambi" class="grid2">
-      <label class="f">Primo seno<select name="primo"><option value="sx" ${p.primo !== "dx" ? "selected" : ""}>Sinistro</option><option value="dx" ${p.primo === "dx" ? "selected" : ""}>Destro</option></select></label>
-      <label class="f">Cambio seno alle<input type="time" name="cambio" value="${esc(p.cambio || "")}"></label>
+    <div id="rigaEntrambi">
+      <label class="f">Ha iniziato dal seno<select name="primo"><option value="sx" ${p.primo !== "dx" ? "selected" : ""}>Sinistro</option><option value="dx" ${p.primo === "dx" ? "selected" : ""}>Destro</option></select></label>
     </div>
     <div id="durataPasto" class="small" style="margin-top:8px"></div>
     <label class="f">Rinforzo (ml)${ob ? ` – indicati ${ob} ml` : ""}<input type="text" inputmode="numeric" name="ml" value="${p.ml ?? ""}" placeholder="${ob || ""}"></label>
@@ -175,14 +174,11 @@ function formPasto(p = {}, preset = {}) {
       minSx: null, minDx: null, primo: "", cambio: "", finito: "", ml, latte: v("latte"), chi: v("chi"), note: v("note"), updatedAt: Date.now() };
     if (seno === "sx") { dati.minSx = minuti; dati.finito = "sx"; }
     if (seno === "dx") { dati.minDx = minuti; dati.finito = "dx"; }
-    if (seno === "entrambi") {
-      dati.primo = v("primo"); dati.cambio = v("cambio");
+    if (seno === "entrambi") {   // la durata si divide a metà tra i due seni
+      dati.primo = v("primo");
       const secondo = dati.primo === "sx" ? "dx" : "sx"; dati.finito = secondo;
-      if (dati.cambio) {
-        const m1 = minutiTra(inizio, dati.cambio);
-        if (m1 > minuti) throw new Error("L'ora del cambio seno deve essere tra l'inizio e la fine");
-        dati[dati.primo === "sx" ? "minSx" : "minDx"] = m1; dati[secondo === "sx" ? "minSx" : "minDx"] = minuti - m1;
-      }
+      const m1 = Math.ceil(minuti / 2);
+      dati[dati.primo === "sx" ? "minSx" : "minDx"] = m1; dati[secondo === "sx" ? "minSx" : "minDx"] = minuti - m1;
     }
     if (dati.ml) ls.set("ultimoLatte", dati.latte);
     salvaVoce("pasti", p, dati); await salva(); toast("Pasto segnato");
@@ -196,12 +192,12 @@ function formPasto(p = {}, preset = {}) {
     let t = "";
     if (seno && m != null) {
       t = `⏱️ Durata: <b>${m} minuti</b>`;
-      if (seno === "entrambi" && f.elements.cambio.value) { const m1 = minutiTra(ini, f.elements.cambio.value); if (m1 <= m) t += ` (${f.elements.primo.value === "sx" ? "sinistro" : "destro"} ${m1}′, ${f.elements.primo.value === "sx" ? "destro" : "sinistro"} ${m - m1}′)`; }
+      if (seno === "entrambi") { const m1 = Math.ceil(m / 2), pr = f.elements.primo.value; t += ` → metà per seno: ${pr === "sx" ? "sinistro" : "destro"} ${m1}′, ${pr === "sx" ? "destro" : "sinistro"} ${m - m1}′`; }
       if (min(fin) < min(ini)) t += " · finita dopo mezzanotte";
     }
     $("#durataPasto").innerHTML = t;
   };
-  ["seno", "inizio", "fine", "cambio", "primo"].forEach(n => { f.elements[n].addEventListener("input", agg); f.elements[n].addEventListener("change", agg); }); agg();
+  ["seno", "inizio", "fine", "primo"].forEach(n => { f.elements[n].addEventListener("input", agg); f.elements[n].addEventListener("change", agg); }); agg();
 }
 function formRegolaPasti() {
   const r = regolaPasti();
