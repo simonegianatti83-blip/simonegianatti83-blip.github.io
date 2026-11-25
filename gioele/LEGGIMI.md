@@ -10,6 +10,9 @@ App familiare (funziona nel browser e si installa sul telefono) per gestire le v
 - **Pediatra** (Dr.ssa Lopez Rios Norma Beatriz): orari dei due ambulatori, prossimi giorni di apertura, tasti per chiamare, e indica se *adesso* la linea prenotazioni (9–11) o i consulti telefonici (8:30–9:30, 14–14:30) sono aperti.
 - **Google Calendar**: ogni visita finisce nel calendario "Gioele – Visite" con promemoria il giorno prima e 2 ore prima. Si possono anche importare le visite già presenti nel calendario personale.
 - **Condivisione con Silvia**: tutto (visite, documenti, calendario) sta in una cartella Google Drive condivisa; quello che aggiunge uno dei due compare all'altro. Ogni visita o documento si può anche inviare con WhatsApp.
+- **Lettura automatica dei documenti**: quando carichi un PDF (es. dal Fascicolo Sanitario) o fotografi un referto cartaceo, l'app legge il testo (OCR in italiano, direttamente sul telefono) e riconosce se è un esame del sangue, una visita specialistica, un accesso al pronto soccorso, un ricovero, un'ecografia/RX/ECG, una vaccinazione, una ricetta, un'impegnativa o un certificato. Compila da sola data, struttura, reparto, diagnosi e, per gli esami, i valori con quelli fuori norma. Ricoveri, PS e visite vengono aggiunti allo storico.
+- **Festivi e ferie**: l'app conosce i festivi italiani (Pasqua e Pasquetta comprese, 4 ottobre dal 2026) e il patrono di Sondrio (19 giugno); le ferie della pediatra si aggiungono a mano e valgono anche per Silvia.
+- **Riepilogo PDF per il medico**: un tasto crea un PDF con dati, anamnesi, ricoveri e PS, visite specialistiche, esami (valori fuori norma e andamento), ecografie/RX, vaccini e visite dal pediatra, dalla nascita a oggi, con in fondo (a scelta) la copia di tutti i documenti.
 - **Referti dell'ospedale**: si scaricano dal Fascicolo Sanitario Elettronico Lombardia e si mandano all'app con *Condividi → Gioele* (Android) oppure con il tasto *+*.
 
 ## Privacy
@@ -18,9 +21,13 @@ Su GitHub c'è solo il programma, **nessun dato**. I dati stanno sul telefono e 
 ## Collegare Google (una volta sola, ~10 minuti)
 1. https://console.cloud.google.com → crea un progetto "Gioele Salute".
 2. *API e servizi → Libreria*: abilita **Google Drive API** e **Google Calendar API**.
-3. *Google Auth Platform* (schermata consenso OAuth): tipo **Esterno**, nome "Gioele"; in *Pubblico → Utenti di test* aggiungi la tua Gmail **e quella di Silvia**. Lascia l'app "In test".
+3. *Google Auth Platform* (schermata consenso OAuth): tipo **Esterno**, nome "Gioele". Poi *Pubblico → Pubblica app* → **In produzione** (non serve la verifica di Google per un'app di famiglia; l'accesso così non scade ogni 7 giorni).
 4. *Client → Crea client → Applicazione web*; in "Origini JavaScript autorizzate" metti `https://simonegianatti83-blip.github.io`. Copia il **Client ID**.
 5. Nell'app: *Impostazioni* → incolla il Client ID → *Salva e collega* → conferma la creazione dell'archivio.
 6. *Impostazioni → Condividi con Silvia*: scrivi la sua Gmail → *Condividi*, poi *Manda il link dell'app a Silvia*. Lei apre il link e tocca *Collega Google*.
 
 Google mostrerà "app non verificata": è normale per un'app personale → *Avanzate → Vai a Gioele*.
+
+## Librerie incluse
+- `ocr/`: Tesseract.js 5.1.1 e dati per l'italiano (licenza Apache 2.0, vedi `ocr/LICENSE-tesseract.txt`).
+- Lettura e creazione PDF: pdf.js e pdf-lib già presenti nella radice del sito.

@@ -185,12 +185,15 @@ const LUOGHI = [
 ];
 const TIPI = {
   pediatra: "🩺 Pediatra", bilancio: "📏 Bilancio di salute", specialista: "👨‍⚕️ Specialista",
-  ospedale: "🏥 Ospedale / Pronto soccorso", vaccino: "💉 Vaccinazione", esami: "🧪 Esami / analisi", altro: "📌 Altro"
+  ps: "🚑 Pronto soccorso", ricovero: "🛏️ Ricovero", ospedale: "🏥 Ospedale / day hospital", vaccino: "💉 Vaccinazione", esami: "🧪 Esami / analisi", altro: "📌 Altro"
 };
 const CATEGORIE = {
-  referto: "📋 Referto", ricetta: "💊 Ricetta", impegnativa: "📝 Impegnativa", esami: "🧪 Esami / analisi",
-  dimissione: "🏥 Lettera di dimissione", certificato: "📃 Certificato", vaccini: "💉 Vaccinazioni", altro: "📎 Altro"
+  esami: "🧪 Esami del sangue / laboratorio", visita: "🩺 Visita specialistica", ps: "🚑 Pronto soccorso",
+  dimissione: "🛏️ Ricovero / lettera di dimissione", imaging: "🩻 Ecografia / RX / ECG", vaccini: "💉 Vaccinazioni",
+  ricetta: "💊 Ricetta", impegnativa: "📝 Impegnativa", certificato: "📃 Certificato", referto: "📋 Altro referto", altro: "📎 Altro"
 };
+/* da categoria del documento a tipo di voce nello storico */
+const STORICO_DA_CAT = { ps: "ps", dimissione: "ricovero", visita: "specialista", vaccini: "vaccino", esami: "esami", imaging: "esami" };
 const STATI = { programmata: "Programmata", fatta: "Fatta", annullata: "Annullata" };
 const GIORNI = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
 const GG = ["dom","lun","mar","mer","gio","ven","sab"];
@@ -253,7 +256,7 @@ const fileDel = k => idb("file", "readwrite", s => s.delete(k));
    STATO
    ===================================================================== */
 function statoVuoto() {
-  return { v: 1, profilo: { nome: "Gioele", updatedAt: 0 }, visite: [], documenti: [], config: {} };
+  return { v: 1, profilo: { nome: "Gioele", updatedAt: 0 }, visite: [], documenti: [], chiusure: [], config: {} };
 }
 let S = statoVuoto();
 let vista = ls.get("tab", "home");
@@ -273,7 +276,7 @@ function unisci(a, b) {
   const out = statoVuoto();
   out.profilo = (a.profilo?.updatedAt || 0) >= (b.profilo?.updatedAt || 0) ? a.profilo : b.profilo;
   out.config = { ...(a.config || {}), ...(b.config || {}) };
-  for (const k of ["visite", "documenti"]) {
+  for (const k of ["visite", "documenti", "chiusure"]) {
     const m = new Map();
     for (const x of [...(a[k] || []), ...(b[k] || [])]) {
       const p = m.get(x.id);
@@ -290,7 +293,7 @@ function unisciFiles(vecchio, nuovo) {
   const ids = new Map((vecchio.files || []).map(f => [f.fid, f.driveId]));
   return nuovo.files.map(f => f.driveId || !ids.get(f.fid) ? f : { ...f, driveId: ids.get(f.fid) });
 }
-const firmaStato = s => JSON.stringify({ p: s.profilo, c: s.config, v: s.visite, d: s.documenti });
+const firmaStato = s => JSON.stringify({ p: s.profilo, c: s.config, v: s.visite, d: s.documenti, h: s.chiusure });
 
 /* =====================================================================
    GOOGLE: accesso, Drive, Calendar
@@ -520,7 +523,33 @@ function aggiornaBadge() {
 /* =====================================================================
    PEDIATRA: orari
    ===================================================================== */
-function fasceDelGiorno(cfg, d) { return cfg.giorni.includes(d.getDay()) ? cfg.fasce : []; }
+/* ---------- festività italiane + patrono di Sondrio + ferie/chiusure inserite a mano ---------- */
+function pasqua(a) {   // calcolo di Meeus/Jones/Butcher
+  const A = a % 19, b = Math.floor(a / 100), c = a % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * A + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((A + 11 * h + 22 * l) / 451);
+  const mese = Math.floor((h + l - 7 * m + 114) / 31), giorno = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(a, mese - 1, giorno);
+}
+const _fest = {};
+function festivitaAnno(a) {
+  if (_fest[a]) return _fest[a];
+  const F = { "01-01": "Capodanno", "01-06": "Epifania", "04-25": "Festa della Liberazione", "05-01": "Festa del Lavoro", "06-02": "Festa della Repubblica",
+    "06-19": "Santi Gervasio e Protasio (patroni di Sondrio)", "08-15": "Ferragosto", "11-01": "Ognissanti", "12-08": "Immacolata Concezione", "12-25": "Natale", "12-26": "Santo Stefano" };
+  if (a >= 2026) F["10-04"] = "San Francesco d'Assisi (festa nazionale)";
+  const p = pasqua(a), pm = new Date(a, p.getMonth(), p.getDate() + 1);
+  F[`${pad(p.getMonth() + 1)}-${pad(p.getDate())}`] = "Pasqua";
+  F[`${pad(pm.getMonth() + 1)}-${pad(pm.getDate())}`] = "Lunedì dell'Angelo (Pasquetta)";
+  return (_fest[a] = F);
+}
+/* motivo per cui la pediatra non riceve quel giorno (festa o ferie), altrimenti "" */
+function chiusura(d) {
+  const f = festivitaAnno(d.getFullYear())[`${pad(d.getMonth() + 1)}-${pad(d.getDate())}`];
+  if (f) return f;
+  const iso = oggiISO(d);
+  const c = (S.chiusure || []).find(x => !x.deleted && x.da <= iso && iso <= (x.a || x.da));
+  return c ? (c.motivo || "Pediatra assente") : "";
+}
+function fasceDelGiorno(cfg, d) { return cfg.giorni.includes(d.getDay()) && !chiusura(d) ? cfg.fasce : []; }
 /* "aperto ora fino alle X" oppure "prossima apertura" */
 function statoFascia(cfg, ora = new Date()) {
   const m = ora.getHours() * 60 + ora.getMinutes();
@@ -538,6 +567,7 @@ function fraseProssima(s) {
 }
 function ambulatoriDelGiorno(d) {
   const out = [];
+  if (chiusura(d)) return out;
   for (const st of PEDIATRA.studi) for (const f of st.orari[d.getDay()] || []) out.push({ studio: st, da: f[0], a: f[1], nota: f[2] || "" });
   return out.sort((x, y) => min(x.da) - min(y.da));
 }
@@ -547,6 +577,8 @@ function controllaOrarioPediatra(v) {
   const studio = PEDIATRA.studi.find(s => (v.luogo || "").toLowerCase().includes(s.id === "sondrio" ? "parolo" : "valmalenco"));
   if (!studio) return "";
   const d = parseISO(v.data), fasce = studio.orari[d.getDay()] || [];
+  const ch = chiusura(d);
+  if (ch) return `${GIORNI[d.getDay()][0].toUpperCase() + GIORNI[d.getDay()].slice(1)} ${d.getDate()} ${MESI[d.getMonth()]} la pediatra non riceve: ${ch}.`;
   if (!fasce.length) {
     const giorni = Object.keys(studio.orari).map(g => GIORNI[g]).join(" e ");
     return `Di ${GIORNI[d.getDay()]} l'${studio.nome} è chiuso (è aperto ${giorni}).`;
@@ -644,7 +676,7 @@ function rigaVisita(v) {
   return `<button class="item" data-act="apri-visita" data-id="${v.id}">
     <div class="date ${passata ? "past" : ""}"><span>${GG[d.getDay()]}</span><b>${d.getDate()}</b><span>${MESI[d.getMonth()]}</span></div>
     <div class="grow"><div class="t">${esc(etichettaVisita(v))}</div>
-      <div class="m">${v.ora ? "🕐 " + esc(v.ora) + " · " : ""}${esc((v.luogo || "").split(" – ")[0] || "Luogo da definire")}</div>
+      <div class="m">${v.dataFine ? "fino al " + dataBreve(v.dataFine) + " · " : ""}${v.ora ? "🕐 " + esc(v.ora) + " · " : ""}${esc((v.luogo || "").split(" – ")[0] || "Luogo da definire")}</div>
       ${v.motivo ? `<div class="m">${esc(v.motivo)}</div>` : ""}
       <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">${chip}${ndoc ? `<span class="chip">📎 ${ndoc}</span>` : ""}${d.getFullYear() !== new Date().getFullYear() ? `<span class="chip">${d.getFullYear()}</span>` : ""}</div>
     </div></button>`;
@@ -658,6 +690,7 @@ function rigaDoc(d) {
     <div class="grow"><div class="t">${esc(d.titolo || "Documento")}</div>
       <div class="m">${esc((CATEGORIE[d.categoria] || "").replace(/^\S+\s/, ""))}${d.data ? " · " + dataBreve(d.data) : ""}${(d.files || []).length > 1 ? ` · ${d.files.length} file` : ""}</div>
       ${vis ? `<div class="tiny">🩺 ${esc(etichettaVisita(vis))} del ${dataBreve(vis.data)}</div>` : ""}
+      ${d.analisi?.esami?.some(x => x.fuori) ? `<span class="chip bad" style="margin-top:4px">${d.analisi.esami.filter(x => x.fuori).length} valori fuori norma</span>` : ""}
     </div></button>`;
 }
 async function caricaMiniature() {
@@ -691,12 +724,17 @@ function vHome() {
   <h2>Pediatra oggi</h2>
   <div class="card">
     <div class="t" style="font-weight:700">${esc(PEDIATRA.nome)}</div>
-    <div class="small muted">${amb.length ? "Oggi in ambulatorio: " + amb.map(a => `${esc(a.studio.nome.replace("Ambulatorio ", ""))} ${a.da}–${a.a}${a.nota ? " (" + esc(a.nota) + ")" : ""}`).join(" · ") : `Oggi (${GIORNI[new Date().getDay()]}) niente ambulatorio.`}</div>
+    <div class="small muted">${chiusura(new Date()) ? `Oggi niente ambulatorio: <b>${esc(chiusura(new Date()))}</b>.` : amb.length ? "Oggi in ambulatorio: " + amb.map(a => `${esc(a.studio.nome.replace("Ambulatorio ", ""))} ${a.da}–${a.a}${a.nota ? " (" + esc(a.nota) + ")" : ""}`).join(" · ") : `Oggi (${GIORNI[new Date().getDay()]}) niente ambulatorio.`}</div>
     <div class="btns">
       <a class="btn ${pren.aperto ? "pri" : ""}" href="tel:${PEDIATRA.prenotazioni.tel}">📅 Prenota ${PEDIATRA.prenotazioni.label}</a>
       <a class="btn ${cons.aperto ? "pri" : ""}" href="tel:${PEDIATRA.consulti.tel}">🩺 Consulto ${PEDIATRA.consulti.label}</a>
     </div>
     <div class="tiny" style="margin-top:8px">Prenotazioni: ${fraseProssima(pren)} · Consulti: ${fraseProssima(cons)}</div>
+  </div>
+  <div class="card" style="display:flex;gap:12px;align-items:center">
+    <div style="font-size:30px">📑</div>
+    <div style="flex:1"><b>Riepilogo per il medico</b><div class="small muted">PDF con anamnesi, visite, esami, ricoveri e vaccini dalla nascita a oggi.</div></div>
+    <button type="button" class="btn pri" data-act="riepilogo">Crea PDF</button>
   </div>
   ${ultimiDoc.length ? `<h2>Ultimi documenti</h2>${ultimiDoc.map(rigaDoc).join("")}` : ""}
   <h2>Gioele</h2>
@@ -739,17 +777,18 @@ function vVisite() {
 
 function vDocumenti() {
   const q = filtroDoc.q.toLowerCase();
-  const l = docAttivi().filter(d => (!filtroDoc.cat || d.categoria === filtroDoc.cat) && (!q || [d.titolo, d.note, d.struttura, CATEGORIE[d.categoria]].join(" ").toLowerCase().includes(q)))
+  const l = docAttivi().filter(d => (!filtroDoc.cat || d.categoria === filtroDoc.cat) && (!q || [d.titolo, d.note, d.struttura, CATEGORIE[d.categoria], d.testo, d.analisi?.diagnosi].join(" ").toLowerCase().includes(q)))
     .sort((a, b) => (b.data || "").localeCompare(a.data || "") || (b.creato || 0) - (a.creato || 0));
   return `${bannerGoogle()}
   <div class="toolbar">
-    <input type="search" id="qDoc" placeholder="Cerca nei documenti" value="${esc(filtroDoc.q)}">
+    <input type="search" id="qDoc" placeholder="Cerca (anche nel testo: es. ferritina)" value="${esc(filtroDoc.q)}">
     <select id="catDoc" style="flex:0 1 170px"><option value="">Tutte le categorie</option>${Object.entries(CATEGORIE).map(([k, t]) => `<option value="${k}" ${filtroDoc.cat === k ? "selected" : ""}>${t}</option>`).join("")}</select>
   </div>
+  <div class="btns" style="margin:-2px 0 12px"><button type="button" class="btn sm" data-act="riepilogo">📑 Crea riepilogo PDF per il medico</button></div>
   ${l.length ? l.map(rigaDoc).join("") : `<div class="empty">Nessun documento${filtroDoc.q || filtroDoc.cat ? " trovato" : ". Fotografa un referto o carica un PDF con il tasto +"}.</div>`}
   <div class="card" style="margin-top:16px">
     <b>🏥 Referti dell'ospedale</b>
-    <div class="small muted" style="margin-top:4px">I referti di ospedale e laboratori si scaricano dal <b>Fascicolo Sanitario Elettronico</b> (app/sito Regione Lombardia, con SPID o CIE: dentro trovi anche i documenti di Gioele come figlio a carico). Scarica il PDF e poi: <b>Condividi → Gioele</b> (Android, con l'app installata) oppure il tasto <b>+</b> qui → “Scegli file”.</div>
+    <div class="small muted" style="margin-top:4px">Quando carichi un PDF o fotografi un referto cartaceo, l'app lo legge e riconosce da sola se è un esame del sangue, una visita, un accesso al pronto soccorso, un ricovero, un'ecografia, un vaccino… compilando data, struttura e valori fuori norma. I referti di ospedale e laboratori si scaricano dal <b>Fascicolo Sanitario Elettronico</b> (app/sito Regione Lombardia, con SPID o CIE: dentro trovi anche i documenti di Gioele come figlio a carico). Scarica il PDF e poi: <b>Condividi → Gioele</b> (Android, con l'app installata) oppure il tasto <b>+</b> qui → “Scegli file”.</div>
     <div class="btns"><a class="btn sm" href="${FSE_URL}" target="_blank" rel="noopener">Apri Fascicolo Sanitario ↗</a></div>
   </div>`;
 }
@@ -757,10 +796,18 @@ function vDocumenti() {
 function vPediatra() {
   const pren = statoFascia(PEDIATRA.prenotazioni), cons = statoFascia(PEDIATRA.consulti);
   const giorni = [];
-  for (let i = 0; i < 14 && giorni.length < 8; i++) {
+  for (let i = 0; i < 21 && giorni.length < 9; i++) {
     const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
-    const a = ambulatoriDelGiorno(d); if (a.length) giorni.push({ d, a });
+    const normale = PEDIATRA.studi.some(st => st.orari[d.getDay()]), ch = chiusura(d);
+    const a = ambulatoriDelGiorno(d); if (a.length || (normale && ch)) giorni.push({ d, a, ch });
   }
+  const prossimeFeste = [];
+  for (let i = 0; i < 120 && prossimeFeste.length < 6; i++) {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
+    const f = festivitaAnno(d.getFullYear())[`${pad(d.getMonth() + 1)}-${pad(d.getDate())}`];
+    if (f && d.getDay() !== 0) prossimeFeste.push({ d, f });
+  }
+  const chiusure = (S.chiusure || []).filter(c => !c.deleted && (c.a || c.da) >= oggiISO()).sort((a, b) => a.da.localeCompare(b.da));
   const orari = st => [1,2,3,4,5,6,0].filter(g => st.orari[g]).map(g => st.orari[g].map(f => `<div class="slot"><b>${GIORNI[g][0].toUpperCase() + GIORNI[g].slice(1)}</b><span>${f[0]} – ${f[1]}${f[2] ? `<br><span class="tiny">${esc(f[2])}</span>` : ""}</span></div>`).join("")).join("");
   return `<div class="card">
     <div style="font-weight:800;font-size:17px">👩‍⚕️ ${esc(PEDIATRA.nome)}</div>
@@ -779,8 +826,15 @@ function vPediatra() {
   </div>
   <h2>Prossimi giorni di ambulatorio</h2>
   <div class="card days">${giorni.map(g => `<div class="d"><div class="n">${GIORNI[g.d.getDay()][0].toUpperCase() + GIORNI[g.d.getDay()].slice(1)} ${g.d.getDate()} ${MESI[g.d.getMonth()]}${oggiISO(g.d) === oggiISO() ? ' <span class="chip brand">oggi</span>' : ""}</div>
+     ${g.ch ? `<div class="small"><span class="chip bad">Chiuso</span> ${esc(g.ch)}</div>` : ""}
      ${g.a.map(a => `<div class="small muted">${a.da}–${a.a} · ${esc(a.studio.nome.replace("Ambulatorio ", ""))}${a.nota ? ` <span class="chip warn">${esc(a.nota)}</span>` : ""}</div>`).join("")}</div>`).join("")}
-    <div class="tiny" style="margin-top:6px">Sempre su appuntamento. Festivi e ferie non sono considerati.</div></div>
+    <div class="tiny" style="margin-top:6px">Sempre su appuntamento. Sono già esclusi i festivi nazionali, Pasquetta e il patrono di Sondrio (19 giugno) e le ferie inserite qui sotto.</div></div>
+  <h2>Ferie e chiusure della pediatra</h2>
+  <div class="card">
+    ${chiusure.length ? chiusure.map(c => `<div class="slot"><span><b>${dataBreve(c.da)}${c.a && c.a !== c.da ? " → " + dataBreve(c.a) : ""}</b><br><span class="tiny">${esc(c.motivo || "Pediatra assente")}</span></span><button type="button" class="btn sm bad" data-act="togli-chiusura" data-id="${c.id}">Togli</button></div>`).join("") : `<div class="small muted">Nessuna ferie segnata. Quando la pediatra comunica ferie o assenze, aggiungile qui: l'app non proporrà quei giorni (lo vede anche Silvia).</div>`}
+    <div class="btns"><button type="button" class="btn sm" data-act="nuova-chiusura">+ Aggiungi ferie / chiusura</button></div>
+    ${prossimeFeste.length ? `<div class="tiny" style="margin-top:10px">Prossimi festivi: ${prossimeFeste.map(x => `${GG[x.d.getDay()]} ${x.d.getDate()} ${MESI[x.d.getMonth()]} (${esc(x.f.split(" (")[0])})`).join(" · ")}</div>` : ""}
+  </div>
   ${PEDIATRA.studi.map(st => `<h2>📍 ${esc(st.nome)}</h2><div class="card">
     <div class="small"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(st.indirizzo)}" target="_blank" rel="noopener">${esc(st.indirizzo)} ↗</a></div>
     <div style="margin-top:6px">${orari(st)}</div></div>`).join("")}`;
@@ -814,7 +868,7 @@ function vImpostazioni() {
     <div class="btns"><button type="button" class="btn pri" data-act="condividi-silvia">Condividi</button>
       <button type="button" class="btn" data-act="link-silvia">💬 Manda il link dell'app a Silvia</button></div>
     <div id="accessi" class="tiny" style="margin-top:10px"></div>
-    <div class="tiny" style="margin-top:6px">Ricorda: Silvia deve essere anche tra gli “Utenti di test” del progetto Google (passo 3 delle istruzioni).</div>
+    <div class="tiny" style="margin-top:6px">Se nel progetto Google l'app è rimasta “In test”, Silvia va aggiunta tra gli “Utenti di test”; con l'app “In produzione” non serve.</div>
   </div>` : ""}
   ${cid && !coll ? `<div class="card small"><b>Sei Silvia?</b> Tocca “Collega Google” e accedi col tuo account: se Simone ti ha già condiviso l'archivio lo trovo da solo.</div>` : ""}
   ${link ? `<div class="card small"><b>Link dell'app</b> (contiene già il Client ID)<div style="margin-top:6px"><code>${esc(link)}</code></div></div>` : ""}
@@ -836,13 +890,13 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v1</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v2</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
     <li>Vai su <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">console.cloud.google.com</a> con il tuo account Google e crea un progetto (es. “Gioele Salute”).</li>
     <li>Menu <b>API e servizi → Libreria</b>: cerca e <b>abilita</b> “Google Drive API” e “Google Calendar API”.</li>
-    <li>Menu <b>Google Auth Platform</b> (o “Schermata consenso OAuth”): tipo <b>Esterno</b>, nome app “Gioele”, la tua email. In <b>Pubblico → Utenti di test</b> aggiungi la tua Gmail <b>e quella di Silvia</b>. Lascia l'app “In test”.</li>
+    <li>Menu <b>Google Auth Platform</b> (o “Schermata consenso OAuth”): tipo <b>Esterno</b>, nome app “Gioele”, la tua email. Poi in <b>Pubblico</b> tocca <b>“Pubblica app” → In produzione</b>: così l'accesso non scade dopo 7 giorni come nelle app “in test”. Non serve la verifica di Google: è un'app di famiglia (fino a 100 persone).</li>
     <li><b>Client → Crea client</b> → tipo <b>Applicazione web</b>. In “Origini JavaScript autorizzate” aggiungi <code>${esc(location.origin)}</code>. Salva e copia il <b>Client ID</b> (finisce con <code>.apps.googleusercontent.com</code>).</li>
     <li>Incollalo qui sotto. Al primo accesso Google dirà “app non verificata”: tocca <b>Avanzate → Vai a Gioele</b> e spunta tutte le caselle (è la tua app, i dati restano tuoi).</li>
   </ol>`;
@@ -868,7 +922,7 @@ function apriSheet(titolo, corpo, piede, onSubmit) {
   if (!sheet.open) sheet.showModal();
   $("#sheetBody").scrollTop = 0;
 }
-sheet.addEventListener("close", () => { azioneSheet = null; bozzaFiles = []; });
+sheet.addEventListener("close", () => { azioneSheet = null; bozzaFiles = []; bozzaAnalisi = null; analisiInCorso = 0; });
 $("#sheetForm").addEventListener("submit", async e => {
   const v = e.submitter?.value;
   if (v === "ok" && azioneSheet) {
@@ -889,6 +943,7 @@ function formVisita(v = {}, preset = {}) {
       <label class="f">Data<input type="date" name="data" value="${esc(v.data || oggiISO())}" required></label>
       <label class="f">Ora<input type="time" name="ora" value="${esc(v.ora || "")}" step="300"></label>
     </div>
+    <label class="f ${v.tipo === "ricovero" ? "" : "hidden"}" id="rigaFine">Dimesso il (ultimo giorno di ricovero)<input type="date" name="dataFine" value="${esc(v.dataFine || "")}"></label>
     <div class="grid2">
       <label class="f">Durata<select name="durata">${[15, 20, 30, 45, 60, 90, 120, 180].map(m => `<option value="${m}" ${+v.durata === m ? "selected" : ""}>${m < 60 ? m + " min" : m / 60 + " h"}</option>`).join("")}</select></label>
       <label class="f">Stato<select name="stato">${Object.entries(STATI).map(([k, t]) => `<option value="${k}" ${v.stato === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
@@ -913,7 +968,7 @@ function formVisita(v = {}, preset = {}) {
   async () => {
     const f = $("#sheetForm"), val = n => f.elements[n]?.value.trim() ?? "";
     if (!val("data")) throw new Error("Indica la data");
-    const dati = { tipo: val("tipo"), data: val("data"), ora: val("ora"), durata: +val("durata") || 30, stato: val("stato"), luogo: val("luogo"),
+    const dati = { tipo: val("tipo"), data: val("data"), dataFine: val("tipo") === "ricovero" ? val("dataFine") : "", ora: val("ora"), durata: +val("durata") || 30, stato: val("stato"), luogo: val("luogo"),
       medico: val("medico"), motivo: val("motivo"), esito: val("esito"), note: val("note"), noCal: f.elements.cal ? !f.elements.cal.checked : !!v.noCal };
     if (nuova) S.visite.push({ id: uid(), ...dati, creato: Date.now(), creatoDa: G.email || "", updatedAt: Date.now() });
     else Object.assign(S.visite.find(x => x.id === v.id), dati, { updatedAt: Date.now() });
@@ -928,6 +983,7 @@ function formVisita(v = {}, preset = {}) {
     $("#avvisoOrario").innerHTML = a ? `<div class="notice warn">⚠️ ${esc(a)}</div>` : "";
   };
   f.elements.tipo.addEventListener("change", () => {
+    $("#rigaFine").classList.toggle("hidden", f.elements.tipo.value !== "ricovero");
     if (["pediatra", "bilancio"].includes(f.elements.tipo.value) && !f.elements.medico.value) f.elements.medico.value = PEDIATRA.nome;
     if (["pediatra", "bilancio"].includes(f.elements.tipo.value) && !f.elements.luogo.value) f.elements.luogo.value = luogoPerData(f.elements.data.value);
     verifica();
@@ -954,10 +1010,12 @@ function luogoPerData(iso) {
 
 /* ---------- documento ---------- */
 let bozzaFiles = [];  // {fid, nome, mime, size, blob?, nuovo}
+let bozzaAnalisi = null, analisiInCorso = 0;
 function formDoc(d = {}, preset = {}) {
   d = { categoria: "referto", data: oggiISO(), ...preset, ...d };
   const nuovo = !d.id;
   bozzaFiles = (d.files || []).map(f => ({ ...f }));
+  bozzaAnalisi = d.analisi ? { ...d.analisi, testo: d.testo || "" } : null;
   if (preset._files) bozzaFiles.push(...preset._files);
   const visite = visiteAttive().sort((a, b) => b.data.localeCompare(a.data));
   apriSheet(nuovo ? "Nuovo documento" : "Documento", `
@@ -965,26 +1023,41 @@ function formDoc(d = {}, preset = {}) {
     <div class="btns">
       <button type="button" class="btn sm" data-act="scatta">📷 Fotografa</button>
       <button type="button" class="btn sm" data-act="scegli">📁 Scegli file / PDF</button>
+      <button type="button" class="btn sm" data-act="analizza" id="btnAnalizza">🔎 Leggi e riconosci</button>
     </div>
-    <label class="f">Titolo<input type="text" name="titolo" value="${esc(d.titolo || "")}" placeholder="es. Referto ecografia delle anche" required></label>
+    <div id="boxAnalisi"></div>
+    <label class="f">Categoria<select name="categoria">${Object.entries(CATEGORIE).map(([k, t]) => `<option value="${k}" ${d.categoria === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+    <label class="f">Titolo<input type="text" name="titolo" value="${esc(d.titolo || "")}" placeholder="es. Esami del sangue, Visita ORL…"></label>
     <div class="grid2">
-      <label class="f">Categoria<select name="categoria">${Object.entries(CATEGORIE).map(([k, t]) => `<option value="${k}" ${d.categoria === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
       <label class="f">Data del documento<input type="date" name="data" value="${esc(d.data || "")}"></label>
+      <label class="f">Struttura / medico<input type="text" name="struttura" list="dlLuoghi2" value="${esc(d.struttura || "")}"></label>
     </div>
-    <label class="f">Struttura / medico<input type="text" name="struttura" list="dlLuoghi2" value="${esc(d.struttura || "")}"></label>
-    <datalist id="dlLuoghi2">${[...new Set([PEDIATRA.nome, ...LUOGHI.map(l => l.split(" – ")[0]), ...docAttivi().map(x => x.struttura).filter(Boolean)])].map(l => `<option value="${esc(l)}">`).join("")}</datalist>
+    <datalist id="dlLuoghi2">${[...new Set([PEDIATRA.nome, "ASST Valtellina e Alto Lario", ...LUOGHI.map(l => l.split(" – ")[0]), ...docAttivi().map(x => x.struttura).filter(Boolean)])].map(l => `<option value="${esc(l)}">`).join("")}</datalist>
     <label class="f">Visita collegata<select name="visitaId"><option value="">— nessuna —</option>${visite.map(v => `<option value="${v.id}" ${d.visitaId === v.id ? "selected" : ""}>${dataBreve(v.data)} · ${esc(etichettaVisita(v))}</option>`).join("")}</select></label>
-    <label class="f">Note<textarea name="note" placeholder="es. valori da ricontrollare fra 3 mesi">${esc(d.note || "")}</textarea></label>
+    <label class="check hidden" id="rigaStorico"><input type="checkbox" name="storico"> <span id="testoStorico"></span></label>
+    <label class="f">Note (diagnosi, terapia, da ricontrollare…)<textarea name="note">${esc(d.note || "")}</textarea></label>
+    <div id="boxEsami"></div>
     ${!nuovo ? `<div class="btns"><button type="button" class="btn sm" data-act="condividi-doc" data-id="${d.id}">💬 Invia a Silvia / al medico</button></div>` : ""}
   `, `${!nuovo ? `<button type="button" class="btn bad" data-act="elimina-doc" data-id="${d.id}">Elimina</button><span style="flex:1"></span>` : ""}
       <button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
     const f = $("#sheetForm"), val = n => f.elements[n]?.value.trim() ?? "";
     if (!bozzaFiles.length) throw new Error("Aggiungi almeno una foto o un file");
-    const titolo = val("titolo") || (CATEGORIE[val("categoria")] || "Documento").replace(/^\S+\s/, "");
+    if (analisiInCorso && !confirm("Sto ancora leggendo il documento. Salvare senza aspettare?")) return false;
+    const categoria = val("categoria");
+    const titolo = val("titolo") || (CATEGORIE[categoria] || "Documento").replace(/^\S+\s/, "");
     for (const x of bozzaFiles) if (x.blob) { await fileSet(x.fid, x.blob); }
     const files = bozzaFiles.map(({ fid, nome, mime, size, driveId }) => ({ fid, nome, mime, size, ...(driveId ? { driveId } : {}) }));
-    const dati = { titolo, categoria: val("categoria"), data: val("data"), struttura: val("struttura"), visitaId: val("visitaId"), note: val("note"), files, updatedAt: Date.now() };
+    const dati = { titolo, categoria, data: val("data"), struttura: val("struttura"), visitaId: val("visitaId"), note: val("note"), files, updatedAt: Date.now() };
+    if (bozzaAnalisi) { const { testo, ...an } = bozzaAnalisi; dati.analisi = an; dati.testo = testo || ""; }
+    /* voce nello storico (pronto soccorso, ricovero, visita…) */
+    if (f.elements.storico?.checked && !dati.visitaId && STORICO_DA_CAT[categoria]) {
+      const an = bozzaAnalisi || {}, vid = uid();
+      S.visite.push({ id: vid, tipo: STORICO_DA_CAT[categoria], data: dati.data || oggiISO(), dataFine: categoria === "dimissione" ? (an.dataFine || "") : "", ora: "", durata: 30, stato: "fatta",
+        luogo: dati.struttura, medico: [an.reparto, an.specialita].filter(Boolean)[0] || "", motivo: an.motivo || titolo,
+        esito: an.diagnosi || "", note: "", noCal: true, daDocumento: true, creato: Date.now(), creatoDa: G.email || "", updatedAt: Date.now() });
+      dati.visitaId = vid;
+    }
     if (nuovo) S.documenti.push({ id: uid(), ...dati, creato: Date.now(), creatoDa: G.email || "" });
     else {
       const old = S.documenti.find(x => x.id === d.id);
@@ -996,11 +1069,86 @@ function formDoc(d = {}, preset = {}) {
     const tornaA = preset._tornaVisita;
     if (tornaA) { const v = S.visite.find(x => x.id === tornaA); if (v) { setTimeout(() => formVisita(v), 50); } }
   });
-  disegnaBozza();
+  const f = $("#sheetForm");
+  f.elements.categoria.addEventListener("change", aggiornaStorico);
+  f.elements.visitaId.addEventListener("change", aggiornaStorico);
+  f.elements.data.addEventListener("change", aggiornaStorico);
+  ["titolo", "data", "struttura", "note"].forEach(n => f.elements[n].addEventListener("input", () => { f.elements[n].dataset.toccato = "1"; }));
+  f.elements.categoria.addEventListener("change", () => { f.elements.categoria.dataset.toccato = "1"; });
+  if (!nuovo) Object.values(f.elements).forEach(el => el.dataset && (el.dataset.toccato = "1"));
+  disegnaBozza(); disegnaAnalisi(); aggiornaStorico();
+}
+function aggiornaStorico() {
+  const f = $("#sheetForm"), riga = $("#rigaStorico"); if (!riga || !f.elements.categoria) return;
+  const cat = f.elements.categoria.value, tipo = STORICO_DA_CAT[cat];
+  const mostra = !!tipo && !f.elements.visitaId.value;
+  riga.classList.toggle("hidden", !mostra);
+  if (!mostra) return;
+  const nome = (TIPI[tipo] || "").replace(/^\S+\s/, "");
+  $("#testoStorico").textContent = `Aggiungi anche allo storico delle visite: «${nome}${f.elements.data.value ? " del " + dataBreve(f.elements.data.value) : ""}» (servirà nel riepilogo per il medico)`;
+  if (!riga.dataset.toccato) f.elements.storico.checked = ["ps", "dimissione", "visita"].includes(cat);
+}
+document.addEventListener("change", e => { if (e.target.name === "storico") $("#rigaStorico").dataset.toccato = "1"; });
+
+function disegnaAnalisi(stato) {
+  const box = $("#boxAnalisi"); if (!box) return;
+  if (stato) { box.innerHTML = `<div class="notice info">🔎 ${esc(stato.testo)}${stato.p != null ? ` <b>${Math.round(stato.p * 100)}%</b>` : ""}<div style="height:5px;background:var(--line);border-radius:3px;margin-top:6px;overflow:hidden"><div style="height:100%;width:${Math.round((stato.p || 0) * 100)}%;background:var(--brand)"></div></div></div>`; return; }
+  const a = bozzaAnalisi;
+  if (!a) { box.innerHTML = ""; $("#boxEsami").innerHTML = ""; return; }
+  const conf = { alta: ["ok", "sicuro"], media: ["warn", "probabile"], bassa: ["bad", "incerto: controlla"] }[a.conf] || ["", ""];
+  const voci = [
+    a.cat !== "referto" ? `<b>${esc((CATEGORIE[a.cat] || "").replace(/^\S+\s/, ""))}</b> <span class="chip ${conf[0]}">${conf[1]}</span>` : `<b>Tipo non riconosciuto</b> – scegli tu la categoria`,
+    a.data && `📅 ${dataBreve(a.data)}${a.dataFine ? " → " + dataBreve(a.dataFine) : ""}`,
+    a.struttura && `🏥 ${esc(a.struttura)}`, a.reparto && `Reparto: ${esc(a.reparto)}`,
+    a.specialita && a.cat === "visita" && `Specialità: ${esc(a.specialita)}`,
+    a.codicePS && `Codice triage: ${esc(a.codicePS)}`,
+    a.motivo && `Motivo: ${esc(a.motivo)}`, a.diagnosi && `Diagnosi/conclusioni: ${esc(a.diagnosi)}`,
+    a.vaccini?.length && `Vaccini: ${esc(a.vaccini.join(", "))}`,
+    a.esami?.length && `🧪 ${a.esami.length} valori letti${a.esami.some(x => x.fuori) ? `, <b style="color:var(--bad)">${a.esami.filter(x => x.fuori).length} fuori norma</b> (elenco in fondo)` : ", tutti nella norma"}`
+  ].filter(Boolean);
+  box.innerHTML = `<div class="notice ${a.cat === "referto" ? "warn" : "info"}" style="font-size:14px">🔎 L'app ha letto il documento${a.metodo === "ocr" ? " (da immagine)" : ""}:<br>${voci.join("<br>")}
+    ${a.caratteri < 60 ? `<div class="small" style="margin-top:4px">Ho letto pochissimo testo: prova una foto più nitida e dritta, con buona luce.</div>` : ""}</div>`;
+  const e = a.esami || [];
+  $("#boxEsami").innerHTML = e.length ? `<h3 style="font-size:15px;margin:16px 0 6px">🧪 Valori letti (${e.length}${e.some(x => x.fuori) ? `, <span style="color:var(--bad)">${e.filter(x => x.fuori).length} fuori norma</span>` : ""})</h3>
+    <div class="card" style="padding:6px 12px;font-size:14px">${e.slice().sort((x, y) => y.fuori - x.fuori).map(x => `<div class="slot" style="${x.fuori ? "color:var(--bad);font-weight:700" : ""}"><span>${esc(x.nome)}</span><span style="text-align:right">${esc(x.cmp)}${esc(x.valore)} ${esc(x.unita)}<br><span class="tiny">rif. ${esc(x.rif)}</span></span></div>`).join("")}</div>
+    <div class="tiny">Letti automaticamente: in caso di dubbio fa fede il referto.</div>` : "";
+}
+/* applica il risultato della lettura ai campi non modificati a mano */
+function applicaAnalisi(a) {
+  const f = $("#sheetForm"); if (!f || !f.elements.categoria) return;
+  const metti = (n, v) => { const el = f.elements[n]; if (el && v && !el.dataset.toccato) el.value = v; };
+  if (a.cat !== "referto") metti("categoria", a.cat);
+  metti("titolo", a.titolo); metti("data", a.data); metti("struttura", a.struttura);
+  if (!f.elements.note.dataset.toccato && a.diagnosi && !f.elements.note.value) f.elements.note.value = (a.cat === "visita" || a.cat === "imaging" ? "Conclusioni: " : "Diagnosi: ") + a.diagnosi;
+  /* collega da solo la visita dello stesso giorno, se c'è */
+  if (!f.elements.visitaId.value && a.data) {
+    const v = visiteAttive().find(v => v.data === a.data || (v.dataFine && v.data <= a.data && a.data <= v.dataFine));
+    if (v) f.elements.visitaId.value = v.id;
+  }
+  aggiornaStorico();
+}
+async function analizzaBozza() {
+  const daLeggere = [];
+  for (const x of bozzaFiles) {
+    let b = x.blob || null;
+    if (!b) { try { b = await blobAllegato(x); } catch { b = null; } }
+    if (b) daLeggere.push({ mime: x.mime, blob: b });
+  }
+  if (!daLeggere.length) return;
+  const mio = ++analisiInCorso;
+  const btn = $("#btnAnalizza"); if (btn) btn.disabled = true;
+  try {
+    disegnaAnalisi({ testo: "Leggo il documento…", p: 0 });
+    const a = await analizzaFiles(daLeggere, S.profilo.nascita, (testo, p) => { if (mio === analisiInCorso) disegnaAnalisi({ testo, p }); });
+    if (mio !== analisiInCorso || !$("#boxAnalisi")) return;
+    bozzaAnalisi = a; disegnaAnalisi(); applicaAnalisi(a);
+  } catch (e) {
+    if ($("#boxAnalisi")) $("#boxAnalisi").innerHTML = `<div class="notice warn">Non sono riuscito a leggere il documento: ${esc(e.message)}. Compila tu i campi.</div>`;
+  } finally { if (mio === analisiInCorso) analisiInCorso = 0; if (btn) btn.disabled = false; }
 }
 async function disegnaBozza() {
   const el = $("#bozzaFiles"); if (!el) return;
-  el.innerHTML = bozzaFiles.length ? "" : `<div class="tiny">Nessun file: fotografa il referto (anche più pagine) o scegli un PDF.</div>`;
+  el.innerHTML = bozzaFiles.length ? "" : `<div class="tiny">Nessun file: fotografa il referto (anche più pagine) o scegli un PDF. L'app lo leggerà e capirà da sola di che documento si tratta.</div>`;
   for (const [i, f] of bozzaFiles.entries()) {
     const div = document.createElement("div"); div.className = "fthumb";
     const img = /^image\//.test(f.mime);
@@ -1017,9 +1165,8 @@ async function aggiungiFiles(list) {
     const p = await preparaFile(file);
     bozzaFiles.push({ fid: uid(), nome: p.name || "foto.jpg", mime: p.type || "application/octet-stream", size: p.size, blob: p, nuovo: true });
   }
-  const t = $("#sheetForm").elements.titolo;
-  if (t && !t.value && bozzaFiles.length === 1 && bozzaFiles[0].mime === "application/pdf") t.value = bozzaFiles[0].nome.replace(/\.pdf$/i, "").replace(/[_-]+/g, " ");
   disegnaBozza();
+  analizzaBozza();
 }
 async function apriFile(f) {
   const w = window.open("", "_blank");  // aperta subito (altrimenti iPhone la blocca)
@@ -1030,22 +1177,90 @@ async function apriFile(f) {
   } catch (e) { w?.close(); toast(e.message === "serve-accesso" ? "Accedi a Google per scaricare il file" : e.message, 5000); }
 }
 
-/* ---------- profilo ---------- */
+/* ---------- profilo e anamnesi ---------- */
 function formProfilo() {
   const p = S.profilo;
-  apriSheet("Dati di Gioele", `
-    <label class="f">Data di nascita<input type="date" name="nascita" value="${esc(p.nascita || "")}"></label>
-    <label class="f">Codice fiscale / tessera sanitaria<input type="text" name="cf" value="${esc(p.cf || "")}" autocapitalize="characters"></label>
-    <label class="f">Gruppo sanguigno<input type="text" name="sangue" value="${esc(p.sangue || "")}"></label>
-    <label class="f">Allergie / intolleranze<textarea name="allergie">${esc(p.allergie || "")}</textarea></label>
-    <label class="f">Note (terapie in corso, peso ultimo controllo…)<textarea name="note">${esc(p.note || "")}</textarea></label>`,
+  const campo = (n, et, tipo = "text", ph = "") => tipo === "area" ? `<label class="f">${et}<textarea name="${n}" placeholder="${esc(ph)}">${esc(p[n] || "")}</textarea></label>`
+    : `<label class="f">${et}<input type="${tipo}" name="${n}" value="${esc(p[n] || "")}" placeholder="${esc(ph)}"></label>`;
+  apriSheet("Gioele: dati e anamnesi", `
+    <div class="grid2">${campo("nome", "Nome")}${campo("cognome", "Cognome")}</div>
+    <div class="grid2">${campo("nascita", "Data di nascita", "date")}${campo("luogoNascita", "Luogo di nascita", "text", "es. Ospedale di Sondrio")}</div>
+    <div class="grid2">${campo("cf", "Codice fiscale")}${campo("sangue", "Gruppo sanguigno", "text", "es. A Rh+")}</div>
+    ${campo("genitori", "Genitori / contatti", "text", "Simone (tel…), Silvia (tel…)")}
+    ${campo("allergie", "Allergie / intolleranze", "area", "Farmaci, alimenti… oppure «nessuna nota»")}
+    <h3 style="font-size:16px;margin:18px 0 0">Anamnesi</h3>
+    <div class="tiny">Compare nel riepilogo PDF per i medici.</div>
+    ${campo("perinatale", "Gravidanza e parto", "area", "es. gravidanza fisiologica, parto spontaneo a termine")}
+    <div class="grid2">${campo("pesoNascita", "Peso alla nascita", "text", "es. 3.250 g")}${campo("settimane", "Settimane di gestazione", "text", "es. 39+2")}</div>
+    ${campo("apgar", "Apgar / note neonatali", "text", "es. 9/10, ittero fisiologico")}
+    ${campo("patologie", "Patologie / problemi noti", "area", "es. bronchiti ricorrenti, reflusso…")}
+    ${campo("interventi", "Interventi chirurgici", "area")}
+    ${campo("terapie", "Terapie in corso", "area")}
+    ${campo("familiarita", "Familiarità (malattie in famiglia)", "area", "es. nonno diabete, mamma allergia…")}
+    ${campo("note", "Sviluppo / altre note", "area")}`,
   `<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
-    const f = $("#sheetForm"), val = n => f.elements[n].value.trim();
-    S.profilo = { nome: "Gioele", nascita: val("nascita"), cf: val("cf").toUpperCase(), sangue: val("sangue"), allergie: val("allergie"), note: val("note"), updatedAt: Date.now() };
+    const f = $("#sheetForm"), out = { updatedAt: Date.now() };
+    for (const el of f.elements) if (el.name) out[el.name] = el.value.trim();
+    out.nome = out.nome || "Gioele"; out.cf = (out.cf || "").toUpperCase();
+    S.profilo = out;
     await salva();
   });
 }
+
+/* ---------- ferie e chiusure della pediatra ---------- */
+function formChiusura() {
+  apriSheet("Ferie / chiusura della pediatra", `
+    <div class="grid2"><label class="f">Dal<input type="date" name="da" value="${oggiISO()}"></label><label class="f">Al (compreso)<input type="date" name="a"></label></div>
+    <label class="f">Motivo<input type="text" name="motivo" placeholder="es. Ferie estive – sostituta Dr.ssa Masa"></label>`,
+  `<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
+  async () => {
+    const f = $("#sheetForm"), da = f.elements.da.value, a = f.elements.a.value || da;
+    if (!da) throw new Error("Indica il primo giorno");
+    if (a < da) throw new Error("La data finale è prima di quella iniziale");
+    S.chiusure.push({ id: uid(), da, a, motivo: f.elements.motivo.value.trim() || "Pediatra assente", updatedAt: Date.now() });
+    await salva(); toast("Chiusura salvata");
+  });
+}
+
+/* ---------- riepilogo PDF ---------- */
+function formRiepilogo() {
+  const nascita = S.profilo.nascita;
+  const nDoc = docAttivi().filter(d => (d.files || []).length).length;
+  apriSheet("Riepilogo per il medico", `
+    <p class="small muted" style="margin-top:8px">Crea un PDF da dare al pediatra o allo specialista: dati di Gioele, anamnesi, ricoveri e pronto soccorso, visite specialistiche, esami del sangue (con i valori fuori norma e il loro andamento), ecografie/RX, vaccinazioni e visite dal pediatra, in ordine dalla nascita all'ultimo documento.</p>
+    ${!nascita ? `<div class="notice warn">Manca la data di nascita: <a href="#" data-act="profilo">completa i dati e l'anamnesi</a>.</div>` : ""}
+    <label class="f">Periodo<select name="periodo">
+      <option value="nascita">Dalla nascita a oggi</option><option value="3">Ultimi 3 anni</option><option value="1">Ultimo anno</option><option value="0.5">Ultimi 6 mesi</option></select></label>
+    <label class="f">Motivo del consulto / note per il medico (facoltativo)<textarea name="note" placeholder="es. Da 10 giorni tosse e febbricola serale; ha già fatto 5 giorni di amoxicillina."></textarea></label>
+    <label class="check"><input type="checkbox" name="allegati" ${nDoc ? "" : "disabled"}> Allega in fondo la copia di tutti i documenti (${nDoc})</label>
+    <div class="tiny" style="margin-left:29px">Il PDF diventa più pesante; i file che sono solo su Drive vengono scaricati.</div>
+    <div id="boxRiepilogo"></div>`,
+  `<button class="btn" value="annulla" formnovalidate>Chiudi</button><button class="btn pri" value="ok" id="btnCreaRiep">Crea PDF</button>`,
+  async () => {
+    const f = $("#sheetForm"), per = f.elements.periodo.value;
+    let da = nascita || "1900-01-01";
+    if (per !== "nascita") { const d = new Date(); d.setMonth(d.getMonth() - Math.round(+per * 12)); da = oggiISO(d); }
+    const box = $("#boxRiepilogo"), btn = $("#btnCreaRiep"); btn.disabled = true;
+    box.innerHTML = `<div class="notice info">Preparo il PDF…</div>`;
+    try {
+      const r = await creaRiepilogoPdf({ da, allegati: f.elements.allegati.checked, note: f.elements.note.value.trim(),
+        avanzamento: (t, p) => { box.innerHTML = `<div class="notice info">${esc(t)} – ${Math.round(p * 100)}%</div>`; } });
+      const nome = `Riepilogo sanitario Gioele ${oggiISO()}.pdf`;
+      ultimoRiepilogo = new File([r.bytes], nome, { type: "application/pdf" });
+      const u = URL.createObjectURL(ultimoRiepilogo);
+      box.innerHTML = `<div class="notice info">✅ PDF pronto (${r.pagineRiepilogo} ${r.pagineRiepilogo === 1 ? "pagina" : "pagine"} di riepilogo${f.elements.allegati.checked ? " + allegati" : ""}, ${(ultimoRiepilogo.size / 1048576).toFixed(1)} MB).
+        ${r.mancanti.length ? `<br><span style="color:var(--warn)">Non allegati (file non disponibile): ${esc([...new Set(r.mancanti)].join(", "))}</span>` : ""}
+        <div class="btns"><a class="btn pri" href="${u}" target="_blank" rel="noopener">👁️ Apri</a>
+        <button type="button" class="btn" data-act="condividi-riepilogo">💬 Invia / stampa</button>
+        <a class="btn" href="${u}" download="${esc(nome)}">⬇️ Scarica</a>
+        ${googleAttivo() ? `<button type="button" class="btn" data-act="riepilogo-drive">☁️ Salva su Drive</button>` : ""}</div></div>`;
+    } catch (e) { box.innerHTML = `<div class="notice bad">Non sono riuscito a creare il PDF: ${esc(e.message)}</div>`; }
+    finally { btn.disabled = false; }
+    return false;   // il foglio resta aperto per aprire/inviare il PDF
+  });
+}
+let ultimoRiepilogo = null;
 
 /* ---------- importa dal calendario personale ---------- */
 async function importaDaCalendario() {
@@ -1120,7 +1335,7 @@ document.addEventListener("click", async e => {
     case "apri-doc": formDoc(S.documenti.find(d => d.id === id)); break;
     case "doc-per-visita": { const v = S.visite.find(x => x.id === id);
       formDoc({}, { visitaId: id, data: v.data, struttura: v.medico || (v.luogo || "").split(" – ")[0], categoria: v.tipo === "esami" ? "esami" : "referto", _tornaVisita: id }); break; }
-    case "profilo": formProfilo(); break;
+    case "profilo": e.preventDefault(); formProfilo(); break;
     case "scatta": $("#inFoto").click(); break;
     case "scegli": $("#inFile").click(); break;
     case "togli-file": bozzaFiles.splice(+b.dataset.i, 1); disegnaBozza(); break;
@@ -1150,6 +1365,16 @@ document.addEventListener("click", async e => {
     }
     case "condividi-doc-pronto": { const d = S.documenti.find(x => x.id === id); condividi({ titolo: d.titolo, testo: `📄 ${d.titolo} – Gioele${d.data ? " (" + dataBreve(d.data) + ")" : ""}`, files: b._files || [] }); break; }
     case "importa-cal": importaDaCalendario(); break;
+    case "analizza": if (!bozzaFiles.length) toast("Prima aggiungi una foto o un PDF"); else { $("#rigaStorico") && delete $("#rigaStorico").dataset.toccato; analizzaBozza(); } break;
+    case "riepilogo": formRiepilogo(); break;
+    case "condividi-riepilogo": if (ultimoRiepilogo) condividi({ titolo: ultimoRiepilogo.name, testo: "Riepilogo sanitario di Gioele", files: [ultimoRiepilogo] }); break;
+    case "riepilogo-drive":
+      b.disabled = true;
+      try { await accedi(true); await driveCarica({ nome: ultimoRiepilogo.name, mime: "application/pdf", parents: [S.config.folderId], blob: ultimoRiepilogo }); toast("Salvato nella cartella Drive “" + NOME_CARTELLA + "”"); }
+      catch (err) { toast("Non salvato: " + err.message, 5000); } finally { b.disabled = false; }
+      break;
+    case "nuova-chiusura": formChiusura(); break;
+    case "togli-chiusura": { const c = S.chiusure.find(x => x.id === id); if (c && confirm("Togliere questa chiusura?")) { Object.assign(c, { deleted: true, updatedAt: Date.now() }); await salva(); } break; }
     case "sync": case "collega": sincronizza(true); break;
     case "salva-cid": {
       const v = $("#inCid").value.trim();
@@ -1190,7 +1415,8 @@ $("#fab").addEventListener("click", () => {
       <button type="button" class="btn pri" data-act="nuova-visita">🩺 Nuova visita / appuntamento</button>
       <button type="button" class="btn" data-act="scatta-nuovo">📷 Fotografa un referto</button>
       <button type="button" class="btn" data-act="pdf-nuovo">📄 Carica un PDF / file</button>
-      <button type="button" class="btn" data-act="nota-consulto">📞 Annota un consulto telefonico</button></div>`,
+      <button type="button" class="btn" data-act="nota-consulto">📞 Annota un consulto telefonico</button>
+      <button type="button" class="btn" data-act="riepilogo">📑 Riepilogo PDF per il medico</button></div>`,
     `<button class="btn" value="annulla" formnovalidate>Chiudi</button>`, null);
 });
 document.addEventListener("click", e => {
@@ -1244,5 +1470,7 @@ async function controllaInbox() {
   if (new URLSearchParams(location.search).has("ricevuto")) history.replaceState(null, "", location.pathname);
 })();
 </script>
+<script src="analisi.js"></script>
+<script src="riepilogo.js"></script>
 </body>
 </html>

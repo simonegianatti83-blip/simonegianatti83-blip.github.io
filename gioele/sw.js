@@ -1,9 +1,12 @@
 /* Gioele – service worker: app disponibile anche offline + riceve i file
    condivisi dal telefono (menu "Condividi" → Gioele).
    Per pubblicare una nuova versione cambia il numero qui sotto. */
-const VERSIONE = "gioele-v1";
+const VERSIONE = "gioele-v2";
 const FILE_APP = ["./", "./index.html", "./manifest.webmanifest",
-  "./icona-192.png", "./icona-512.png", "./icona-maskable-512.png", "./apple-touch-icon.png"];
+  "./icona-192.png", "./icona-512.png", "./icona-maskable-512.png", "./apple-touch-icon.png",
+  "./analisi.js", "./riepilogo.js"];
+/* librerie pesanti (lettura PDF, OCR, creazione PDF): salvate sul telefono al primo uso */
+const AL_PRIMO_USO = /\/(gioele\/ocr\/|pdf\.min\.mjs|pdf\.worker\.(min|app)\.mjs|compat\.mjs|pdf-lib\.min\.js)/;
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSIONE)
@@ -12,7 +15,7 @@ self.addEventListener("install", e => {
 });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys()
-    .then(k => Promise.all(k.filter(x => x.startsWith("gioele-") && x !== VERSIONE).map(x => caches.delete(x))))
+    .then(k => Promise.all(k.filter(x => x.startsWith("gioele-") && x !== VERSIONE && !x.endsWith("-librerie")).map(x => caches.delete(x))))
     .then(() => self.clients.claim()));
 });
 
@@ -57,5 +60,16 @@ self.addEventListener("fetch", e => {
       .catch(() => caches.match("./index.html")));
     return;
   }
-  e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req)));
+  if (AL_PRIMO_USO.test(url.pathname)) {
+    e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(res => {
+      if (res.ok) { const c = res.clone(); caches.open(VERSIONE + "-librerie").then(x => x.put(req, c)); }
+      return res;
+    })));
+    return;
+  }
+  /* file dell'app: prima la rete (aggiornamenti subito), poi la copia salvata */
+  e.respondWith(fetch(req).then(res => {
+    if (res.ok && url.pathname.startsWith(new URL("./", self.registration.scope).pathname)) { const c = res.clone(); caches.open(VERSIONE).then(x => x.put(req, c)); }
+    return res;
+  }).catch(() => caches.match(req, { ignoreSearch: true })));
 });
