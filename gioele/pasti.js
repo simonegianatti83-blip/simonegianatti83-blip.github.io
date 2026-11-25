@@ -228,7 +228,8 @@ const COLORI_CACCA = {
 const CONSISTENZE = { "": "—", liquida: "Liquida", molle: "Morbida / grumosa", formata: "Formata", dura: "Dura" };
 const COLORI_ALLARME = ["chiaro", "sangue"];
 /* quante pipì ci si aspetta di solito nei primi giorni (indicativo) */
-const pipiAttese = gdv => gdv == null ? null : Math.min(Math.max(gdv, 1), 6);
+const PIPI_MIN_24H = 1;   // indicazione ricevuta: almeno 1 pipì ogni 24 ore
+const pipiAttese = () => PIPI_MIN_24H;
 function pannoliniGiorno(iso) {
   const l = pannoliniOrd().filter(x => x.quando.startsWith(iso)).reverse();
   return { lista: l, pipi: l.filter(x => x.pipi).length, cacca: l.filter(x => x.cacca).length };
@@ -283,10 +284,10 @@ function boxPannolini() {
   return `<div class="card"><b>🧷 Pannolini</b>
       <div class="btns"><button type="button" class="btn pri" data-act="pannolino-rapido" data-tipo="pipi">💧 Pipì</button><button type="button" class="btn pri" data-act="pannolino-rapido" data-tipo="cacca">💩 Cacca</button><button type="button" class="btn" data-act="pannolino-rapido" data-tipo="entrambi">💧💩 Entrambe</button><button type="button" class="btn sm" data-act="nuovo-pannolino">✏️ Con dettagli</button></div>
       <div class="slot"><span>Oggi</span><b>💧 ${oggi.pipi} · 💩 ${oggi.cacca}</b></div>
-      <div class="slot"><span>Ultime 24 ore</span><b>💧 ${pipi24} ${att && pipi24 < att ? `<span class="chip warn">di solito almeno ${att}</span>` : pipi24 ? `<span class="chip ok">ok</span>` : ""} · 💩 ${cacca24}</b></div>
+      <div class="slot"><span>Ultime 24 ore</span><b>💧 ${pipi24} ${att && pipi24 < att ? `<span class="chip bad">nessuna pipì da 24 ore</span>` : pipi24 ? `<span class="chip ok">ok</span>` : ""} · 💩 ${cacca24}</b></div>
       ${ultimaPipi || ultimaCacca ? `<div class="slot"><span>Ultima</span><b>${ultimaPipi ? `💧 ${traQuanto(Date.now() - daOraLocale(ultimaPipi.quando))} fa` : ""}${ultimaPipi && ultimaCacca ? " · " : ""}${ultimaCacca ? `💩 ${traQuanto(Date.now() - daOraLocale(ultimaCacca.quando))} fa` : ""}</b></div>` : ""}
       ${allarme ? `<div class="notice bad small">Negli ultimi giorni avete segnato feci ${allarme.colore === "chiaro" ? "molto chiare" : "con sangue"}: se non l'avete già fatto, sentite la pediatra.</div>` : ""}
-      <div class="tiny" style="margin-top:6px">Indicativo nei primi giorni: circa tante pipì quanti i giorni di vita, poi almeno 6 al giorno. Le prime cacche sono scure (meconio), poi verdi e dal 4°-5° giorno gialle. Pochi pannolini bagnati o feci chiare: senti la pediatra.</div>
+      <div class="tiny" style="margin-top:6px">Ci vuole almeno 1 pipì ogni 24 ore: se passano 24 ore senza, senti la pediatra. Le prime cacche sono scure (meconio), poi verdi e dal 4°-5° giorno gialle. Pochi pannolini bagnati o feci chiare: senti la pediatra.</div>
     </div>`;
 }
 /* riquadro in Home */
