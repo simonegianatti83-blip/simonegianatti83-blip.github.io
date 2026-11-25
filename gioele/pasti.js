@@ -5,16 +5,24 @@
    ===================================================================== */
 "use strict";
 
-const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: true, pastiMin: 6, pastiMax: 7, maxMl: null };
-const regolaPasti = () => ({ ...REGOLA_PASTI_BASE, ...(S.config.pasti || {}) });
+const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: false, pastiMin: 6, pastiMax: 7, maxMl: null };
+function regolaPasti() {
+  const c = { ...(S.config.pasti || {}) };
+  if (!c.confermato) delete c.nascitaGiorno1;   // impostazione vecchia mai scelta a mano: vale la nuova (nascita non conta)
+  return { ...REGOLA_PASTI_BASE, ...c };
+}
 const pastiOrd = () => attivi("pasti").sort((a, b) => b.quando.localeCompare(a.quando));
 const SENI = { "": "—", sx: "Sinistro", dx: "Destro", entrambi: "Entrambi" };
 const LATTI = { artificiale: "latte artificiale", materno: "latte materno tirato" };
 
-/* giorno di vita (il giorno della nascita è il 1°, se impostato così) */
+/* giorni di vita usati per il calcolo: il giorno della nascita conta 0 (o 1° se scelto in "Regola") */
 function giornoDiVita(iso = oggiISO()) {
   const g = giorniDiVita(iso); if (g == null || g < 0) return null;
   return g + (regolaPasti().nascitaGiorno1 ? 1 : 0);
+}
+function etGiorno(iso = oggiISO()) {
+  const g = giornoDiVita(iso); if (g == null) return "";
+  return regolaPasti().nascitaGiorno1 ? `${g}° giorno` : g === 0 ? "giorno della nascita" : g === 1 ? "1 giorno di vita" : `${g} giorni di vita`;
 }
 function mlPerPasto(iso = oggiISO()) {
   const r = regolaPasti(), g = giornoDiVita(iso); if (g == null) return null;
@@ -106,7 +114,7 @@ function vPasti() {
   const descr = p => [p.seno && `🤱 ${SENI[p.seno].toLowerCase()}${p.minSx || p.minDx ? ` (${[p.minSx && "sx " + p.minSx + "′", p.minDx && "dx " + p.minDx + "′"].filter(Boolean).join(", ")})` : ""}`,
     p.ml && `🍼 ${p.ml} ml${p.latte ? " " + (p.latte === "materno" ? "materno" : "artificiale") : ""}`, p.note].filter(Boolean).join(" · ");
   return `<div class="card">
-      <div class="small muted">${gdv}° giorno di vita · regola: ${r.incremento} ml in più ogni giorno</div>
+      <div class="small muted">${etGiorno()} · regola: ${r.incremento} ml in più ogni giorno</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px">
         <div><div class="tiny">Per pasto</div><div style="font-size:26px;font-weight:800">${ml} ml</div></div>
         <div><div class="tiny">Nelle 24 ore (${r.pastiMin}-${r.pastiMax} pasti)</div><div style="font-size:26px;font-weight:800">${ml * r.pastiMin}–${ml * r.pastiMax} ml</div></div>
@@ -123,7 +131,7 @@ function vPasti() {
       const voci = [...g.pasti.map(p => ({ q: p.quando, html: `<div class="slot" data-act="apri-pasto" data-id="${p.id}" style="cursor:pointer"><span><b>${p.quando.slice(11)}</b> ${esc(descr(p))}${p.chi ? `<br><span class="tiny">${esc(p.chi)}</span>` : ""}</span>${p.ml && g.obiettivo ? `<span class="chip ${p.ml >= g.obiettivo ? "ok" : ""}">${p.ml}/${g.obiettivo}</span>` : ""}</div>` })),
         ...pn.lista.map(x => ({ q: x.quando, html: `<div class="slot" data-act="apri-pannolino" data-id="${x.id}" style="cursor:pointer"><span><b>${x.quando.slice(11)}</b> ${esc(descrPannolino(x))}${x.chi ? `<br><span class="tiny">${esc(x.chi)}</span>` : ""}</span>${COLORI_ALLARME.includes(x.colore) ? `<span class="chip bad">⚠️</span>` : ""}</div>` }))]
         .sort((a, b) => b.q.localeCompare(a.q));
-      return `<h2 style="font-size:16px">${g.iso === oggiISO() ? "Oggi" : dataBreve(g.iso)} <span class="tiny">· ${giornoDiVita(g.iso)}° giorno · ${nPasti(g.n)}${g.ml ? " · " + g.ml + " ml" : ""} · 💧 ${pn.pipi} · 💩 ${pn.cacca}${g.obiettivo ? " · indicati " + g.obiettivo + " ml a pasto" : ""}</span></h2>
+      return `<h2 style="font-size:16px">${g.iso === oggiISO() ? "Oggi" : dataBreve(g.iso)} <span class="tiny">· ${etGiorno(g.iso)} · ${nPasti(g.n)}${g.ml ? " · " + g.ml + " ml" : ""} · 💧 ${pn.pipi} · 💩 ${pn.cacca}${g.obiettivo ? " · indicati " + g.obiettivo + " ml a pasto" : ""}</span></h2>
       ${voci.length ? `<div class="card" style="padding:4px 12px">${voci.map(v => v.html).join("")}</div>` : `<div class="tiny">Niente segnato.</div>`}`; }).join("")}
     <div class="tiny" style="margin-top:12px">La regola dei ${r.incremento} ml al giorno e il numero di pasti sono quelli che ci hai indicato: segui sempre le indicazioni della pediatra, che possono cambiare con il peso e la crescita (modificale con “⚙️ Regola”). Se Gioele mangia molto meno del solito, bagna pochi pannolini o è molto sonnolento, senti la pediatra.</div>`;
 }
@@ -159,12 +167,12 @@ function formRegolaPasti() {
     <label class="f">Massimo ml per pasto<input type="text" inputmode="numeric" name="maxMl" value="${r.maxMl ?? ""}" placeholder="nessuno"></label></div>
     <div class="grid2"><label class="f">Pasti al giorno da<input type="text" inputmode="numeric" name="pastiMin" value="${r.pastiMin}"></label>
     <label class="f">a<input type="text" inputmode="numeric" name="pastiMax" value="${r.pastiMax}"></label></div>
-    <label class="check"><input type="checkbox" name="nascitaGiorno1" ${r.nascitaGiorno1 ? "checked" : ""}> Il giorno della nascita conta come 1° giorno</label>
-    <div class="tiny" style="margin-top:6px">Oggi con queste impostazioni: ${giornoDiVita()}° giorno di vita → ${mlPerPasto()} ml a pasto.</div>`,
+    <label class="check"><input type="checkbox" name="nascitaGiorno1" ${r.nascitaGiorno1 ? "checked" : ""}> Conta anche il giorno della nascita (se spuntato il ${S.profilo.nascita ? dataBreve(S.profilo.nascita) : "giorno della nascita"} vale già ${r.incremento} ml; se non spuntato vale 0 ml e si parte con ${r.incremento} ml il giorno dopo)</label>
+    <div class="tiny" style="margin-top:6px">Oggi con queste impostazioni: ${etGiorno()} → ${mlPerPasto()} ml a pasto.</div>`,
   `<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
     const f = $("#sheetForm"), v = n => num(f.elements[n].value);
-    S.config.pasti = { incremento: v("incremento") || 10, maxMl: v("maxMl") || null, pastiMin: v("pastiMin") || 6, pastiMax: Math.max(v("pastiMax") || 7, v("pastiMin") || 6), nascitaGiorno1: f.elements.nascitaGiorno1.checked };
+    S.config.pasti = { incremento: v("incremento") || 10, maxMl: v("maxMl") || null, pastiMin: v("pastiMin") || 6, pastiMax: Math.max(v("pastiMax") || 7, v("pastiMin") || 6), nascitaGiorno1: f.elements.nascitaGiorno1.checked, confermato: true };
     await salva(); toast("Regola salvata");
   });
 }
@@ -227,7 +235,7 @@ function formPannolino(x = {}, preset = {}) {
   ["cacca", "colore"].forEach(n => f.elements[n].addEventListener("change", agg)); agg();
 }
 function boxPannolini() {
-  const gdv = giornoDiVita(), oggi = pannoliniGiorno(oggiISO()), att = pipiAttese(gdv);
+  const gdv = giorniDiVita() == null ? null : giorniDiVita() + 1, oggi = pannoliniGiorno(oggiISO()), att = pipiAttese(gdv);
   const in24 = pannoliniOrd().filter(x => Date.now() - daOraLocale(x.quando) < 864e5);
   const pipi24 = in24.filter(x => x.pipi).length, cacca24 = in24.filter(x => x.cacca).length;
   const ultimaPipi = pannoliniOrd().find(x => x.pipi), ultimaCacca = pannoliniOrd().find(x => x.cacca);
@@ -245,7 +253,7 @@ function boxPannolini() {
 function cardHomePasti() {
   if (!S.profilo.nascita || giorniDiVita() > 400) return "";
   const r = regolaPasti(), oggi = giornata(oggiISO()), ultimo = pastiOrd()[0], p = poppataInCorso();
-  return `<div class="notice info small" data-act="vai-salute" data-sez="pasti" style="cursor:pointer">🍼 <b>Oggi ${oggi.n} su ${r.pastiMin}-${r.pastiMax} pasti</b>${oggi.ml ? ` · ${oggi.ml} ml di rinforzo` : ""} · indicati <b>${mlPerPasto()} ml</b> a pasto (${giornoDiVita()}° giorno)${ultimo ? `<br>Ultimo pasto: ${traQuanto(Date.now() - daOraLocale(ultimo.quando))} fa` : ""}<br>🧷 Oggi 💧 ${pannoliniGiorno(oggiISO()).pipi} pipì · 💩 ${pannoliniGiorno(oggiISO()).cacca} cacche${p ? `<br>⏱️ Poppata in corso (seno ${p.seno === "sx" ? "sinistro" : "destro"})` : ""}</div>`;
+  return `<div class="notice info small" data-act="vai-salute" data-sez="pasti" style="cursor:pointer">🍼 <b>Oggi ${oggi.n} su ${r.pastiMin}-${r.pastiMax} pasti</b>${oggi.ml ? ` · ${oggi.ml} ml di rinforzo` : ""} · indicati <b>${mlPerPasto()} ml</b> a pasto (${etGiorno()})${ultimo ? `<br>Ultimo pasto: ${traQuanto(Date.now() - daOraLocale(ultimo.quando))} fa` : ""}<br>🧷 Oggi 💧 ${pannoliniGiorno(oggiISO()).pipi} pipì · 💩 ${pannoliniGiorno(oggiISO()).cacca} cacche${p ? `<br>⏱️ Poppata in corso (seno ${p.seno === "sx" ? "sinistro" : "destro"})` : ""}</div>`;
 }
 async function azionePasti(act, b) {
   switch (act) {
