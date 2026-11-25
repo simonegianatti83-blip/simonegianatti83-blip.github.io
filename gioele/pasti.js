@@ -34,7 +34,7 @@ function giornata(iso) {
   return {
     iso, pasti: l, n: l.length,
     ml: l.reduce((a, p) => a + (p.ml || 0), 0),
-    minuti: l.reduce((a, p) => a + (p.minSx || 0) + (p.minDx || 0), 0),
+    minuti: l.reduce((a, p) => a + (minutiPasto(p) || 0), 0),
     poppate: l.filter(p => p.seno).length, rinforzi: l.filter(p => p.ml).length,
     obiettivo: mlPerPasto(iso)
   };
@@ -45,6 +45,12 @@ function prossimoSeno() {
   return fine === "sx" ? "dx" : fine === "dx" ? "sx" : "";
 }
 const nPasti = n => n + (n === 1 ? " pasto" : " pasti");
+const hhmm = dt => dt ? dt.slice(11, 16) : "";
+/* minuti tra due orari HH:MM (se la fine è "prima" dell'inizio si è passati la mezzanotte) */
+function minutiTra(da, a) { if (!da || !a) return null; let m = min(a) - min(da); if (m < 0) m += 1440; return m; }
+function piuMinuti(dt, m) { const d = daOraLocale(dt); d.setMinutes(d.getMinutes() + m); return oraLocale(d); }
+const minutiPasto = p => p.minuti ?? (((p.minSx || 0) + (p.minDx || 0)) || null);
+const orarioPasto = p => { const f = p.fine ? hhmm(p.fine) : minutiPasto(p) ? hhmm(piuMinuti(p.quando, minutiPasto(p))) : ""; return hhmm(p.quando) + (f && p.seno ? "–" + f : ""); };
 const traQuanto = ms => { const m = Math.round(ms / 60000); return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + pad(m % 60) + " min"; };
 
 /* ---------- cronometro della poppata (resta sul telefono) ---------- */
@@ -54,6 +60,7 @@ function avviaPoppata(seno) { ls.set("poppataInCorso", { inizio: oraLocale(), da
 function cambiaSeno() {
   const p = poppataInCorso(); if (!p) return;
   p[p.seno === "sx" ? "minSx" : "minDx"] += minutiSegmento(p);
+  if (!p.primo) { p.primo = p.seno; p.minPrimo = p.minSx + p.minDx; }
   p.seno = p.seno === "sx" ? "dx" : "sx"; p.dal = new Date().toISOString();
   ls.set("poppataInCorso", p); render();
 }
@@ -62,7 +69,7 @@ function finePoppata() {
   p[p.seno === "sx" ? "minSx" : "minDx"] += minutiSegmento(p);
   ls.del("poppataInCorso");
   const minSx = Math.round(p.minSx), minDx = Math.round(p.minDx);
-  formPasto({}, { quando: p.inizio, seno: minSx && minDx ? "entrambi" : minDx ? "dx" : "sx", minSx: minSx || null, minDx: minDx || null, finito: p.seno });
+  formPasto({}, { quando: p.inizio, fine: piuMinuti(p.inizio, Math.max(1, Math.round(p.minSx + p.minDx))), seno: minSx && minDx ? "entrambi" : minDx ? "dx" : "sx", primo: p.primo || p.seno, cambio: p.primo ? hhmm(piuMinuti(p.inizio, Math.max(1, Math.round(p.minPrimo)))) : "", finito: p.seno });
 }
 function boxCronometro() {
   const p = poppataInCorso();
@@ -111,7 +118,7 @@ function vPasti() {
   const ultimo = pastiOrd()[0], da = ultimo ? Date.now() - daOraLocale(ultimo.quando) : null;
   const in24 = pastiOrd().filter(p => Date.now() - daOraLocale(p.quando) < 864e5).length;
   const giorni = []; for (let i = 0; i < 10; i++) { const iso = oggiISO(new Date(Date.now() - i * 864e5)), g = giornata(iso); if (g.n || i === 0 || pannoliniGiorno(iso).lista.length) giorni.push(g); }
-  const descr = p => [p.seno && `🤱 ${SENI[p.seno].toLowerCase()}${p.minSx || p.minDx ? ` (${[p.minSx && "sx " + p.minSx + "′", p.minDx && "dx " + p.minDx + "′"].filter(Boolean).join(", ")})` : ""}`,
+  const descr = p => [p.seno && `🤱 ${p.seno === "entrambi" && p.primo ? (p.primo === "sx" ? "sinistro → destro" : "destro → sinistro") : SENI[p.seno].toLowerCase()}${minutiPasto(p) ? ` ${minutiPasto(p)}′` : ""}${p.minSx && p.minDx ? ` (sx ${p.minSx}′, dx ${p.minDx}′)` : ""}`,
     p.ml && `🍼 ${p.ml} ml${p.latte ? " " + (p.latte === "materno" ? "materno" : "artificiale") : ""}`, p.note].filter(Boolean).join(" · ");
   return `<div class="card">
       <div class="small muted">${etGiorno()} · regola: ${r.incremento} ml in più ogni giorno</div>
@@ -128,7 +135,7 @@ function vPasti() {
     ${boxPannolini()}
     <div class="card" style="padding:8px">${graficoPasti(7)}<div class="tiny" style="padding:0 6px">Barre: ml di rinforzo al giorno. Fascia arancione: quantità indicata dalla regola (${r.pastiMin}–${r.pastiMax} pasti × ml per pasto).</div></div>
     ${giorni.map(g => { const pn = pannoliniGiorno(g.iso);
-      const voci = [...g.pasti.map(p => ({ q: p.quando, html: `<div class="slot" data-act="apri-pasto" data-id="${p.id}" style="cursor:pointer"><span><b>${p.quando.slice(11)}</b> ${esc(descr(p))}${p.chi ? `<br><span class="tiny">${esc(p.chi)}</span>` : ""}</span>${p.ml && g.obiettivo ? `<span class="chip ${p.ml >= g.obiettivo ? "ok" : ""}">${p.ml}/${g.obiettivo}</span>` : ""}</div>` })),
+      const voci = [...g.pasti.map(p => ({ q: p.quando, html: `<div class="slot" data-act="apri-pasto" data-id="${p.id}" style="cursor:pointer"><span><b>${orarioPasto(p)}</b> ${esc(descr(p))}${p.chi ? `<br><span class="tiny">${esc(p.chi)}</span>` : ""}</span>${p.ml && g.obiettivo ? `<span class="chip ${p.ml >= g.obiettivo ? "ok" : ""}">${p.ml}/${g.obiettivo}</span>` : ""}</div>` })),
         ...pn.lista.map(x => ({ q: x.quando, html: `<div class="slot" data-act="apri-pannolino" data-id="${x.id}" style="cursor:pointer"><span><b>${x.quando.slice(11)}</b> ${esc(descrPannolino(x))}${x.chi ? `<br><span class="tiny">${esc(x.chi)}</span>` : ""}</span>${COLORI_ALLARME.includes(x.colore) ? `<span class="chip bad">⚠️</span>` : ""}</div>` }))]
         .sort((a, b) => b.q.localeCompare(a.q));
       return `<h2 style="font-size:16px">${g.iso === oggiISO() ? "Oggi" : dataBreve(g.iso)} <span class="tiny">· ${etGiorno(g.iso)} · ${nPasti(g.n)}${g.ml ? " · " + g.ml + " ml" : ""} · 💧 ${pn.pipi} · 💩 ${pn.cacca}${g.obiettivo ? " · indicati " + g.obiettivo + " ml a pasto" : ""}</span></h2>
@@ -138,11 +145,17 @@ function vPasti() {
 function formPasto(p = {}, preset = {}) {
   p = { quando: oraLocale(), chi: mioNome(), latte: ls.get("ultimoLatte", "artificiale"), ...preset, ...p };
   const nuovo = !p.id, ob = mlPerPasto(p.quando.slice(0, 10));
-  apriSheet(nuovo ? "Pasto" : "Pasto", `
-    <label class="f">Quando<input type="datetime-local" name="quando" value="${esc(p.quando)}"></label>
-    <label class="f">Poppata al seno<select name="seno">${Object.entries(SENI).map(([k, t]) => `<option value="${k}" ${p.seno === k ? "selected" : ""}>${k ? t : "Nessuna (solo biberon)"}</option>`).join("")}</select></label>
-    <div class="grid2"><label class="f">Minuti seno sinistro<input type="text" inputmode="numeric" name="minSx" value="${p.minSx ?? ""}"></label>
-    <label class="f">Minuti seno destro<input type="text" inputmode="numeric" name="minDx" value="${p.minDx ?? ""}"></label></div>
+  const fineIni = p.fine ? hhmm(p.fine) : !nuovo && minutiPasto(p) ? hhmm(piuMinuti(p.quando, minutiPasto(p))) : "";
+  apriSheet("Pasto", `
+    <label class="f">Poppata al seno<select name="seno">${Object.entries(SENI).map(([k, t]) => `<option value="${k}" ${(p.seno || "") === k ? "selected" : ""}>${k ? t : "Nessuna (solo biberon)"}</option>`).join("")}</select></label>
+    <label class="f">Data<input type="date" name="data" value="${esc(p.quando.slice(0, 10))}"></label>
+    <div class="grid2"><label class="f">Ora di inizio<input type="time" name="inizio" value="${esc(hhmm(p.quando))}"></label>
+    <label class="f" id="rigaFine">Ora di fine<input type="time" name="fine" value="${esc(fineIni)}"></label></div>
+    <div id="rigaEntrambi" class="grid2">
+      <label class="f">Primo seno<select name="primo"><option value="sx" ${p.primo !== "dx" ? "selected" : ""}>Sinistro</option><option value="dx" ${p.primo === "dx" ? "selected" : ""}>Destro</option></select></label>
+      <label class="f">Cambio seno alle<input type="time" name="cambio" value="${esc(p.cambio || "")}"></label>
+    </div>
+    <div id="durataPasto" class="small" style="margin-top:8px"></div>
     <label class="f">Rinforzo (ml)${ob ? ` – indicati ${ob} ml` : ""}<input type="text" inputmode="numeric" name="ml" value="${p.ml ?? ""}" placeholder="${ob || ""}"></label>
     ${ob ? `<div class="btns" style="margin-top:6px">${[ob - 20, ob - 10, ob, ob + 10].filter(v => v > 0).map(v => `<button type="button" class="btn sm ${v === ob ? "pri" : ""}" data-act="pasto-ml" data-ml="${v}">${v} ml</button>`).join("")}<button type="button" class="btn sm" data-act="pasto-ml" data-ml="">nessuno</button></div>` : ""}
     <label class="f">Tipo di latte del rinforzo<select name="latte">${Object.entries(LATTI).map(([k, t]) => `<option value="${k}" ${p.latte === k ? "selected" : ""}>${t[0].toUpperCase() + t.slice(1)}</option>`).join("")}</select></label>
@@ -151,13 +164,44 @@ function formPasto(p = {}, preset = {}) {
   `${!nuovo ? `<button type="button" class="btn bad" data-act="elimina-voce" data-col="pasti" data-id="${p.id}">Elimina</button><span style="flex:1"></span>` : ""}<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
     const f = $("#sheetForm"), v = n => f.elements[n].value.trim();
-    const dati = { quando: v("quando") || oraLocale(), seno: v("seno"), minSx: num(v("minSx")), minDx: num(v("minDx")), ml: num(v("ml")), latte: v("latte"), chi: v("chi"), note: v("note"), finito: p.finito || "", updatedAt: Date.now() };
-    if (dati.seno === "sx") dati.minDx = null; if (dati.seno === "dx") dati.minSx = null; if (!dati.seno) { dati.minSx = dati.minDx = null; }
-    if (dati.seno && dati.seno !== "entrambi") dati.finito = dati.seno;
-    if (!dati.seno && !dati.ml) throw new Error("Indica la poppata o i ml di rinforzo");
+    const seno = v("seno"), data = v("data") || oggiISO(), inizio = v("inizio"), fine = v("fine"), ml = num(v("ml"));
+    if (!inizio) throw new Error("Inserisci l'ora di inizio");
+    if (seno && !fine) throw new Error("Inserisci l'ora di fine della poppata");
+    if (!seno && !ml) throw new Error("Indica la poppata o i ml di rinforzo");
+    const quando = `${data}T${inizio}`, minuti = seno ? minutiTra(inizio, fine) : null;
+    if (seno && minuti === 0) throw new Error("L'ora di fine è uguale a quella di inizio");
+    if (minuti > 120 && !confirm(`La poppata risulta di ${minuti} minuti (dalle ${inizio} alle ${fine}). È giusto?`)) return false;
+    const dati = { quando, fine: seno ? piuMinuti(quando, minuti) : (fine ? piuMinuti(quando, minutiTra(inizio, fine)) : ""), seno, minuti,
+      minSx: null, minDx: null, primo: "", cambio: "", finito: "", ml, latte: v("latte"), chi: v("chi"), note: v("note"), updatedAt: Date.now() };
+    if (seno === "sx") { dati.minSx = minuti; dati.finito = "sx"; }
+    if (seno === "dx") { dati.minDx = minuti; dati.finito = "dx"; }
+    if (seno === "entrambi") {
+      dati.primo = v("primo"); dati.cambio = v("cambio");
+      const secondo = dati.primo === "sx" ? "dx" : "sx"; dati.finito = secondo;
+      if (dati.cambio) {
+        const m1 = minutiTra(inizio, dati.cambio);
+        if (m1 > minuti) throw new Error("L'ora del cambio seno deve essere tra l'inizio e la fine");
+        dati[dati.primo === "sx" ? "minSx" : "minDx"] = m1; dati[secondo === "sx" ? "minSx" : "minDx"] = minuti - m1;
+      }
+    }
     if (dati.ml) ls.set("ultimoLatte", dati.latte);
     salvaVoce("pasti", p, dati); await salva(); toast("Pasto segnato");
   });
+  const f = $("#sheetForm");
+  const agg = () => {
+    const seno = f.elements.seno.value, ini = f.elements.inizio.value, fin = f.elements.fine.value;
+    $("#rigaEntrambi").classList.toggle("hidden", seno !== "entrambi");
+    $("#rigaFine").firstChild.textContent = seno ? "Ora di fine" : "Ora di fine (facoltativa)";
+    const m = minutiTra(ini, fin);
+    let t = "";
+    if (seno && m != null) {
+      t = `⏱️ Durata: <b>${m} minuti</b>`;
+      if (seno === "entrambi" && f.elements.cambio.value) { const m1 = minutiTra(ini, f.elements.cambio.value); if (m1 <= m) t += ` (${f.elements.primo.value === "sx" ? "sinistro" : "destro"} ${m1}′, ${f.elements.primo.value === "sx" ? "destro" : "sinistro"} ${m - m1}′)`; }
+      if (min(fin) < min(ini)) t += " · finita dopo mezzanotte";
+    }
+    $("#durataPasto").innerHTML = t;
+  };
+  ["seno", "inizio", "fine", "cambio", "primo"].forEach(n => { f.elements[n].addEventListener("input", agg); f.elements[n].addEventListener("change", agg); }); agg();
 }
 function formRegolaPasti() {
   const r = regolaPasti();
@@ -196,16 +240,15 @@ function pannoliniGiorno(iso) {
 function descrPannolino(x) {
   return [x.pipi && "💧 pipì", x.cacca && `💩 cacca${x.colore ? " " + COLORI_CACCA[x.colore].toLowerCase() : ""}${x.consistenza ? ", " + CONSISTENZE[x.consistenza].toLowerCase() : ""}`, x.note].filter(Boolean).join(" · ");
 }
-async function pannolinoRapido(tipo) {
-  S.pannolini.push({ id: uid(), quando: oraLocale(), pipi: tipo !== "cacca", cacca: tipo !== "pipi", chi: mioNome(), creato: Date.now(), updatedAt: Date.now() });
-  await salva();
-  toast(tipo === "pipi" ? "💧 Pipì segnata" : tipo === "cacca" ? "💩 Cacca segnata (tocca la riga per aggiungere il colore)" : "💧💩 Segnato", 3500);
+function pannolinoRapido(tipo) {   // apre il modulo con l'ora attuale, da correggere se serve
+  formPannolino({}, { pipi: tipo !== "cacca", cacca: tipo !== "pipi" });
 }
 function formPannolino(x = {}, preset = {}) {
   x = { quando: oraLocale(), pipi: true, cacca: false, chi: mioNome(), ...preset, ...x };
   const nuovo = !x.id;
-  apriSheet("Pannolino", `
-    <label class="f">Quando<input type="datetime-local" name="quando" value="${esc(x.quando)}"></label>
+  apriSheet(x.pipi && x.cacca ? "Pipì e cacca" : x.cacca ? "Cacca" : "Pipì", `
+    <div class="grid2"><label class="f">Data<input type="date" name="data" value="${esc(x.quando.slice(0, 10))}"></label>
+    <label class="f">Ora<input type="time" name="ora" value="${esc(hhmm(x.quando))}"></label></div>
     <div class="btns" style="margin-top:12px">
       <label class="btn" style="flex:1"><input type="checkbox" name="pipi" ${x.pipi ? "checked" : ""} style="width:22px;height:22px"> 💧 Pipì</label>
       <label class="btn" style="flex:1"><input type="checkbox" name="cacca" ${x.cacca ? "checked" : ""} style="width:22px;height:22px"> 💩 Cacca</label>
@@ -220,11 +263,12 @@ function formPannolino(x = {}, preset = {}) {
   `${!nuovo ? `<button type="button" class="btn bad" data-act="elimina-voce" data-col="pannolini" data-id="${x.id}">Elimina</button><span style="flex:1"></span>` : ""}<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
     const f = $("#sheetForm");
-    const dati = { quando: f.elements.quando.value || oraLocale(), pipi: f.elements.pipi.checked, cacca: f.elements.cacca.checked,
+    if (!f.elements.ora.value) throw new Error("Inserisci l'ora");
+    const dati = { quando: `${f.elements.data.value || oggiISO()}T${f.elements.ora.value}`, pipi: f.elements.pipi.checked, cacca: f.elements.cacca.checked,
       colore: f.elements.cacca.checked ? f.elements.colore.value : "", consistenza: f.elements.cacca.checked ? f.elements.consistenza.value : "",
       chi: f.elements.chi.value.trim(), note: f.elements.note.value.trim(), updatedAt: Date.now() };
     if (!dati.pipi && !dati.cacca) throw new Error("Spunta pipì, cacca o entrambe");
-    salvaVoce("pannolini", x, dati); await salva(); toast("Pannolino segnato");
+    salvaVoce("pannolini", x, dati); await salva(); toast(dati.pipi && dati.cacca ? "💧💩 Segnato" : dati.pipi ? "💧 Pipì segnata" : "💩 Cacca segnata");
   });
   const f = $("#sheetForm");
   const agg = () => {
