@@ -232,6 +232,7 @@ const parseISO = s => { const [y, m, d] = s.split("-").map(Number); return new D
 const dataLunga = s => { const d = parseISO(s); return `${GIORNI[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]} ${d.getFullYear()}`; };
 const dataBreve = s => { if (!s) return ""; const d = parseISO(s); return `${d.getDate()} ${MESI[d.getMonth()]} ${d.getFullYear()}`; };
 function toast(msg, ms = 2800) {
+  document.querySelectorAll(".toast").forEach(x => x.remove());
   const t = document.createElement("div"); t.className = "toast"; t.textContent = msg;
   document.body.appendChild(t); setTimeout(() => t.remove(), ms);
 }
@@ -271,7 +272,7 @@ const fileDel = k => idb("file", "readwrite", s => s.delete(k));
    STATO
    ===================================================================== */
 /* raccolte sincronizzate (per ogni voce vince la modifica più recente) */
-const COLLEZIONI = ["visite", "documenti", "chiusure", "misure", "check", "farmaci", "dosi", "diario", "tappe", "domande", "spese", "pasti"];
+const COLLEZIONI = ["visite", "documenti", "chiusure", "misure", "check", "farmaci", "dosi", "diario", "tappe", "domande", "spese", "pasti", "pannolini"];
 function statoVuoto() {
   return { v: 1, profilo: { nome: "Gioele", updatedAt: 0 }, ...Object.fromEntries(COLLEZIONI.map(k => [k, []])), config: {} };
 }
@@ -820,7 +821,7 @@ function eta(nascita) {
   const n = parseISO(nascita), o = new Date();
   let mesi = (o.getFullYear() - n.getFullYear()) * 12 + o.getMonth() - n.getMonth() - (o.getDate() < n.getDate() ? 1 : 0);
   if (mesi < 0) return "";
-  if (mesi < 1) { const g = Math.round((o - n) / 864e5); return g === 1 ? "1 giorno" : g + " giorni"; }
+  if (mesi < 1) { const g = Math.round((parseISO(oggiISO()) - n) / 864e5); return g === 1 ? "1 giorno" : g + " giorni"; }
   if (mesi < 24) return mesi + (mesi === 1 ? " mese" : " mesi");
   const a = Math.floor(mesi / 12), r = mesi % 12;
   return a + " anni" + (r ? " e " + r + (r === 1 ? " mese" : " mesi") : "");
@@ -979,7 +980,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v11</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v12</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1657,7 +1658,7 @@ document.addEventListener("click", async e => {
 });
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => vai(b.dataset.tab)));
 const AZIONI_SCRITTURA = new Set(["nuova-visita", "nuova-visita-ped", "nota-consulto", "nuova-chiusura", "togli-chiusura", "aggiungi-domanda", "domanda-fatta", "nuova-misura", "nuova-dose",
-  "nuova-febbre", "nuova-spesa", "nuovo-pers", "doc-per-visita", "farmaci-abituali", "scatta-nuovo", "pdf-nuovo", "condividi-silvia", "importa", "importa-cal", "nuova-visita-bil", "elimina-voce", "nuovo-pasto", "poppata-avvia", "poppata-cambia", "poppata-fine", "pasti-regola", "pasti-nascita", "elimina-visita", "elimina-doc"]);
+  "nuova-febbre", "nuova-spesa", "nuovo-pers", "doc-per-visita", "farmaci-abituali", "scatta-nuovo", "pdf-nuovo", "condividi-silvia", "importa", "importa-cal", "nuova-visita-bil", "elimina-voce", "nuovo-pasto", "pannolino-rapido", "nuovo-pannolino", "poppata-avvia", "poppata-cambia", "poppata-fine", "pasti-regola", "pasti-nascita", "elimina-visita", "elimina-doc"]);
 function vai(tab) { vista = tab; ls.set("tab", tab); render(); window.scrollTo(0, 0); }
 $("#fab").addEventListener("click", () => {
   if (soloLettura()) return;
@@ -1670,6 +1671,7 @@ $("#fab").addEventListener("click", () => {
       <button type="button" class="btn" data-act="pdf-nuovo">📄 Carica un PDF / file</button>
       <button type="button" class="btn" data-act="nuovo-pers">🪪 Documento personale (nascita, tessera, identità…)</button>
       <button type="button" class="btn" data-act="nuovo-pasto">🍼 Pasto (poppata / rinforzo)</button>
+      <button type="button" class="btn" data-act="nuovo-pannolino">🧷 Pannolino (pipì / cacca)</button>
       <button type="button" class="btn" data-act="nuova-dose">💊 Ho dato un farmaco</button>
       <button type="button" class="btn" data-act="nuova-febbre">🌡️ Febbre / sintomi</button>
       <button type="button" class="btn" data-act="nuova-misura">📏 Peso e misure</button>

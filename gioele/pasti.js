@@ -102,7 +102,7 @@ function vPasti() {
   const r = regolaPasti(), oggi = giornata(oggiISO()), gdv = giornoDiVita(), ml = mlPerPasto();
   const ultimo = pastiOrd()[0], da = ultimo ? Date.now() - daOraLocale(ultimo.quando) : null;
   const in24 = pastiOrd().filter(p => Date.now() - daOraLocale(p.quando) < 864e5).length;
-  const giorni = []; for (let i = 0; i < 10; i++) { const g = giornata(oggiISO(new Date(Date.now() - i * 864e5))); if (g.n || i === 0) giorni.push(g); }
+  const giorni = []; for (let i = 0; i < 10; i++) { const iso = oggiISO(new Date(Date.now() - i * 864e5)), g = giornata(iso); if (g.n || i === 0 || pannoliniGiorno(iso).lista.length) giorni.push(g); }
   const descr = p => [p.seno && `🤱 ${SENI[p.seno].toLowerCase()}${p.minSx || p.minDx ? ` (${[p.minSx && "sx " + p.minSx + "′", p.minDx && "dx " + p.minDx + "′"].filter(Boolean).join(", ")})` : ""}`,
     p.ml && `🍼 ${p.ml} ml${p.latte ? " " + (p.latte === "materno" ? "materno" : "artificiale") : ""}`, p.note].filter(Boolean).join(" · ");
   return `<div class="card">
@@ -117,9 +117,14 @@ function vPasti() {
       <div class="btns"><button type="button" class="btn pri" data-act="nuovo-pasto">🍼 Segna un pasto</button><button type="button" class="btn sm" data-act="pasti-regola">⚙️ Regola</button></div>
     </div>
     ${boxCronometro()}
+    ${boxPannolini()}
     <div class="card" style="padding:8px">${graficoPasti(7)}<div class="tiny" style="padding:0 6px">Barre: ml di rinforzo al giorno. Fascia arancione: quantità indicata dalla regola (${r.pastiMin}–${r.pastiMax} pasti × ml per pasto).</div></div>
-    ${giorni.map(g => `<h2 style="font-size:16px">${g.iso === oggiISO() ? "Oggi" : dataBreve(g.iso)} <span class="tiny">· ${giornoDiVita(g.iso)}° giorno · ${nPasti(g.n)}${g.ml ? " · " + g.ml + " ml" : ""}${g.obiettivo ? " · indicati " + g.obiettivo + " ml a pasto" : ""}</span></h2>
-      ${g.pasti.length ? `<div class="card" style="padding:4px 12px">${g.pasti.slice().reverse().map(p => `<div class="slot" data-act="apri-pasto" data-id="${p.id}" style="cursor:pointer"><span><b>${p.quando.slice(11)}</b> ${esc(descr(p))}${p.chi ? `<br><span class="tiny">${esc(p.chi)}</span>` : ""}</span>${p.ml && g.obiettivo ? `<span class="chip ${p.ml >= g.obiettivo ? "ok" : ""}">${p.ml}/${g.obiettivo}</span>` : ""}</div>`).join("")}</div>` : `<div class="tiny">Nessun pasto segnato.</div>`}`).join("")}
+    ${giorni.map(g => { const pn = pannoliniGiorno(g.iso);
+      const voci = [...g.pasti.map(p => ({ q: p.quando, html: `<div class="slot" data-act="apri-pasto" data-id="${p.id}" style="cursor:pointer"><span><b>${p.quando.slice(11)}</b> ${esc(descr(p))}${p.chi ? `<br><span class="tiny">${esc(p.chi)}</span>` : ""}</span>${p.ml && g.obiettivo ? `<span class="chip ${p.ml >= g.obiettivo ? "ok" : ""}">${p.ml}/${g.obiettivo}</span>` : ""}</div>` })),
+        ...pn.lista.map(x => ({ q: x.quando, html: `<div class="slot" data-act="apri-pannolino" data-id="${x.id}" style="cursor:pointer"><span><b>${x.quando.slice(11)}</b> ${esc(descrPannolino(x))}${x.chi ? `<br><span class="tiny">${esc(x.chi)}</span>` : ""}</span>${COLORI_ALLARME.includes(x.colore) ? `<span class="chip bad">⚠️</span>` : ""}</div>` }))]
+        .sort((a, b) => b.q.localeCompare(a.q));
+      return `<h2 style="font-size:16px">${g.iso === oggiISO() ? "Oggi" : dataBreve(g.iso)} <span class="tiny">· ${giornoDiVita(g.iso)}° giorno · ${nPasti(g.n)}${g.ml ? " · " + g.ml + " ml" : ""} · 💧 ${pn.pipi} · 💩 ${pn.cacca}${g.obiettivo ? " · indicati " + g.obiettivo + " ml a pasto" : ""}</span></h2>
+      ${voci.length ? `<div class="card" style="padding:4px 12px">${voci.map(v => v.html).join("")}</div>` : `<div class="tiny">Niente segnato.</div>`}`; }).join("")}
     <div class="tiny" style="margin-top:12px">La regola dei ${r.incremento} ml al giorno e il numero di pasti sono quelli che ci hai indicato: segui sempre le indicazioni della pediatra, che possono cambiare con il peso e la crescita (modificale con “⚙️ Regola”). Se Gioele mangia molto meno del solito, bagna pochi pannolini o è molto sonnolento, senti la pediatra.</div>`;
 }
 function formPasto(p = {}, preset = {}) {
@@ -163,15 +168,91 @@ function formRegolaPasti() {
     await salva(); toast("Regola salvata");
   });
 }
+
+/* =====================================================================
+   PANNOLINI: pipì e cacca
+   ===================================================================== */
+const pannoliniOrd = () => attivi("pannolini").sort((a, b) => b.quando.localeCompare(a.quando));
+const COLORI_CACCA = {
+  "": "—", meconio: "Nero-verdastro (meconio)", verde: "Verde", senape: "Giallo senape", giallo: "Giallo", marrone: "Marrone",
+  chiaro: "Bianco / grigio chiaro / color stucco", sangue: "Con sangue / rossa"
+};
+const CONSISTENZE = { "": "—", liquida: "Liquida", molle: "Morbida / grumosa", formata: "Formata", dura: "Dura" };
+const COLORI_ALLARME = ["chiaro", "sangue"];
+/* quante pipì ci si aspetta di solito nei primi giorni (indicativo) */
+const pipiAttese = gdv => gdv == null ? null : Math.min(Math.max(gdv, 1), 6);
+function pannoliniGiorno(iso) {
+  const l = pannoliniOrd().filter(x => x.quando.startsWith(iso)).reverse();
+  return { lista: l, pipi: l.filter(x => x.pipi).length, cacca: l.filter(x => x.cacca).length };
+}
+function descrPannolino(x) {
+  return [x.pipi && "💧 pipì", x.cacca && `💩 cacca${x.colore ? " " + COLORI_CACCA[x.colore].toLowerCase() : ""}${x.consistenza ? ", " + CONSISTENZE[x.consistenza].toLowerCase() : ""}`, x.note].filter(Boolean).join(" · ");
+}
+async function pannolinoRapido(tipo) {
+  S.pannolini.push({ id: uid(), quando: oraLocale(), pipi: tipo !== "cacca", cacca: tipo !== "pipi", chi: mioNome(), creato: Date.now(), updatedAt: Date.now() });
+  await salva();
+  toast(tipo === "pipi" ? "💧 Pipì segnata" : tipo === "cacca" ? "💩 Cacca segnata (tocca la riga per aggiungere il colore)" : "💧💩 Segnato", 3500);
+}
+function formPannolino(x = {}, preset = {}) {
+  x = { quando: oraLocale(), pipi: true, cacca: false, chi: mioNome(), ...preset, ...x };
+  const nuovo = !x.id;
+  apriSheet("Pannolino", `
+    <label class="f">Quando<input type="datetime-local" name="quando" value="${esc(x.quando)}"></label>
+    <div class="btns" style="margin-top:12px">
+      <label class="btn" style="flex:1"><input type="checkbox" name="pipi" ${x.pipi ? "checked" : ""} style="width:22px;height:22px"> 💧 Pipì</label>
+      <label class="btn" style="flex:1"><input type="checkbox" name="cacca" ${x.cacca ? "checked" : ""} style="width:22px;height:22px"> 💩 Cacca</label>
+    </div>
+    <div id="dettagliCacca">
+      <label class="f">Colore<select name="colore">${Object.entries(COLORI_CACCA).map(([k, t]) => `<option value="${k}" ${x.colore === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <label class="f">Consistenza<select name="consistenza">${Object.entries(CONSISTENZE).map(([k, t]) => `<option value="${k}" ${x.consistenza === k ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <div id="avvisoCacca"></div>
+    </div>
+    <div class="grid2"><label class="f">Chi<input type="text" name="chi" value="${esc(x.chi || "")}"></label>
+    <label class="f">Note<input type="text" name="note" value="${esc(x.note || "")}" placeholder="es. arrossamento"></label></div>`,
+  `${!nuovo ? `<button type="button" class="btn bad" data-act="elimina-voce" data-col="pannolini" data-id="${x.id}">Elimina</button><span style="flex:1"></span>` : ""}<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
+  async () => {
+    const f = $("#sheetForm");
+    const dati = { quando: f.elements.quando.value || oraLocale(), pipi: f.elements.pipi.checked, cacca: f.elements.cacca.checked,
+      colore: f.elements.cacca.checked ? f.elements.colore.value : "", consistenza: f.elements.cacca.checked ? f.elements.consistenza.value : "",
+      chi: f.elements.chi.value.trim(), note: f.elements.note.value.trim(), updatedAt: Date.now() };
+    if (!dati.pipi && !dati.cacca) throw new Error("Spunta pipì, cacca o entrambe");
+    salvaVoce("pannolini", x, dati); await salva(); toast("Pannolino segnato");
+  });
+  const f = $("#sheetForm");
+  const agg = () => {
+    $("#dettagliCacca").classList.toggle("hidden", !f.elements.cacca.checked);
+    $("#avvisoCacca").innerHTML = COLORI_ALLARME.includes(f.elements.colore.value)
+      ? `<div class="notice bad small">${f.elements.colore.value === "chiaro" ? "Feci molto chiare (bianche, grigie, color stucco) in un neonato vanno segnalate <b>subito</b> alla pediatra, anche se Gioele sta bene." : "Sangue nelle feci: senti la pediatra (o la guardia medica 116117 fuori orario)."}</div>` : "";
+  };
+  ["cacca", "colore"].forEach(n => f.elements[n].addEventListener("change", agg)); agg();
+}
+function boxPannolini() {
+  const gdv = giornoDiVita(), oggi = pannoliniGiorno(oggiISO()), att = pipiAttese(gdv);
+  const in24 = pannoliniOrd().filter(x => Date.now() - daOraLocale(x.quando) < 864e5);
+  const pipi24 = in24.filter(x => x.pipi).length, cacca24 = in24.filter(x => x.cacca).length;
+  const ultimaPipi = pannoliniOrd().find(x => x.pipi), ultimaCacca = pannoliniOrd().find(x => x.cacca);
+  const allarme = pannoliniOrd().find(x => COLORI_ALLARME.includes(x.colore) && Date.now() - daOraLocale(x.quando) < 3 * 864e5);
+  return `<div class="card"><b>🧷 Pannolini</b>
+      <div class="btns"><button type="button" class="btn pri" data-act="pannolino-rapido" data-tipo="pipi">💧 Pipì</button><button type="button" class="btn pri" data-act="pannolino-rapido" data-tipo="cacca">💩 Cacca</button><button type="button" class="btn" data-act="pannolino-rapido" data-tipo="entrambi">💧💩 Entrambe</button><button type="button" class="btn sm" data-act="nuovo-pannolino">✏️ Con dettagli</button></div>
+      <div class="slot"><span>Oggi</span><b>💧 ${oggi.pipi} · 💩 ${oggi.cacca}</b></div>
+      <div class="slot"><span>Ultime 24 ore</span><b>💧 ${pipi24} ${att && pipi24 < att ? `<span class="chip warn">di solito almeno ${att}</span>` : pipi24 ? `<span class="chip ok">ok</span>` : ""} · 💩 ${cacca24}</b></div>
+      ${ultimaPipi || ultimaCacca ? `<div class="slot"><span>Ultima</span><b>${ultimaPipi ? `💧 ${traQuanto(Date.now() - daOraLocale(ultimaPipi.quando))} fa` : ""}${ultimaPipi && ultimaCacca ? " · " : ""}${ultimaCacca ? `💩 ${traQuanto(Date.now() - daOraLocale(ultimaCacca.quando))} fa` : ""}</b></div>` : ""}
+      ${allarme ? `<div class="notice bad small">Negli ultimi giorni avete segnato feci ${allarme.colore === "chiaro" ? "molto chiare" : "con sangue"}: se non l'avete già fatto, sentite la pediatra.</div>` : ""}
+      <div class="tiny" style="margin-top:6px">Indicativo nei primi giorni: circa tante pipì quanti i giorni di vita, poi almeno 6 al giorno. Le prime cacche sono scure (meconio), poi verdi e dal 4°-5° giorno gialle. Pochi pannolini bagnati o feci chiare: senti la pediatra.</div>
+    </div>`;
+}
 /* riquadro in Home */
 function cardHomePasti() {
   if (!S.profilo.nascita || giorniDiVita() > 400) return "";
   const r = regolaPasti(), oggi = giornata(oggiISO()), ultimo = pastiOrd()[0], p = poppataInCorso();
-  return `<div class="notice info small" data-act="vai-salute" data-sez="pasti" style="cursor:pointer">🍼 <b>Oggi ${oggi.n} su ${r.pastiMin}-${r.pastiMax} pasti</b>${oggi.ml ? ` · ${oggi.ml} ml di rinforzo` : ""} · indicati <b>${mlPerPasto()} ml</b> a pasto (${giornoDiVita()}° giorno)${ultimo ? `<br>Ultimo: ${traQuanto(Date.now() - daOraLocale(ultimo.quando))} fa` : ""}${p ? `<br>⏱️ Poppata in corso (seno ${p.seno === "sx" ? "sinistro" : "destro"})` : ""}</div>`;
+  return `<div class="notice info small" data-act="vai-salute" data-sez="pasti" style="cursor:pointer">🍼 <b>Oggi ${oggi.n} su ${r.pastiMin}-${r.pastiMax} pasti</b>${oggi.ml ? ` · ${oggi.ml} ml di rinforzo` : ""} · indicati <b>${mlPerPasto()} ml</b> a pasto (${giornoDiVita()}° giorno)${ultimo ? `<br>Ultimo pasto: ${traQuanto(Date.now() - daOraLocale(ultimo.quando))} fa` : ""}<br>🧷 Oggi 💧 ${pannoliniGiorno(oggiISO()).pipi} pipì · 💩 ${pannoliniGiorno(oggiISO()).cacca} cacche${p ? `<br>⏱️ Poppata in corso (seno ${p.seno === "sx" ? "sinistro" : "destro"})` : ""}</div>`;
 }
 async function azionePasti(act, b) {
   switch (act) {
     case "nuovo-pasto": formPasto(); return true;
+    case "pannolino-rapido": await pannolinoRapido(b.dataset.tipo); return true;
+    case "nuovo-pannolino": formPannolino(); return true;
+    case "apri-pannolino": formPannolino(S.pannolini.find(x => x.id === b.dataset.id)); return true;
     case "apri-pasto": formPasto(S.pasti.find(x => x.id === b.dataset.id)); return true;
     case "pasto-ml": $("#sheetForm").elements.ml.value = b.dataset.ml; return true;
     case "pasti-regola": formRegolaPasti(); return true;
