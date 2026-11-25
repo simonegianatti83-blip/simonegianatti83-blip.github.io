@@ -326,30 +326,66 @@ function cfValido(cf) {
   return String.fromCharCode(65 + (s % 26)) === cf[15];
 }
 const CF_RE = /^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/;
-function trovaCodiceFiscale(T) {
+/* data di nascita contenuta nel codice fiscale (per capire se il codice è di Gioele o di un genitore) */
+const CF_MESI = "ABCDEHLMPRST", CF_OMO = "LMNPQRSTUV";
+function dataDaCF(cf) {
+  const n = s => [...s].map(c => /\d/.test(c) ? c : String(CF_OMO.indexOf(c))).join("");
+  const aa = +n(cf.slice(6, 8)), mm = CF_MESI.indexOf(cf[8]) + 1; let gg = +n(cf.slice(9, 11));
+  if (!mm || isNaN(aa) || isNaN(gg)) return null;
+  if (gg > 40) gg -= 40;
+  return { aa, mm, gg };
+}
+function cfCoerente(cf, nascita) {   // true / false / null (non verificabile)
+  if (!cf || !nascita || !CF_RE.test(cf)) return null;
+  const d = dataDaCF(cf); if (!d) return false;
+  const [a, m, g] = nascita.split("-").map(Number);
+  return d.aa === a % 100 && d.mm === m && d.gg === g;
+}
+/* corregge gli scambi tipici dell'OCR (I/1, O/0, B/8…) secondo la posizione nel codice */
+function correggiCF(c) {
   const aLettera = { 0: "O", 1: "I", 2: "Z", 4: "A", 5: "S", 6: "G", 8: "B" }, aCifra = { O: "0", D: "0", I: "1", B: "8", G: "6", Z: "2" };
   const posLettere = new Set([0, 1, 2, 3, 4, 5, 8, 11, 15]);
-  let quasi = "";
-  for (const riga of T.split("\n")) {
-    const r = riga.replace(/[^A-Z0-9]/g, "");
-    for (let i = 0; i + 16 <= r.length; i++) {
-      const c = r.slice(i, i + 16);
-      const corr = [...c].map((ch, k) => posLettere.has(k) ? (aLettera[ch] || ch) : (aCifra[ch] || ch)).join("");
-      if (!CF_RE.test(corr)) continue;
-      if (cfValido(corr)) return corr;
-      if (!quasi && CF_RE.test(c)) quasi = c;   // forma giusta ma controllo errato: meglio di niente
-    }
-  }
-  return quasi;
+  return [...c].map((ch, k) => posLettere.has(k) ? (aLettera[ch] || ch) : (aCifra[ch] || ch)).join("");
 }
-function analizzaTestoPersonale(testo) {
+/* Cerca il codice fiscale SOLO dove è indicato come tale ("Codice fiscale", "Cod. fisc.", "C.F.", "CF").
+   Se nel documento ce ne sono più di uno (es. genitore e figlio), sceglie quello con la data di nascita di Gioele.
+   Senza etichetta accetta solo un codice scritto per intero, isolato e con il carattere di controllo giusto. */
+function trovaCodiceFiscale(T, nascita) {
+  const candidati = [];
+  const etichetta = /(?:CODICE\s*FISCALE|COD\.?\s*FISC(?:ALE)?\.?|C\.\s?F\.?|\bCF\b|FISCAL\s*CODE|TAX\s*CODE)\s*(?:DEL\s+\w+\s*)?[:.\-]?\s*(?:N\.?|NR\.?|N°)?\s*/g;
+  for (const m of T.matchAll(etichetta)) {
+    const dopo = T.slice(m.index + m[0].length, m.index + m[0].length + 30).split("\n")[0];
+    /* il codice può essere scritto con qualche spazio in mezzo: si prendono i primi 16 caratteri utili */
+    const grezzo = dopo.replace(/[^A-Z0-9]/g, "").slice(0, 16);
+    if (grezzo.length < 16) continue;
+    const corr = correggiCF(grezzo);
+    if (CF_RE.test(corr)) candidati.push({ cf: corr, ok: cfValido(corr), etichetta: true });
+  }
+  if (!candidati.length) {
+    for (const m of T.matchAll(/(?:^|[^A-Z0-9])([A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z])(?![A-Z0-9])/g))
+      if (cfValido(m[1])) candidati.push({ cf: m[1], ok: true, etichetta: false });
+  }
+  if (!candidati.length) return null;
+  if (nascita) {   // si tiene solo il codice di Gioele
+    const suo = candidati.find(c => cfCoerente(c.cf, nascita));
+    return suo ? { cf: suo.cf, verificato: true } : null;
+  }
+  const diversi = [...new Map(candidati.map(c => [c.cf, c])).values()];
+  if (diversi.length === 1) return { cf: diversi[0].cf, verificato: diversi[0].ok };
+  /* più codici e data di nascita sconosciuta: il bambino è il più giovane; da far confermare */
+  const yy = new Date().getFullYear() % 100;
+  const chiave = c => { const d = dataDaCF(c.cf); if (!d) return ""; return `${d.aa <= yy ? 2000 + d.aa : 1900 + d.aa}-${String(d.mm).padStart(2, "0")}-${String(d.gg).padStart(2, "0")}`; };
+  const piuGiovane = diversi.sort((x, y) => chiave(y).localeCompare(chiave(x)))[0];
+  return { cf: piuGiovane.cf, verificato: false };
+}
+function analizzaTestoPersonale(testo, nascita) {
   const t = testo.toLowerCase(), T = testo.toUpperCase();
   const punti = REGOLE_PERS.map(r => ({ ...r, p: r.parole.reduce((s, [re, w]) => s + conta(t, re) * w, 0) })).sort((a, b) => b.p - a.p);
   const a = punti[0], b = punti[1];
   const an = a.p >= 4 ? { cat: a.cat, conf: a.p >= 9 && a.p >= b.p * 1.6 ? "alta" : a.p >= 6 ? "media" : "bassa" } : { cat: "altro_pers", conf: "bassa" };
   /* codice fiscale (con correzione degli errori tipici dell'OCR: O/0, I/1) */
-  const cf = trovaCodiceFiscale(T);
-  if (cf) an.cf = cf;
+  const cf = trovaCodiceFiscale(T, nascita || analizzaNascitaDa(testo));
+  if (cf) { an.cf = cf.cf; an.cfVerificato = cf.verificato; }
   /* numero del documento */
   const num = {
     tessera: /\b(80\d{18})\b/,
@@ -384,7 +420,12 @@ function analizzaTestoPersonale(testo) {
   an.titolo = TITOLI_PERS[an.cat] || "";
   return an;
 }
-async function analizzaFilesPersonali(files, avanzamento) {
+/* se Gioele non ha ancora la data di nascita, la si prende dal documento ("nato il …") */
+function analizzaNascitaDa(testo) {
+  const d = tutteLeDate(testo).find(x => /(nat[oa]|nascita|birth)[^\n]{0,30}$/.test(x.prima));
+  return d ? d.iso : "";
+}
+async function analizzaFilesPersonali(files, avanzamento, nascita) {
   const { testo, metodo } = await estraiTestoFiles(files, avanzamento);
-  return { ...analizzaTestoPersonale(testo), metodo, caratteri: testo.replace(/\s/g, "").length, testo: testo.replace(/[ \t]{2,}/g, "  ").slice(0, 4000) };
+  return { ...analizzaTestoPersonale(testo, nascita), metodo, caratteri: testo.replace(/\s/g, "").length, testo: testo.replace(/[ \t]{2,}/g, "  ").slice(0, 4000) };
 }
