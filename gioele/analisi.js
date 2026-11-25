@@ -288,3 +288,103 @@ async function analizzaFiles(files, nascita, avanzamento) {
   const an = analizzaTesto(testo, nascita);
   return { ...an, metodo, caratteri: testo.replace(/\s/g, "").length, testo: testo.replace(/[ \t]{2,}/g, "  ").slice(0, 8000) };
 }
+
+/* =====================================================================
+   DOCUMENTI PERSONALI (non sanitari): certificato di nascita, tessera
+   sanitaria, carta d'identità, passaporto, residenza, ISEE, esenzioni…
+   ===================================================================== */
+const REGOLE_PERS = [
+  { cat: "nascita", parole: [["atto di nascita", 6], ["certificato di nascita", 7], ["estratto (per riassunto )?(dell'|dal )?(atto|registro)", 3], ["registr[oi] (degli atti )?di nascita", 5], ["ufficiale dello stato civile", 4], ["stato civile", 2], ["[eè] nat[oa]", 2], ["nascita", 1]] },
+  { cat: "tessera", parole: [["tessera sanitaria", 7], ["tessera europea", 5], ["\\bteam\\b", 2], ["codice fiscale", 3], ["ministero dell.economia", 3], ["agenzia (delle )?entrate", 3], ["\\b80380\\d{10,}", 4]] },
+  { cat: "identita", parole: [["carta (d.|di )identit", 7], ["\\bcie\\b", 3], ["identity card", 5], ["statura", 2], ["cittadinanza", 2], ["valida per l.espatrio", 4], ["\\bc[a-z]\\d{5}[a-z]{2}\\b", 4]] },
+  { cat: "passaporto", parole: [["passaporto", 7], ["passport", 6], ["p<ita", 6]] },
+  { cat: "residenza", parole: [["certificato di residenza", 7], ["residenza", 3], ["stato di famiglia", 7], ["certificato anagrafico", 5], ["anagrafe", 2]] },
+  { cat: "isee", parole: [["\\bisee\\b", 6], ["\\bdsu\\b", 4], ["assegno unico", 6], ["\\binps\\b", 3], ["bonus (nido|asilo)", 5]] },
+  { cat: "esenzione", parole: [["esenzione", 5], ["invalidit", 4], ["legge 104", 6], ["104/92", 6], ["handicap", 3], ["indennit[aà] di (frequenza|accompagnamento)", 5]] },
+  { cat: "assicurazione", parole: [["polizza", 5], ["assicura", 4], ["contraente", 3], ["massimale", 3]] },
+  { cat: "scuola", parole: [["iscrizione", 3], ["asilo nido", 5], ["scuola (dell.infanzia|primaria|materna)", 5], ["istituto comprensivo", 5], ["anno scolastico", 4], ["educativ", 2]] }
+];
+const TITOLI_PERS = { nascita: "Certificato di nascita", tessera: "Tessera sanitaria", identita: "Carta d'identità", passaporto: "Passaporto", residenza: "Certificato di residenza / stato di famiglia",
+  isee: "ISEE / assegno unico", esenzione: "Esenzione / invalidità", assicurazione: "Polizza assicurativa", scuola: "Iscrizione nido / scuola" };
+function tutteLeDate(testo) {   // come trovaDate, ma tiene anche le date future (scadenze)
+  const out = [];
+  const add = (g, m, a, idx) => {
+    a = +a; if (a < 100) a += a > 50 ? 1900 : 2000;
+    if (m < 1 || m > 12 || g < 1 || g > 31 || a < 1990 || a > 2100) return;
+    const d = new Date(a, m - 1, g); if (d.getMonth() !== m - 1) return;
+    out.push({ iso: `${a}-${String(m).padStart(2, "0")}-${String(g).padStart(2, "0")}`, idx, prima: testo.slice(Math.max(0, idx - 45), idx).toLowerCase() });
+  };
+  for (const m of testo.matchAll(/\b(\d{1,2})[\/.\-\s](\d{1,2})[\/.\-\s](\d{4})\b/g)) add(+m[1], +m[2], m[3], m.index);
+  for (const m of testo.matchAll(new RegExp(`\\b(\\d{1,2})\\s+(${MESI_LUNGHI.join("|")})\\s+(\\d{4})\\b`, "gi"))) add(+m[1], MESI_LUNGHI.indexOf(m[2].toLowerCase()) + 1, m[3], m.index);
+  return out;
+}
+/* codice fiscale: corregge gli scambi tipici dell'OCR e verifica il carattere di controllo */
+const CF_DISPARI = { 0: 1, 1: 0, 2: 5, 3: 7, 4: 9, 5: 13, 6: 15, 7: 17, 8: 19, 9: 21, A: 1, B: 0, C: 5, D: 7, E: 9, F: 13, G: 15, H: 17, I: 19, J: 21, K: 2, L: 4, M: 18, N: 20, O: 11, P: 3, Q: 6, R: 8, S: 12, T: 14, U: 16, V: 10, W: 22, X: 25, Y: 24, Z: 23 };
+function cfValido(cf) {
+  let s = 0;
+  for (let i = 0; i < 15; i++) { const c = cf[i]; s += i % 2 === 0 ? CF_DISPARI[c] : (/\d/.test(c) ? +c : c.charCodeAt(0) - 65); }
+  return String.fromCharCode(65 + (s % 26)) === cf[15];
+}
+const CF_RE = /^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/;
+function trovaCodiceFiscale(T) {
+  const aLettera = { 0: "O", 1: "I", 2: "Z", 4: "A", 5: "S", 6: "G", 8: "B" }, aCifra = { O: "0", D: "0", I: "1", B: "8", G: "6", Z: "2" };
+  const posLettere = new Set([0, 1, 2, 3, 4, 5, 8, 11, 15]);
+  let quasi = "";
+  for (const riga of T.split("\n")) {
+    const r = riga.replace(/[^A-Z0-9]/g, "");
+    for (let i = 0; i + 16 <= r.length; i++) {
+      const c = r.slice(i, i + 16);
+      const corr = [...c].map((ch, k) => posLettere.has(k) ? (aLettera[ch] || ch) : (aCifra[ch] || ch)).join("");
+      if (!CF_RE.test(corr)) continue;
+      if (cfValido(corr)) return corr;
+      if (!quasi && CF_RE.test(c)) quasi = c;   // forma giusta ma controllo errato: meglio di niente
+    }
+  }
+  return quasi;
+}
+function analizzaTestoPersonale(testo) {
+  const t = testo.toLowerCase(), T = testo.toUpperCase();
+  const punti = REGOLE_PERS.map(r => ({ ...r, p: r.parole.reduce((s, [re, w]) => s + conta(t, re) * w, 0) })).sort((a, b) => b.p - a.p);
+  const a = punti[0], b = punti[1];
+  const an = a.p >= 4 ? { cat: a.cat, conf: a.p >= 9 && a.p >= b.p * 1.6 ? "alta" : a.p >= 6 ? "media" : "bassa" } : { cat: "altro_pers", conf: "bassa" };
+  /* codice fiscale (con correzione degli errori tipici dell'OCR: O/0, I/1) */
+  const cf = trovaCodiceFiscale(T);
+  if (cf) an.cf = cf;
+  /* numero del documento */
+  const num = {
+    tessera: /\b(80\d{18})\b/,
+    identita: /\b(C[A-Z]\s?\d{5}\s?[A-Z]{2})\b/,
+    passaporto: /\b([A-Z]{2}\d{7})\b/
+  }[an.cat];
+  const mNum = num && T.match(num);
+  if (mNum) an.numero = mNum[1].replace(/\s/g, "");
+  else { const m = testo.match(/\b(?:n(?:umero|r)?\.?|n°)\s*(?:documento|tessera|polizza|atto|pratica|protocollo)?\s*[:.]?\s*([A-Z0-9][A-Z0-9\/\-]{3,24})/i); if (m && /\d/.test(m[1])) an.numero = m[1]; }
+  /* date */
+  const date = tutteLeDate(testo);
+  const dopo = re => date.find(d => re.test(d.prima));
+  const scad = dopo(/(scadenza|scade|valid[ao]? (fino|sino) al?|expiry|date of expiry|fino al)[^\n]{0,30}$/);
+  const ril = dopo(/(rilascio|rilasciat[oa]|emissione|emess[oa]|data di emissione|issue|del)[^\n]{0,30}$/);
+  const nasc = dopo(/(nat[oa]|nascita|birth|nato\/a)[^\n]{0,30}$/);
+  if (scad) an.scadenza = scad.iso;
+  if (ril && ril.iso !== nasc?.iso && ril.iso !== scad?.iso) an.rilascio = ril.iso;
+  if (nasc) an.nascita = nasc.iso;
+  if (!an.rilascio && !["tessera", "identita", "passaporto"].includes(an.cat)) {   // certificati: la data più recente che non sia la nascita
+    const oggi = new Date().toISOString().slice(0, 10);
+    const r = date.filter(d => d.iso <= oggi && d.iso !== an.nascita && !/(nat[oa]|nascita)[^\n]{0,30}$/.test(d.prima)).sort((x, y) => y.iso.localeCompare(x.iso))[0];
+    if (r) an.rilascio = r.iso;
+  }
+  if (!an.scadenza && ["tessera", "identita", "passaporto"].includes(an.cat)) {   // la data più lontana nel futuro è di solito la scadenza
+    const fut = date.filter(d => d.iso > new Date().toISOString().slice(0, 10)).sort((x, y) => y.iso.localeCompare(x.iso))[0];
+    if (fut) an.scadenza = fut.iso;
+  }
+  const luogo = testo.match(/nat[oa]\s+(?:a|in)\s+([A-ZÀ-Úa-zà-ú' ]{2,40}?)\s*(?:\(\s*[A-Z]{2}\s*\))?\s*(?:il|in data|,|\n)/i);
+  if (luogo) an.luogoNascita = luogo[1].trim().replace(/\b\w/g, c => c.toUpperCase()).replace(/\B\w+/g, w => w.toLowerCase());
+  const comune = testo.match(/\bcomune di\s+([A-ZÀ-Úa-zà-ú' ]{2,35})/i);
+  an.ente = an.cat === "tessera" ? "Agenzia delle Entrate / Ministero Economia" : an.cat === "isee" ? "INPS" : comune ? "Comune di " + comune[1].trim().split(/\s{2,}|\n/)[0].replace(/\B\w+/g, w => w.toLowerCase()) : "";
+  an.titolo = TITOLI_PERS[an.cat] || "";
+  return an;
+}
+async function analizzaFilesPersonali(files, avanzamento) {
+  const { testo, metodo } = await estraiTestoFiles(files, avanzamento);
+  return { ...analizzaTestoPersonale(testo), metodo, caratteri: testo.replace(/\s/g, "").length, testo: testo.replace(/[ \t]{2,}/g, "  ").slice(0, 4000) };
+}

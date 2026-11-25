@@ -108,7 +108,7 @@ function datiRiepilogo(daISO) {
   const oggi = oggiISO();
   const nelPeriodo = x => (x.data || "") >= daISO && (x.data || "") <= oggi;
   const visite = visiteAttive().filter(v => v.stato !== "annullata" && nelPeriodo(v)).sort((a, b) => (a.data + (a.ora || "")).localeCompare(b.data + (b.ora || "")));
-  const docs = docAttivi().filter(d => !d.data || nelPeriodo(d)).sort((a, b) => (a.data || "").localeCompare(b.data || ""));
+  const docs = docSanitari().filter(d => !d.data || nelPeriodo(d)).sort((a, b) => (a.data || "").localeCompare(b.data || ""));
   const docsDi = v => docs.filter(d => d.visitaId === v.id);
   const vis = t => visite.filter(v => t.includes(v.tipo));
   const sciolti = cats => docs.filter(d => cats.includes(d.categoria) && !visite.some(v => v.id === d.visitaId && ["ps", "ricovero", "ospedale", "specialista"].includes(v.tipo)));
@@ -155,6 +155,8 @@ async function creaRiepilogoPdf({ da, allegati, note, avanzamento }) {
   w.campo("Nome", [p.nome || "Gioele", p.cognome].filter(Boolean).join(" "));
   w.campo("Data di nascita", p.nascita ? `${dIt(p.nascita)}${p.luogoNascita ? " – " + p.luogoNascita : ""} (età ${eta(p.nascita)})` : "");
   w.campo("Codice fiscale", p.cf);
+  const ts = docPersonali().find(d => d.categoria === "tessera" && d.numero && d.numero !== p.cf);
+  if (ts) w.campo("Tessera sanitaria", `n. ${ts.numero}${ts.scadenza ? " (scade il " + dIt(ts.scadenza) + ")" : ""}`);
   w.campo("Gruppo sanguigno", p.sangue);
   w.campo("Pediatra di famiglia", `${PEDIATRA.nome} – ${PEDIATRA.studi.map(s => s.indirizzo).join(" / ")}`);
   w.campo("Genitori", p.genitori);
