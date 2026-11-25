@@ -67,6 +67,11 @@ class Scrittore {
     this.p.drawText(pdfTesto(etichetta), { x: this.M, y: this.y - size, size: 8.5, font, color: this.col.muted });
     for (const r of righe) { this.spazio(size + 3); this.y -= size; this.p.drawText(r, { x: this.M + w, y: this.y, size, font: this.f, color: this.col.ink }); this.y -= 3; }
   }
+  async immagine(png, larg) {
+    const img = await this.pdf.embedPng(png), k = larg / img.width, h = img.height * k;
+    this.spazio(h + 6); this.y -= h;
+    this.p.drawImage(img, { x: this.M, y: this.y, width: larg, height: h }); this.y -= 6;
+  }
   titolo(t, sotto) {
     this.spazio(60); this.y -= 14;
     this.p.drawText(pdfTesto(t), { x: this.M, y: this.y - 12, size: 12.5, font: this.fb, color: this.col.brand });
@@ -103,6 +108,14 @@ class Scrittore {
   }
 }
 
+async function svgInPng(svg, w, h) {
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" })), img = new Image();
+  await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error("grafico")); img.src = url; });
+  const c = document.createElement("canvas"); c.width = w * 2; c.height = h * 2;
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(url);
+  return new Uint8Array(await (await new Promise(r => c.toBlob(r, "image/png"))).arrayBuffer());
+}
 /* ---------- raccolta dei dati per sezione ---------- */
 function datiRiepilogo(daISO) {
   const oggi = oggiISO();
@@ -150,6 +163,8 @@ async function creaRiepilogoPdf({ da, allegati, note, avanzamento }) {
   w.testo("Documento compilato dai genitori a partire dai referti in loro possesso. Non sostituisce la documentazione clinica originale" + (allegati ? ", riportata in copia negli allegati." : "."), { size: 8, color: w.col.muted });
 
   if (note) { w.titolo("Motivo del consulto / note dei genitori"); w.testo(note, { size: 10 }); }
+  const domande = typeof domandeAperte === "function" ? domandeAperte() : [];
+  if (domande.length) { w.titolo("Domande dei genitori"); for (const d of domande) w.testo("• " + d.testo, { size: 10 }); }
 
   w.titolo("Dati del bambino");
   w.campo("Nome", [p.nome || "Gioele", p.cognome].filter(Boolean).join(" "));
@@ -172,6 +187,26 @@ async function creaRiepilogoPdf({ da, allegati, note, avanzamento }) {
   w.campo("Sviluppo / altre note", p.note);
   const ultimi = R.ricoveri.length + R.specialisti.length + R.laboratorio.length + R.imaging.length;
   w.campo("Sintesi", `${R.ricoveri.length} tra ricoveri e accessi in ospedale/PS, ${R.specialisti.length} visite specialistiche, ${R.laboratorio.length} esami di laboratorio, ${R.imaging.length} esami strumentali, ${R.pediatra.length} visite/consulti dal pediatra${ultimi ? "" : ""}.`);
+
+  /* crescita */
+  const mis = typeof misureOrd === "function" ? misureOrd().filter(m => m.data >= da) : [];
+  if (mis.length && p.nascita) {
+    w.titolo("Crescita", "Percentili secondo gli standard di crescita OMS 2006 (maschi).");
+    const cel = (m, k) => { if (!m[k]) return "–"; const pc = percentile(k, giorniDiVita(m.data), m[k]); return `${fmt(m[k], k === "peso" ? 2 : 1)}${pc ? "  (" + pc.testo + " perc.)" : ""}`; };
+    w.tabella([{ t: "Data", w: .14 }, { t: "Età", w: .16 }, { t: "Peso kg", w: .23 }, { t: "Lunghezza cm", w: .24 }, { t: "Testa cm", w: .23 }],
+      mis.map(m => [dIt(m.data), etaAlGiorno(giorniDiVita(m.data)), cel(m, "peso"), cel(m, "lunghezza"), cel(m, "testa")]));
+    for (const k of ["peso", "lunghezza", "testa"]) {
+      if (!mis.some(m => m[k])) continue;
+      try { w.spazio(250); w.testo(IND[k].nome + " sulle curve OMS (3°-97° percentile)", { size: 9, bold: true }); await w.immagine(await svgInPng(graficoCrescita(k, { larg: 640, alt: 260, perStampa: true }), 640, 260), w.W - 2 * w.M); }
+      catch (e) { console.warn(e); }
+    }
+  }
+  /* screening neonatali */
+  const scr = typeof SCREENING === "undefined" ? [] : SCREENING.filter(x => stato(x.k)?.esito);
+  if (scr.length) {
+    w.titolo("Screening neonatali");
+    w.tabella([{ t: "Screening", w: .4 }, { t: "Data", w: .14 }, { t: "Esito / note", w: .46 }], scr.map(x => { const c = stato(x.k); return [x.nome, dIt(c.fatto), { t: [ESITI[c.esito], c.note].filter(Boolean).join("\n"), color: c.esito === "ricontrollo" ? w.col.bad : undefined }]; }));
+  }
 
   /* ricoveri e PS */
   if (R.ricoveri.length) {
@@ -236,11 +271,14 @@ async function creaRiepilogoPdf({ da, allegati, note, avanzamento }) {
   }
 
   /* vaccini */
-  if (R.vaccini.length) {
+  const vacCal = typeof VACCINI === "undefined" ? [] : VACCINI.filter(x => stato(x.k)?.fatto).map(x => ({ data: stato(x.k).fatto, r: [dIt(stato(x.k).fatto), x.nome, [stato(x.k).prodotto, stato(x.k).note].filter(Boolean).join("\n")] }));
+  if (R.vaccini.length || vacCal.length) {
     w.titolo("Vaccinazioni");
-    w.tabella([{ t: "Data", w: .14 }, { t: "Vaccinazione", w: .4 }, { t: "Note", w: .46 }], ordina(R.vaccini).map(({ v, d }) => v
-      ? [dIt(v.data), v.motivo || "Vaccinazione", [v.luogo, v.esito, v.note, elencoDoc(R.docsDi(v))].filter(Boolean).join("\n")]
-      : [dIt(d.data), (d.analisi?.vaccini || []).join(", ") || d.titolo, [d.note, "Documento: " + d.titolo + rifDoc(d)].filter(Boolean).join("\n")]));
+    const righeV = [...vacCal, ...R.vaccini.map(({ v, d }) => v
+      ? { data: v.data, r: [dIt(v.data), v.motivo || "Vaccinazione", [v.luogo, v.esito, v.note, elencoDoc(R.docsDi(v))].filter(Boolean).join("\n")] }
+      : { data: d.data, r: [dIt(d.data), (d.analisi?.vaccini || []).join(", ") || d.titolo, [d.note, "Documento: " + d.titolo + rifDoc(d)].filter(Boolean).join("\n")] })]
+      .sort((a, b) => (a.data || "").localeCompare(b.data || ""));
+    w.tabella([{ t: "Data", w: .14 }, { t: "Vaccinazione", w: .4 }, { t: "Note", w: .46 }], righeV.map(x => x.r));
   }
 
   /* pediatra */
@@ -253,6 +291,23 @@ async function creaRiepilogoPdf({ da, allegati, note, avanzamento }) {
   if (R.altri.length) {
     w.titolo("Altre prestazioni");
     w.tabella([{ t: "Data", w: .14 }, { t: "Dove / chi", w: .3 }, { t: "Note", w: .56 }], R.altri.map(v => [dIt(v.data), [v.luogo, v.medico].filter(Boolean).join("\n"), [v.motivo, v.esito, v.note].filter(Boolean).join("\n")]));
+  }
+  /* ultimi 30 giorni: febbre, sintomi, farmaci */
+  if (typeof diarioOrd === "function") {
+    const da30 = Date.now() - 30 * 864e5;
+    const dia = diarioOrd().filter(x => daOraLocale(x.quando) >= da30).reverse();
+    const dos = dosiOrd().filter(x => daOraLocale(x.quando) >= da30).reverse();
+    if (dia.length) {
+      if (dia.some(x => x.temp)) w.spazio(300);
+      w.titolo("Febbre e sintomi (ultimi 30 giorni)");
+      if (dia.some(x => x.temp)) { try { await w.immagine(await svgInPng(graficoFebbre(Math.min(30, Math.max(7, Math.ceil((Date.now() - daOraLocale(dia[0].quando)) / 864e5) + 1)), { larg: 640, alt: 200, perStampa: true }), 640, 200), w.W - 2 * w.M); } catch (e) { console.warn(e); } }
+      w.tabella([{ t: "Quando", w: .2 }, { t: "Temp.", w: .1 }, { t: "Sintomi e note", w: .7 }], dia.map(x => [x.quando.replace("T", " ").split(" ").map((v, i) => i ? v : dIt(v)).join(" "), x.temp ? { t: fmt(x.temp, 1) + "°", bold: x.temp >= 38, color: x.temp >= 38 ? w.col.bad : undefined } : "", [(x.sintomi || []).join(", "), x.note].filter(Boolean).join(" – ")]));
+    }
+    if (dos.length) {
+      w.titolo("Farmaci somministrati (ultimi 30 giorni)");
+      const per = new Map(); for (const d of dos) { const k = d.farmaco; if (!per.has(k)) per.set(k, []); per.get(k).push(d); }
+      w.tabella([{ t: "Farmaco", w: .3 }, { t: "Dosi", w: .1 }, { t: "Dal / al", w: .3 }, { t: "Dose", w: .3 }], [...per.entries()].map(([k, l]) => [k, String(l.length), `${l[0].quando.replace("T", " ").replace(/^(\d+)-(\d+)-(\d+)/, "$3/$2/$1")}\n${l[l.length - 1].quando.replace("T", " ").replace(/^(\d+)-(\d+)-(\d+)/, "$3/$2/$1")}`, [...new Set(l.map(x => x.dose).filter(Boolean))].join(", ")]));
+    }
   }
   if (R.prossime.length) {
     w.titolo("Prossimi appuntamenti");

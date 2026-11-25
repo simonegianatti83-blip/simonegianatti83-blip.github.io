@@ -96,7 +96,7 @@ label.f > input,label.f > select,label.f > textarea{margin-top:4px;font-weight:4
 
 /* barra in basso */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 10px rgba(0,0,0,.06);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom);z-index:20}
-nav.tabs button{flex:1;max-width:150px;border:0;background:none;padding:8px 2px 9px;font-size:12.5px;font-weight:700;color:var(--ink-2);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button{flex:1;min-width:0;max-width:150px;border:0;background:none;padding:8px 2px 9px;font-size:12.5px;font-weight:700;color:var(--ink-2);display:flex;flex-direction:column;align-items:center;gap:2px}
 nav.tabs button .e{font-size:23px;line-height:1.1;filter:grayscale(.6);opacity:.9}
 nav.tabs button[aria-current=page]{color:var(--brand);background:var(--brand-soft);border-radius:12px}
 nav.tabs button[aria-current=page] .e{filter:none;opacity:1}
@@ -124,7 +124,14 @@ dialog::backdrop{background:rgba(5,20,18,.5)}
 .days .d{padding:9px 0;border-top:1px solid var(--line-2)}
 .days .d:first-child{border-top:0}
 .days .d .n{font-weight:700}
-@media (max-width:380px){nav.tabs button{font-size:11.5px}}
+@media (max-width:380px){nav.tabs button{font-size:11px}}
+.chips-sez{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;margin:0 -16px 6px;padding-left:16px;padding-right:16px;scrollbar-width:none}
+.chips-sez::-webkit-scrollbar{display:none}
+.chips-sez .btn{flex:none;white-space:nowrap}
+.card > svg{display:block;max-width:640px;margin:0 auto}
+table.tab{width:100%;border-collapse:collapse;font-size:14.5px}
+table.tab th{text-align:left;font-size:12.5px;color:var(--ink-3);padding:6px;border-bottom:1px solid var(--line)}
+table.tab td{padding:7px 6px;border-bottom:1px solid var(--line-2);vertical-align:top}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(140px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14.5px;z-index:100;max-width:calc(100vw - 32px);box-shadow:0 6px 18px rgba(0,0,0,.25)}
 ol.steps{padding-left:20px;margin:6px 0} ol.steps li{margin:6px 0}
 code{background:var(--line-2);padding:1px 5px;border-radius:5px;font-size:13.5px;word-break:break-all}
@@ -145,9 +152,10 @@ code{background:var(--line-2);padding:1px 5px;border-radius:5px;font-size:13.5px
 <nav class="tabs" aria-label="Sezioni">
   <button type="button" data-tab="home"><span class="e">🏠</span>Home</button>
   <button type="button" data-tab="visite"><span class="e">🩺</span>Visite</button>
+  <button type="button" data-tab="salute"><span class="e">🌱</span>Salute</button>
   <button type="button" data-tab="documenti"><span class="e">📄</span>Documenti</button>
   <button type="button" data-tab="pediatra"><span class="e">👩‍⚕️</span>Pediatra</button>
-  <button type="button" data-tab="impostazioni"><span class="e">⚙️</span>Impostazioni</button>
+  <button type="button" data-tab="impostazioni"><span class="e">⚙️</span>Altro</button>
 </nav>
 
 <dialog id="sheet"><form method="dialog" id="sheetForm" novalidate>
@@ -262,8 +270,10 @@ const fileDel = k => idb("file", "readwrite", s => s.delete(k));
 /* =====================================================================
    STATO
    ===================================================================== */
+/* raccolte sincronizzate (per ogni voce vince la modifica più recente) */
+const COLLEZIONI = ["visite", "documenti", "chiusure", "misure", "check", "farmaci", "dosi", "diario", "tappe", "domande", "spese"];
 function statoVuoto() {
-  return { v: 1, profilo: { nome: "Gioele", updatedAt: 0 }, visite: [], documenti: [], chiusure: [], config: {} };
+  return { v: 1, profilo: { nome: "Gioele", updatedAt: 0 }, ...Object.fromEntries(COLLEZIONI.map(k => [k, []])), config: {} };
 }
 let S = statoVuoto();
 let vista = ls.get("tab", "home");
@@ -286,7 +296,7 @@ function unisci(a, b) {
   const out = statoVuoto();
   out.profilo = (a.profilo?.updatedAt || 0) >= (b.profilo?.updatedAt || 0) ? a.profilo : b.profilo;
   out.config = { ...(a.config || {}), ...(b.config || {}) };
-  for (const k of ["visite", "documenti", "chiusure"]) {
+  for (const k of COLLEZIONI) {
     const m = new Map();
     for (const x of [...(a[k] || []), ...(b[k] || [])]) {
       const p = m.get(x.id);
@@ -303,7 +313,7 @@ function unisciFiles(vecchio, nuovo) {
   const ids = new Map((vecchio.files || []).map(f => [f.fid, f.driveId]));
   return nuovo.files.map(f => f.driveId || !ids.get(f.fid) ? f : { ...f, driveId: ids.get(f.fid) });
 }
-const firmaStato = s => JSON.stringify({ p: s.profilo, c: s.config, v: s.visite, d: s.documenti, h: s.chiusure });
+const firmaStato = s => JSON.stringify([s.profilo, s.config, ...COLLEZIONI.map(k => s[k] || [])]);
 
 /* =====================================================================
    GOOGLE: accesso, Drive, Calendar
@@ -435,7 +445,12 @@ async function sincronizza(interattivo) {
     if (!fileId && interattivo && confirm("Non ho trovato un archivio di Gioele condiviso con " + (G.email || "questo account") + ".\n\nOK = crea ora l'archivio nel tuo Google Drive (fallo se sei il primo dei due genitori).\nAnnulla = aspetta che l'altro genitore te lo condivida, poi riprova.")) fileId = await preparaArchivio(true);
     if (!fileId) { SY.stato = "nessun-archivio"; SY.errore = "Nessun archivio condiviso trovato"; return; }
     ls.set("collegato", true);
+    try { const cap = await gapi(`${DRIVE}/files/${fileId}?fields=capabilities(canEdit)&supportsAllDrives=true`); ls.set("solaLettura", cap.capabilities?.canEdit === false); } catch {}
     const remoto = JSON.parse(await (await driveScarica(fileId)).text() || "{}");
+    if (ls.get("solaLettura", false)) {   // nonni e altri: si legge soltanto
+      S = { ...statoVuoto(), ...remoto }; await kvSet("stato", S);
+      SY.ultimo = Date.now(); ls.set("ultimoSync", SY.ultimo); SY.stato = "ok"; render(); return;
+    }
     const prima = firmaStato(remoto.v ? remoto : statoVuoto());
     S = unisci(S, remoto.v ? remoto : statoVuoto());
     if (!S.config.docsFolderId && S.config.folderId) S.config.docsFolderId = S.config.folderId;
@@ -455,7 +470,7 @@ async function sincronizza(interattivo) {
   } finally { SY.inCorso = false; aggiornaBadge(); }
 }
 async function caricaAllegatiInSospeso() {
-  for (const d of S.documenti) {
+  for (const d of [...S.documenti, ...(S.spese || []).map(x => ({ ...x, _rif: x, titolo: "Spesa " + (x.descrizione || "") })), ...(S.tappe || []).map(x => ({ ...x, _rif: x }))]) {
     if (d.deleted || !d.files) continue;
     for (const f of d.files) {
       if (f.driveId) continue;
@@ -463,7 +478,7 @@ async function caricaAllegatiInSospeso() {
       if (!blob) continue;  // il file è sul telefono dell'altro genitore: lo caricherà lui
       const nome = `${d.data || ""} ${d.titolo || "documento"} – ${f.nome}`.trim().replace(/[\\/]/g, "-");
       const r = await driveCarica({ nome, mime: f.mime, parents: [S.config.docsFolderId || S.config.folderId], blob });
-      f.driveId = r.id; d.updatedAt = Date.now();
+      f.driveId = r.id; (d._rif || d).updatedAt = Date.now();
     }
   }
 }
@@ -490,6 +505,7 @@ async function allineaCalendario() {
     if (!r) r = await gapi(`${CAL}/calendars/${cal}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev) });
     v.calEventId = r.id; v.calSig = sig; v.updatedAt = Date.now();
   }
+  await allineaPromemoria(cal);
   /* scadenze dei documenti personali: evento di un giorno con promemoria 4 settimane e 1 settimana prima */
   for (const d of S.documenti) {
     if (d.ambito !== "personale") continue;
@@ -523,14 +539,14 @@ function eventoDaVisita(v) {
     reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 24 * 60 }, { method: "popup", minutes: 120 }] }
   };
 }
-async function condividiArchivio(email) {
+async function condividiArchivio(email, ruolo = "writer") {
   await accedi(true);
   if (!S.config.folderId) throw new Error("Prima crea l'archivio su Google Drive.");
   await gapi(`${DRIVE}/files/${S.config.folderId}/permissions?sendNotificationEmail=true&supportsAllDrives=true&${qs({ emailMessage: "Ti ho condiviso le visite e i documenti di Gioele. Apri l'app dal link che ti mando su WhatsApp." })}`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role: "writer", emailAddress: email }) });
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role: ruolo, emailAddress: email }) });
   if (S.config.calendarId) {
     await gapi(`${CAL}/calendars/${encodeURIComponent(S.config.calendarId)}/acl?sendNotifications=true`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "writer", scope: { type: "user", value: email } }) });
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: ruolo, scope: { type: "user", value: email } }) });
   }
   S.config.condivisoCon = [...new Set([...(S.config.condivisoCon || []), email.toLowerCase()])];
   await salva();
@@ -541,6 +557,7 @@ async function chiConAccesso() {
   return j.permissions || [];
 }
 
+const soloLettura = () => googleAttivo() && ls.get("solaLettura", false);
 function aggiornaBadge() {
   const b = $("#btnSync");
   const t = {
@@ -638,6 +655,7 @@ function testoVisita(v, intestazione = true) {
   if (v.note) righe.push(`📝 ${v.note}`);
   const docs = docAttivi().filter(d => d.visitaId === v.id);
   if (docs.length) righe.push(`📎 Documenti: ${docs.map(d => d.titolo).join(", ")}`);
+  if (intestazione && v.data >= oggiISO() && typeof domandeAperte === "function" && domandeAperte().length) righe.push(`❓ Domande: ${domandeAperte().map(d => d.testo).join("; ")}`);
   if (["pediatra", "bilancio"].includes(v.tipo)) righe.push(`☎️ Prenotazioni ${PEDIATRA.prenotazioni.label} · Consulti ${PEDIATRA.consulti.label}`);
   return righe.join("\n");
 }
@@ -692,11 +710,11 @@ async function preparaFile(file) {
    ===================================================================== */
 function render() {
   document.querySelectorAll("nav.tabs button").forEach(b => b.dataset.tab === vista ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
-  $("#fab").classList.toggle("hidden", vista === "impostazioni");
+  $("#fab").classList.toggle("hidden", vista === "impostazioni" || soloLettura());
   const el = $("#vista");
-  el.innerHTML = ({ home: vHome, visite: vVisite, documenti: vDocumenti, pediatra: vPediatra, impostazioni: vImpostazioni }[vista] || vHome)();
+  el.innerHTML = ({ home: vHome, visite: vVisite, salute: vSalute, documenti: vDocumenti, pediatra: vPediatra, impostazioni: vImpostazioni }[vista] || vHome)();
   aggiornaBadge();
-  if (vista === "documenti" || vista === "home") caricaMiniature();
+  if (["documenti", "home", "salute"].includes(vista)) caricaMiniature();
   if (vista === "impostazioni") riempiAccessi();
 }
 
@@ -734,6 +752,7 @@ async function caricaMiniature() {
 function bannerGoogle() {
   if (!clientId()) return `<div class="notice info">📱 I dati per ora sono salvati <b>solo su questo telefono</b>. Per condividerli con Silvia e collegare Google Calendar vai in <a href="#" data-act="tab" data-tab="impostazioni">Impostazioni</a>.</div>`;
   if (SY.stato === "serve-accesso" || (!googleAttivo() && SY.stato !== "in-corso")) return `<div class="notice warn">🔑 Accedi a Google per sincronizzare con Silvia e con il calendario. <button type="button" class="btn sm pri" data-act="sync">Accedi</button></div>`;
+  if (soloLettura()) return `<div class="notice info small">👀 Sei in <b>sola lettura</b>: vedi tutto, ma solo i genitori possono modificare.</div>`;
   if (SY.stato === "ok" && SY.avvisoCal) return `<div class="notice warn">📅 ${esc(SY.avvisoCal)}</div>`;
   if (SY.stato === "errore") return `<div class="notice bad">⚠️ Sincronizzazione non riuscita: ${esc(SY.errore)} <button type="button" class="btn sm" data-act="sync">Riprova</button></div>`;
   return "";
@@ -757,6 +776,7 @@ function vHome() {
   const amb = ambulatoriDelGiorno(new Date());
   const p = S.profilo;
   return `${bannerInstalla()}${bannerGoogle()}
+  ${cardHomeSalute()}
   <h2>Prossime visite</h2>
   ${prossime.length ? prossime.slice(0, 4).map(rigaVisita).join("") : `<div class="card empty">Nessuna visita in programma.<div class="btns" style="justify-content:center"><button type="button" class="btn pri" data-act="nuova-visita">+ Nuova visita</button><button type="button" class="btn" data-act="tab" data-tab="pediatra">Prenota dalla pediatra</button></div></div>`}
   ${prossime.length > 4 ? `<button type="button" class="btn sm" data-act="tab" data-tab="visite">Vedi tutte (${prossime.length})</button>` : ""}
@@ -809,6 +829,7 @@ function vVisite() {
   l = filtroVis.quando === "future" ? l.filter(v => v.data >= oggi).sort((a, b) => (a.data + a.ora).localeCompare(b.data + b.ora))
     : l.filter(v => filtroVis.quando === "tutte" || v.data < oggi).sort((a, b) => (b.data + b.ora).localeCompare(a.data + a.ora));
   return `${bannerGoogle()}
+  ${cardDomande()}
   <div class="toolbar">
     <input type="search" id="qVis" placeholder="Cerca (es. otorino, febbre…)" value="${esc(filtroVis.q)}">
     <select id="quandoVis" style="flex:0 1 150px">
@@ -825,8 +846,10 @@ function vDocumenti() {
   const q = filtroDoc.q.toLowerCase();
   const pers = filtroDoc.ambito === "personali";
   const switcher = `<div class="toolbar" role="tablist" style="gap:0;background:var(--line-2);border-radius:12px;padding:3px">
-    <button type="button" role="tab" class="btn sm" data-act="doc-ambito" data-amb="sanitari" style="flex:1;border:0;${pers ? "background:none" : ""}" aria-selected="${!pers}">🩺 Sanitari (${docSanitari().length})</button>
-    <button type="button" role="tab" class="btn sm" data-act="doc-ambito" data-amb="personali" style="flex:1;border:0;${pers ? "" : "background:none"}" aria-selected="${pers}">🪪 Personali (${docPersonali().length})</button></div>`;
+    <button type="button" role="tab" class="btn sm" data-act="doc-ambito" data-amb="sanitari" style="flex:1;border:0;${filtroDoc.ambito === "sanitari" ? "" : "background:none"}" aria-selected="${filtroDoc.ambito === "sanitari"}">🩺 Sanitari (${docSanitari().length})</button>
+    <button type="button" role="tab" class="btn sm" data-act="doc-ambito" data-amb="personali" style="flex:1;border:0;${pers ? "" : "background:none"}" aria-selected="${pers}">🪪 Personali (${docPersonali().length})</button>
+    <button type="button" role="tab" class="btn sm" data-act="doc-ambito" data-amb="spese" style="flex:1;border:0;${filtroDoc.ambito === "spese" ? "" : "background:none"}" aria-selected="${filtroDoc.ambito === "spese"}">💶 Spese</button></div>`;
+  if (filtroDoc.ambito === "spese") return `${bannerGoogle()}${switcher}${vSpese()}`;
   if (pers) return `${bannerGoogle()}${switcher}
   <div class="toolbar"><input type="search" id="qDoc" placeholder="Cerca (es. carta d'identità, numero…)" value="${esc(filtroDoc.q)}"></div>
   ${vDocPersonali(q)}`;
@@ -912,12 +935,13 @@ function vImpostazioni() {
       </div>`}
   </div>
   ${cid && coll && S.config.folderId ? `<div class="card">
-    <b>👩 Condividi con Silvia</b>
+    <b>👩 Condividi con Silvia (e con i nonni)</b>
     <ol class="steps small">
       <li>Scrivi l'indirizzo Gmail di Silvia e tocca “Condividi”: le arriva l'accesso alla cartella Drive e al calendario “${NOME_CALENDARIO}”.</li>
       <li>Mandale il link dell'app su WhatsApp: lo apre, tocca “Accedi” con il suo account Google e vede tutto quello che vedi tu. Ogni visita o referto che aggiunge uno dei due compare subito all'altro.</li>
     </ol>
-    <label class="f">Email Google di Silvia<input type="email" id="inEmailSilvia" placeholder="silvia…@gmail.com" value="${esc(ls.get("emailSilvia", ""))}"></label>
+    <label class="f">Email Google<input type="email" id="inEmailSilvia" placeholder="silvia…@gmail.com" value="${esc(ls.get("emailSilvia", ""))}"></label>
+    <label class="f">Può<select id="inRuolo"><option value="writer">vedere e modificare (genitore)</option><option value="reader">solo vedere (nonni, altri familiari)</option></select></label>
     <div class="btns"><button type="button" class="btn pri" data-act="condividi-silvia">Condividi</button>
       <button type="button" class="btn" data-act="link-silvia">💬 Manda il link dell'app a Silvia</button></div>
     <div id="accessi" class="tiny" style="margin-top:10px"></div>
@@ -926,6 +950,12 @@ function vImpostazioni() {
   ${cid && !coll ? `<div class="card small"><b>Sei Silvia?</b> Tocca “Collega Google” e accedi col tuo account: se Simone ti ha già condiviso l'archivio lo trovo da solo.</div>` : ""}
   ${link ? `<div class="card small"><b>Link dell'app</b> (contiene già il Client ID)<div style="margin-top:6px"><code>${esc(link)}</code></div></div>` : ""}
 
+  <h2>Emergenze</h2>
+  <div class="card small">Scheda con allergie, terapie, contatti e numeri utili da dare a nonni e baby-sitter.
+    <div class="btns"><button type="button" class="btn bad" data-act="emergenza">🆘 Apri la scheda emergenze</button></div></div>
+  <h2>Chi sei su questo telefono</h2>
+  <div class="card small">Il nome che compare nel registro dei farmaci (“chi l'ha data”).
+    <div style="display:flex;gap:8px;margin-top:8px"><input type="text" id="inMioNome" value="${esc(ls.get("mioNome", ""))}" placeholder="es. Simone" style="flex:1"><button type="button" class="btn" data-act="salva-mio-nome">Salva</button></div></div>
   <h2>Copia di sicurezza</h2>
   <div class="card small">
     Salva un file con visite, profilo e documenti (anche i file degli allegati presenti su questo telefono).
@@ -943,7 +973,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v6</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v7</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -972,6 +1002,11 @@ function apriSheet(titolo, corpo, piede, onSubmit) {
   $("#sheetBody").innerHTML = corpo;
   $("#sheetFoot").innerHTML = piede;
   azioneSheet = onSubmit;
+  if (soloLettura() && onSubmit) {
+    $("#sheetBody").querySelectorAll("input,select,textarea").forEach(el => { el.disabled = true; });
+    $("#sheetFoot").querySelectorAll("[value=ok],[data-act^=elimina]").forEach(el => el.remove());
+    $("#sheetBody").querySelectorAll("[data-act=scatta],[data-act=scegli],[data-act=analizza],[data-act^=doc-per]").forEach(el => el.remove());
+  }
   if (!sheet.open) sheet.showModal();
   $("#sheetBody").scrollTop = 0;
 }
@@ -1009,6 +1044,7 @@ function formVisita(v = {}, preset = {}) {
     <label class="f">Esito / cosa ha detto il medico<textarea name="esito" placeholder="Diagnosi, terapia, prossimi controlli…">${esc(v.esito || "")}</textarea></label>
     <label class="f">Note (cosa portare, domande da fare…)<textarea name="note">${esc(v.note || "")}</textarea></label>
     ${googleAttivo() ? `<label class="check"><input type="checkbox" name="cal" ${v.noCal ? "" : "checked"}> Metti nel calendario Google “${NOME_CALENDARIO}”</label>` : ""}
+    ${(v.data || oggiISO()) >= oggiISO() && domandeAperte().length ? `<div class="notice info small" style="margin-top:12px"><b>❓ Domande da fare:</b><br>${domandeAperte().map(d => "• " + esc(d.testo)).join("<br>")}</div>` : ""}
     ${!nuova ? `<h3 style="font-size:16px;margin:18px 0 6px">📎 Documenti della visita</h3>
       ${docs.length ? docs.map(rigaDoc).join("") : `<div class="tiny">Nessun documento collegato.</div>`}
       <div class="btns">
@@ -1220,7 +1256,7 @@ async function aggiungiFiles(list) {
     bozzaFiles.push({ fid: uid(), nome: p.name || "foto.jpg", mime: p.type || "application/octet-stream", size: p.size, blob: p, nuovo: true });
   }
   disegnaBozza();
-  modoDoc === "personale" ? analizzaBozzaPers() : analizzaBozza();
+  if (modoDoc === "personale") analizzaBozzaPers(); else if (modoDoc === "spesa") analizzaBozzaSpesa(); else if (modoDoc === "sanitario") analizzaBozza();
 }
 async function apriFile(f) {
   const w = window.open("", "_blank");  // aperta subito (altrimenti iPhone la blocca)
@@ -1488,7 +1524,7 @@ async function importaDaCalendario() {
 const b64 = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
 async function esporta() {
   const allegati = {};
-  for (const d of docAttivi()) for (const f of d.files || []) { const b = await fileGet(f.fid); if (b) allegati[f.fid] = await b64(b); }
+  for (const d of [...docAttivi(), ...(S.spese || []), ...(S.tappe || [])].filter(x => !x.deleted)) for (const f of d.files || []) { const b = await fileGet(f.fid); if (b) allegati[f.fid] = await b64(b); }
   const blob = new Blob([JSON.stringify({ ...S, allegati })], { type: "application/json" });
   const nome = `gioele-backup-${oggiISO()}.json`;
   const file = new File([blob], nome, { type: "application/json" });
@@ -1513,6 +1549,8 @@ document.addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
   const act = b.dataset.act, id = b.dataset.id;
   if (b.tagName === "A" && b.getAttribute("href") === "#") e.preventDefault();
+  if (soloLettura() && AZIONI_SCRITTURA.has(act)) { e.preventDefault(); return toast("Sei in sola lettura: puoi vedere ma non modificare"); }
+  if (await azioneSalute(act, b, e)) return;
   switch (act) {
     case "tab": e.preventDefault(); vai(b.dataset.tab); break;
     case "nuova-visita": formVisita(); break;
@@ -1577,7 +1615,8 @@ document.addEventListener("click", async e => {
       if (!/^\S+@\S+\.\S+$/.test(em)) return toast("Scrivi un indirizzo email valido");
       ls.set("emailSilvia", em);
       b.disabled = true;
-      try { await condividiArchivio(em); toast("Condiviso con " + em + " ✓"); riempiAccessi(); }
+      const ruolo = $("#inRuolo")?.value || "writer";
+      try { await condividiArchivio(em, ruolo); toast(`Condiviso con ${em} ${ruolo === "reader" ? "(sola lettura)" : ""} ✓`); riempiAccessi(); }
       catch (err) { toast("Condivisione non riuscita: " + err.message, 6000); }
       finally { b.disabled = false; }
       break;
@@ -1594,26 +1633,35 @@ document.addEventListener("click", async e => {
       G.token = null; G.email = ""; ls.del("tok");
       SY.stato = "locale"; render(); break;
     case "esporta": esporta(); break;
+    case "salva-mio-nome": ls.set("mioNome", $("#inMioNome").value.trim()); toast("Salvato"); break;
     case "chiudi-installa": ls.set("noBannerInstalla", true); render(); break;
     case "importa": $("#inBackup").click(); break;
   }
 });
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => vai(b.dataset.tab)));
+const AZIONI_SCRITTURA = new Set(["nuova-visita", "nuova-visita-ped", "nota-consulto", "nuova-chiusura", "togli-chiusura", "aggiungi-domanda", "domanda-fatta", "nuova-misura", "nuova-dose",
+  "nuova-febbre", "nuova-spesa", "nuovo-pers", "doc-per-visita", "farmaci-abituali", "scatta-nuovo", "pdf-nuovo", "condividi-silvia", "importa", "importa-cal", "nuova-visita-bil", "elimina-voce", "elimina-visita", "elimina-doc"]);
 function vai(tab) { vista = tab; ls.set("tab", tab); render(); window.scrollTo(0, 0); }
 $("#fab").addEventListener("click", () => {
-  if (vista === "documenti") return filtroDoc.ambito === "personali" ? formDocPers() : formDoc();
+  if (soloLettura()) return;
+  if (vista === "salute") return fabSalute();
+  if (vista === "documenti") return filtroDoc.ambito === "personali" ? formDocPers() : filtroDoc.ambito === "spese" ? formSpesa() : formDoc();
   if (vista === "visite" || vista === "pediatra") return formVisita();
   apriSheet("Aggiungi", `<div class="btns" style="flex-direction:column">
       <button type="button" class="btn pri" data-act="nuova-visita">🩺 Nuova visita / appuntamento</button>
       <button type="button" class="btn" data-act="scatta-nuovo">📷 Fotografa un referto</button>
       <button type="button" class="btn" data-act="pdf-nuovo">📄 Carica un PDF / file</button>
       <button type="button" class="btn" data-act="nuovo-pers">🪪 Documento personale (nascita, tessera, identità…)</button>
+      <button type="button" class="btn" data-act="nuova-dose">💊 Ho dato un farmaco</button>
+      <button type="button" class="btn" data-act="nuova-febbre">🌡️ Febbre / sintomi</button>
+      <button type="button" class="btn" data-act="nuova-misura">📏 Peso e misure</button>
+      <button type="button" class="btn" data-act="nuova-spesa">💶 Spesa medica (scontrino)</button>
       <button type="button" class="btn" data-act="nota-consulto">📞 Annota un consulto telefonico</button>
       <button type="button" class="btn" data-act="riepilogo">📑 Riepilogo PDF per il medico</button></div>`,
     `<button class="btn" value="annulla" formnovalidate>Chiudi</button>`, null);
 });
 document.addEventListener("click", e => {
-  const b = e.target.closest("[data-act=scatta-nuovo],[data-act=pdf-nuovo]"); if (!b) return;
+  const b = e.target.closest("[data-act=scatta-nuovo],[data-act=pdf-nuovo]"); if (!b || soloLettura()) return;
   formDoc(); (b.dataset.act === "scatta-nuovo" ? $("#inFoto") : $("#inFile")).click();
 });
 $("#inFoto").addEventListener("change", e => { aggiungiFiles([...e.target.files]); e.target.value = ""; });
@@ -1665,5 +1713,7 @@ async function controllaInbox() {
 </script>
 <script src="analisi.js"></script>
 <script src="riepilogo.js"></script>
+<script src="oms.js"></script>
+<script src="salute.js"></script>
 </body>
 </html>
