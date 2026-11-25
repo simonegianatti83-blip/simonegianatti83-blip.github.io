@@ -928,11 +928,14 @@ function vImpostazioni() {
     : `<dl class="kv"><dt>Stato</dt><dd>${coll ? (SY.stato === "ok" ? "✓ Sincronizzato" : esc(SY.errore || "collegato")) : "non ancora collegato"}</dd>
         ${G.email ? `<dt>Account</dt><dd>${esc(G.email)}</dd>` : ""}
         ${SY.ultimo ? `<dt>Ultima sinc.</dt><dd>${new Date(SY.ultimo).toLocaleString("it-IT")}</dd>` : ""}
-        ${S.config.calendarId ? `<dt>Calendario</dt><dd>${NOME_CALENDARIO}</dd>` : ""}</dl>
+        ${S.config.calendarId ? `<dt>Calendario</dt><dd>${NOME_CALENDARIO}</dd>` : ""}
+        <dt>Client ID</dt><dd style="word-break:break-all;font-size:13.5px">${esc(cid)}</dd></dl>
       <div class="btns">
         ${coll ? `<button type="button" class="btn pri" data-act="sync">🔄 Sincronizza ora</button>` : `<button type="button" class="btn pri" data-act="collega">☁️ Collega Google</button>`}
         ${S.config.folderId ? `<a class="btn" href="https://drive.google.com/drive/folders/${encodeURIComponent(S.config.folderId)}" target="_blank" rel="noopener">📁 Apri cartella Drive</a>` : ""}
-      </div>`}
+        <button type="button" class="btn" data-act="cambia-cid">✏️ Cambia Client ID</button>
+      </div>
+      ${!coll ? `<div class="tiny" style="margin-top:8px">Se Google risponde “The OAuth client was not found” (errore 401 invalid_client), il Client ID è sbagliato o appena creato: ricopialo con il tasto di copia della console Google e incollalo di nuovo con “Cambia Client ID”.</div>` : ""}`}
   </div>
   ${cid && coll && S.config.folderId ? `<div class="card">
     <b>👩 Condividi con Silvia (e con i nonni)</b>
@@ -973,7 +976,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v8</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v9</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1635,6 +1638,10 @@ document.addEventListener("click", async e => {
       G.token = null; G.email = ""; ls.del("tok");
       SY.stato = "locale"; render(); break;
     case "esporta": esporta(); break;
+    case "cambia-cid":
+      if (!confirm("Cambiare il Client ID? Dovrai incollarlo di nuovo e rifare l'accesso a Google. I dati di Gioele non vengono toccati.")) return;
+      ["clientId", "collegato", "fileId", "giaAutorizzato", "tok", "email"].forEach(ls.del);
+      G.token = null; G.email = ""; G.gisPronto = null; SY.stato = "locale"; SY.errore = ""; render(); break;
     case "salva-mio-nome": ls.set("mioNome", $("#inMioNome").value.trim()); toast("Salvato"); break;
     case "chiudi-installa": ls.set("noBannerInstalla", true); render(); break;
     case "importa": $("#inBackup").click(); break;
