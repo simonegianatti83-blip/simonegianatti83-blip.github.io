@@ -457,12 +457,13 @@ async function sincronizza(interattivo) {
     if (!S.config.docsFolderId && S.config.folderId) S.config.docsFolderId = S.config.folderId;
     await caricaAllegatiInSospeso();
     SY.avvisoCal = "";
-    try { await preparaCalendario(); await allineaCalendario(); }
+    try { await preparaCalendario(); SY.daCalendario = ""; await importaDalCalendarioGioele(encodeURIComponent(S.config.calendarId)); await allineaCalendario(); }
     catch (e) { if (e.message === "serve-accesso") throw e; SY.avvisoCal = "Calendario Google non aggiornato: " + e.message; }
     if (firmaStato(S) !== prima) await driveCarica({ id: fileId, blob: new Blob([JSON.stringify(S)], { type: "application/json" }) });
     await kvSet("stato", S);
     SY.ultimo = Date.now(); ls.set("ultimoSync", SY.ultimo); SY.stato = "ok";
     if (interattivo && SY.avvisoCal) toast(SY.avvisoCal, 6000);
+    else if (SY.daCalendario) toast("📅 " + SY.daCalendario, 4500);
     render();
   } catch (e) {
     SY.stato = e.message === "serve-accesso" ? "serve-accesso" : "errore";
@@ -482,6 +483,67 @@ async function caricaAllegatiInSospeso() {
       f.driveId = r.id; (d._rif || d).updatedAt = Date.now();
     }
   }
+}
+/* ---------- dal calendario "Gioele – Visite" all'app ----------
+   Gli eventi inseriti a mano nel calendario (da Simone, da Silvia, dall'iPhone…)
+   diventano visite dell'app; se l'evento viene spostato o cancellato nel calendario,
+   la visita si aggiorna o diventa "annullata". I promemoria creati dall'app e gli
+   eventi ricorrenti (es. vitamina D) non vengono importati. */
+function tipoDaTesto(t) {
+  t = (t || "").toLowerCase();
+  return /bilancio/.test(t) ? "bilancio" : /pediatr|lopez|erba|masa/.test(t) ? "pediatra" : /vaccin|esavalente|pneumococ|meningococ|rotavirus|mprv/.test(t) ? "vaccino"
+    : /pronto soccorso|\bps\b/.test(t) ? "ps" : /ricover/.test(t) ? "ricovero" : /esam|prelievo|analisi|ecograf|radiograf|\brx\b|ecg/.test(t) ? "esami"
+    : /ospedal|day hospital/.test(t) ? "ospedale" : /visita|specialist|controllo|otorino|oculist|cardiolog|ortoped|dermatolog|neurolog|allergolog/.test(t) ? "specialista" : "altro";
+}
+function datiDaEvento(e) {
+  const s = e.start?.dateTime ? new Date(e.start.dateTime) : e.start?.date ? parseISO(e.start.date) : null;
+  if (!s) return null;
+  const f = e.end?.dateTime ? new Date(e.end.dateTime) : null;
+  return { data: oggiISO(s), ora: e.start.dateTime ? `${pad(s.getHours())}:${pad(s.getMinutes())}` : "",
+    durata: f ? Math.max(15, Math.round((f - s) / 60000)) : 30, luogo: e.location || "" };
+}
+async function importaDalCalendarioGioele(cal) {
+  const noti = new Set([...S.visite, ...S.documenti, ...(S.check || [])].map(x => x.calEventId).filter(Boolean));
+  const perVisita = new Map(S.visite.filter(v => v.calEventId).map(v => [v.calEventId, v]));
+  const da = new Date(); da.setFullYear(da.getFullYear() - 1);
+  if (S.profilo.nascita && parseISO(S.profilo.nascita) < da) da.setTime(parseISO(S.profilo.nascita).getTime());
+  const a = new Date(); a.setFullYear(a.getFullYear() + 2);
+  let eventi = [], token = "";
+  for (let i = 0; i < 6; i++) {
+    const j = await gapi(`${CAL}/calendars/${cal}/events?${qs({ timeMin: da.toISOString(), timeMax: a.toISOString(), showDeleted: true, singleEvents: false, maxResults: 250, ...(token ? { pageToken: token } : {}) })}`);
+    eventi.push(...(j.items || [])); token = j.nextPageToken; if (!token) break;
+  }
+  let nuove = 0, cambiate = 0;
+  for (const e of eventi) {
+    const v = perVisita.get(e.id);
+    if (v) {   // evento collegato a una visita già nell'app
+      if (e.status === "cancelled") {
+        if (!v.deleted && v.stato !== "annullata") { Object.assign(v, { stato: "annullata", calEventId: "", calSig: "", updatedAt: Date.now() }); cambiate++; }
+        continue;
+      }
+      if (!v.calUpdated) { v.calUpdated = e.updated; continue; }   // primo controllo: si prende nota e basta
+      if (e.updated && e.updated > v.calUpdated) {   // modificato fuori dall'app
+        const d = datiDaEvento(e);
+        if (d) {
+          Object.assign(v, { data: d.data, ora: d.ora, durata: d.durata, luogo: d.luogo || v.luogo });
+          if (v.importato && e.summary) v.motivo = e.summary;
+          v.calSig = JSON.stringify(eventoDaVisita(v)); v.calUpdated = e.updated; v.updatedAt = Date.now(); cambiate++;
+        } else v.calUpdated = e.updated;
+      }
+      continue;
+    }
+    if (e.status === "cancelled" || noti.has(e.id) || e.recurrence || e.recurringEventId || e.extendedProperties?.private?.gioele) continue;
+    const d = datiDaEvento(e); if (!d) continue;
+    const testo = `${e.summary || ""} ${e.description || ""}`, tipo = tipoDaTesto(testo);
+    const nv = { id: uid(), tipo, ...d, stato: d.data < oggiISO() ? "fatta" : "programmata",
+      medico: ["pediatra", "bilancio"].includes(tipo) ? PEDIATRA.nome : "", motivo: e.summary || "Visita",
+      note: (e.description || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 1000),
+      importato: true, calEventId: e.id, calUpdated: e.updated || "", noCal: false, creato: Date.now(), creatoDa: G.email || "", updatedAt: Date.now() };
+    nv.calSig = d.ora ? JSON.stringify(eventoDaVisita(nv)) : "";
+    /* evento di un giorno intero: senza ora l'app non lo modifica e non lo cancella */
+    S.visite.push(nv); nuove++;
+  }
+  if (nuove || cambiate) SY.daCalendario = [nuove && `${nuove} ${nuove === 1 ? "visita aggiunta" : "visite aggiunte"} dal calendario`, cambiate && `${cambiate} ${cambiate === 1 ? "visita aggiornata" : "visite aggiornate"} dal calendario`].filter(Boolean).join(", ");
 }
 async function allineaCalendario() {
   if (!S.config.calendarId) return;
@@ -504,7 +566,7 @@ async function allineaCalendario() {
       catch (e) { if (!/not found|404|410/i.test(e.message)) throw e; }
     }
     if (!r) r = await gapi(`${CAL}/calendars/${cal}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev) });
-    v.calEventId = r.id; v.calSig = sig; v.updatedAt = Date.now();
+    v.calEventId = r.id; v.calSig = sig; v.calUpdated = r.updated || v.calUpdated || ""; v.updatedAt = Date.now();
   }
   await allineaPromemoria(cal);
   await allineaProssimoPasto(cal);
@@ -538,7 +600,8 @@ function eventoDaVisita(v) {
     description: testoVisita(v, false),
     start: { dateTime: `${v.data}T${v.ora}:00`, timeZone: "Europe/Rome" },
     end: { dateTime: `${v.data}T${fine}:00`, timeZone: "Europe/Rome" },
-    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 24 * 60 }, { method: "popup", minutes: 120 }] }
+    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 24 * 60 }, { method: "popup", minutes: 120 }] },
+    extendedProperties: { private: { gioele: "visita" } }
   };
 }
 async function condividiArchivio(email, ruolo = "writer") {
@@ -981,7 +1044,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v17</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v18</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1404,7 +1467,8 @@ function eventoScadenza(d) {
     description: `${d.titolo}${d.numero ? " n. " + d.numero : ""}${d.ente ? "\nRilasciato da: " + d.ente : ""}\nRicordati di rinnovarlo (promemoria dall'app Gioele).`,
     start: { date: d.scadenza }, end: { date: oggiISO(fine) },
     transparency: "transparent",
-    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 40320 }, { method: "popup", minutes: 7 * 1440 }] }
+    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 40320 }, { method: "popup", minutes: 7 * 1440 }] },
+    extendedProperties: { private: { gioele: "scadenza" } }
   };
 }
 
