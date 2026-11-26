@@ -132,6 +132,7 @@ dialog::backdrop{background:rgba(5,20,18,.5)}
 table.tab{width:100%;border-collapse:collapse;font-size:14.5px}
 table.tab th{text-align:left;font-size:12.5px;color:var(--ink-3);padding:6px;border-bottom:1px solid var(--line)}
 table.tab td{padding:7px 6px;border-bottom:1px solid var(--line-2);vertical-align:top}
+.campo-errore{outline:3px solid var(--bad)!important;outline-offset:1px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(140px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14.5px;z-index:100;max-width:calc(100vw - 32px);box-shadow:0 6px 18px rgba(0,0,0,.25)}
 ol.steps{padding-left:20px;margin:6px 0} ol.steps li{margin:6px 0}
 code{background:var(--line-2);padding:1px 5px;border-radius:5px;font-size:13.5px;word-break:break-all}
@@ -231,10 +232,23 @@ const daMin = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const parseISO = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
 const dataLunga = s => { const d = parseISO(s); return `${GIORNI[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]} ${d.getFullYear()}`; };
 const dataBreve = s => { if (!s) return ""; const d = parseISO(s); return `${d.getDate()} ${MESI[d.getMonth()]} ${d.getFullYear()}`; };
+/* errore legato a un campo del modulo: viene evidenziato */
+function errore(msg, campo) { const e = new Error(msg); e.campo = campo; return e; }
+function mostraErroreSheet(err) {
+  let box = document.getElementById("sheetErrore");
+  if (!box) { box = document.createElement("div"); box.id = "sheetErrore"; box.className = "notice bad"; box.setAttribute("role", "alert"); $("#sheetBody").prepend(box); }
+  box.textContent = "⚠️ " + err.message;
+  document.querySelectorAll(".campo-errore").forEach(x => x.classList.remove("campo-errore"));
+  const el = err.campo && $("#sheetForm").elements[err.campo];
+  if (el) { el.classList.add("campo-errore"); el.scrollIntoView({ block: "center", behavior: "smooth" }); el.addEventListener("input", () => el.classList.remove("campo-errore"), { once: true }); }
+  else box.scrollIntoView({ block: "start", behavior: "smooth" });
+  toast(err.message, 4000);
+}
 function toast(msg, ms = 2800) {
   document.querySelectorAll(".toast").forEach(x => x.remove());
   const t = document.createElement("div"); t.className = "toast"; t.textContent = msg;
-  document.body.appendChild(t); setTimeout(() => t.remove(), ms);
+  const dlg = document.getElementById("sheet");
+  (dlg && dlg.open ? dlg : document.body).appendChild(t); setTimeout(() => t.remove(), ms);
 }
 const ls = {
   get(k, d = null) { try { const v = localStorage.getItem("gioele." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -1044,7 +1058,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v18</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v19</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1081,12 +1095,16 @@ function apriSheet(titolo, corpo, piede, onSubmit) {
   if (!sheet.open) sheet.showModal();
   $("#sheetBody").scrollTop = 0;
 }
+$("#sheetForm").addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.tagName === "INPUT" && !["checkbox", "radio", "file"].includes(e.target.type)) { e.preventDefault(); e.target.blur(); }
+});
 sheet.addEventListener("close", () => { azioneSheet = null; bozzaFiles = []; bozzaAnalisi = null; analisiInCorso = 0; });
 $("#sheetForm").addEventListener("submit", async e => {
   const v = e.submitter?.value;
   if (v === "ok" && azioneSheet) {
     e.preventDefault();
-    try { const fine = await azioneSheet(); if (fine !== false) sheet.close(); } catch (err) { toast(err.message, 5000); }
+    const btn = e.submitter; btn.disabled = true;
+    try { const fine = await azioneSheet(); if (fine !== false) sheet.close(); } catch (err) { mostraErroreSheet(err); } finally { btn.disabled = false; }
   }
 });
 
