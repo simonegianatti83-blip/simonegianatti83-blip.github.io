@@ -156,8 +156,13 @@ function formPasto(p = {}, preset = {}) {
       <label class="f">Ha iniziato dal seno<select name="primo"><option value="sx" ${p.primo !== "dx" ? "selected" : ""}>Sinistro</option><option value="dx" ${p.primo === "dx" ? "selected" : ""}>Destro</option></select></label>
     </div>
     <div id="durataPasto" class="small" style="margin-top:8px"></div>
-    <label class="f">Rinforzo (ml)${ob ? ` – indicati ${ob} ml` : ""}<input type="text" inputmode="numeric" name="ml" value="${p.ml ?? ""}" placeholder="${ob || ""}"></label>
-    ${ob ? `<div class="btns" style="margin-top:6px">${[ob - 20, ob - 10, ob, ob + 10].filter(v => v > 0).map(v => `<button type="button" class="btn sm ${v === ob ? "pri" : ""}" data-act="pasto-ml" data-ml="${v}">${v} ml</button>`).join("")}<button type="button" class="btn sm" data-act="pasto-ml" data-ml="">nessuno</button></div>` : ""}
+    <label class="f" for="inMl">Rinforzo (ml)${ob ? ` – indicati ${ob} ml` : ""}</label>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+      <button type="button" class="btn" data-act="pasto-ml-piu" data-d="-10" style="min-width:64px;font-size:19px" aria-label="Togli 10 ml">−10</button>
+      <input type="number" id="inMl" inputmode="numeric" min="0" max="500" step="1" name="ml" value="${p.ml ?? ""}" placeholder="– ml –" style="text-align:center;font-size:22px;font-weight:700">
+      <button type="button" class="btn" data-act="pasto-ml-piu" data-d="10" style="min-width:64px;font-size:19px" aria-label="Aggiungi 10 ml">+10</button>
+    </div>
+    <div class="btns" style="margin-top:6px">${ob ? [ob - 10, ob, ob + 10].filter(v => v > 0).map(v => `<button type="button" class="btn sm ${v === ob ? "pri" : ""}" data-act="pasto-ml" data-ml="${v}">${v} ml</button>`).join("") : ""}<button type="button" class="btn sm" data-act="pasto-ml" data-ml="">nessun rinforzo</button></div>
     <label class="f">Tipo di latte del rinforzo<select name="latte">${Object.entries(LATTI).map(([k, t]) => `<option value="${k}" ${p.latte === k ? "selected" : ""}>${t[0].toUpperCase() + t.slice(1)}</option>`).join("")}</select></label>
     <div class="grid2"><label class="f">Chi<input type="text" name="chi" value="${esc(p.chi || "")}"></label>
     <label class="f">Note<input type="text" name="note" value="${esc(p.note || "")}" placeholder="es. rigurgito, singhiozzo"></label></div>`,
@@ -165,11 +170,11 @@ function formPasto(p = {}, preset = {}) {
   async () => {
     const f = $("#sheetForm"), v = n => f.elements[n].value.trim();
     const seno = v("seno"), data = v("data") || oggiISO(), inizio = v("inizio"), fine = v("fine"), ml = num(v("ml"));
-    if (!inizio) throw new Error("Inserisci l'ora di inizio");
-    if (seno && !fine) throw new Error("Inserisci l'ora di fine della poppata");
-    if (!seno && !ml) throw new Error("Indica la poppata o i ml di rinforzo");
+    if (!inizio) throw errore("Inserisci l'ora di inizio", "inizio");
+    if (seno && !fine) throw errore("Inserisci l'ora di fine della poppata", "fine");
+    if (!seno && !ml) throw errore("Scegli la poppata al seno oppure inserisci i ml di rinforzo", "ml");
     const quando = `${data}T${inizio}`, minuti = seno ? minutiTra(inizio, fine) : null;
-    if (seno && minuti === 0) throw new Error("L'ora di fine è uguale a quella di inizio");
+    if (seno && minuti === 0) throw errore("L'ora di fine è uguale a quella di inizio", "fine");
     if (minuti > 120 && !confirm(`La poppata risulta di ${minuti} minuti (dalle ${inizio} alle ${fine}). È giusto?`)) return false;
     const dati = { quando, fine: seno ? piuMinuti(quando, minuti) : (fine ? piuMinuti(quando, minutiTra(inizio, fine)) : ""), seno, minuti,
       minSx: null, minDx: null, primo: "", cambio: "", finito: "", ml, latte: v("latte"), chi: v("chi"), note: v("note"), updatedAt: Date.now() };
@@ -268,7 +273,7 @@ function formPannolino(x = {}, preset = {}) {
   `${!nuovo ? `<button type="button" class="btn bad" data-act="elimina-voce" data-col="pannolini" data-id="${x.id}">Elimina</button><span style="flex:1"></span>` : ""}<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
     const f = $("#sheetForm");
-    if (!f.elements.ora.value) throw new Error("Inserisci l'ora");
+    if (!f.elements.ora.value) throw errore("Inserisci l'ora", "ora");
     const dati = { quando: `${f.elements.data.value || oggiISO()}T${f.elements.ora.value}`, pipi: f.elements.pipi.checked, cacca: f.elements.cacca.checked,
       colore: f.elements.cacca.checked ? f.elements.colore.value : "", consistenza: f.elements.cacca.checked ? f.elements.consistenza.value : "",
       chi: f.elements.chi.value.trim(), note: f.elements.note.value.trim(), updatedAt: Date.now() };
@@ -367,7 +372,8 @@ async function azionePasti(act, b) {
     case "nuovo-pannolino": formPannolino(); return true;
     case "apri-pannolino": formPannolino(S.pannolini.find(x => x.id === b.dataset.id)); return true;
     case "apri-pasto": formPasto(S.pasti.find(x => x.id === b.dataset.id)); return true;
-    case "pasto-ml": $("#sheetForm").elements.ml.value = b.dataset.ml; return true;
+    case "pasto-ml": { const el = $("#sheetForm").elements.ml; el.value = b.dataset.ml; el.classList.remove("campo-errore"); return true; }
+    case "pasto-ml-piu": { const el = $("#sheetForm").elements.ml, base = num(el.value) ?? (mlPerPasto() || 0); el.value = Math.max(0, base + Number(b.dataset.d)); el.classList.remove("campo-errore"); return true; }
     case "pasti-regola": formRegolaPasti(); return true;
     case "poppata-avvia": avviaPoppata(b.dataset.seno); return true;
     case "poppata-cambia": cambiaSeno(); return true;
