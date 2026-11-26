@@ -1,7 +1,7 @@
 /* Gioele – service worker: app disponibile anche offline + riceve i file
    condivisi dal telefono (menu "Condividi" → Gioele).
    Per pubblicare una nuova versione cambia il numero qui sotto. */
-const VERSIONE = "gioele-v16";
+const VERSIONE = "gioele-v17";
 const FILE_APP = ["./", "./index.html", "./manifest.webmanifest",
   "./icona-192.png", "./icona-512.png", "./icona-maskable-512.png", "./apple-touch-icon.png",
   "./analisi.js", "./riepilogo.js", "./oms.js", "./salute.js", "./pasti.js"];

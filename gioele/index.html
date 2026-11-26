@@ -507,6 +507,7 @@ async function allineaCalendario() {
     v.calEventId = r.id; v.calSig = sig; v.updatedAt = Date.now();
   }
   await allineaPromemoria(cal);
+  await allineaProssimoPasto(cal);
   /* scadenze dei documenti personali: evento di un giorno con promemoria 4 settimane e 1 settimana prima */
   for (const d of S.documenti) {
     if (d.ambito !== "personale") continue;
@@ -980,7 +981,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v16</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v17</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1658,7 +1659,7 @@ document.addEventListener("click", async e => {
 });
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => vai(b.dataset.tab)));
 const AZIONI_SCRITTURA = new Set(["nuova-visita", "nuova-visita-ped", "nota-consulto", "nuova-chiusura", "togli-chiusura", "aggiungi-domanda", "domanda-fatta", "nuova-misura", "nuova-dose",
-  "nuova-febbre", "nuova-spesa", "nuovo-pers", "doc-per-visita", "farmaci-abituali", "scatta-nuovo", "pdf-nuovo", "condividi-silvia", "importa", "importa-cal", "nuova-visita-bil", "elimina-voce", "nuovo-pasto", "pannolino-rapido", "nuovo-pannolino", "poppata-avvia", "poppata-cambia", "poppata-fine", "pasti-regola", "pasti-nascita", "elimina-visita", "elimina-doc"]);
+  "nuova-febbre", "nuova-spesa", "nuovo-pers", "doc-per-visita", "farmaci-abituali", "scatta-nuovo", "pdf-nuovo", "condividi-silvia", "importa", "importa-cal", "nuova-visita-bil", "elimina-voce", "nuovo-pasto", "vitd-data", "pannolino-rapido", "nuovo-pannolino", "poppata-avvia", "poppata-cambia", "poppata-fine", "pasti-regola", "pasti-nascita", "elimina-visita", "elimina-doc"]);
 function vai(tab) { vista = tab; ls.set("tab", tab); render(); window.scrollTo(0, 0); }
 $("#fab").addEventListener("click", () => {
   if (soloLettura()) return;
@@ -1702,7 +1703,7 @@ function rinfrescaConFocus(id) {
 $("#btnSync").addEventListener("click", () => clientId() ? sincronizza(true) : vai("impostazioni"));
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && googleAttivo() && tokenValido()) sincronizza(false); });
 setInterval(() => { if (document.visibilityState === "visible" && googleAttivo() && tokenValido()) sincronizza(false); }, 90000);
-setInterval(() => { if (["home", "pediatra"].includes(vista) && !sheet.open) render(); }, 60000);
+setInterval(() => { if (["home", "pediatra", "salute"].includes(vista) && !sheet.open) render(); }, 60000);
 
 /* =====================================================================
    AVVIO

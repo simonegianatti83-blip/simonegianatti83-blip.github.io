@@ -5,7 +5,7 @@
    ===================================================================== */
 "use strict";
 
-const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: false, pastiMin: 6, pastiMax: 7, maxMl: null };
+const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: false, pastiMin: 6, pastiMax: 7, maxMl: null, intervalloMin: 210, intervalloDa: "inizio", avvisoPasto: true };
 function regolaPasti() {
   const c = { ...(S.config.pasti || {}) };
   if (!c.confermato) delete c.nascitaGiorno1;   // impostazione vecchia mai scelta a mano: vale la nuova (nascita non conta)
@@ -129,6 +129,7 @@ function vPasti() {
       <div class="slot"><span>Oggi</span><b>${nPasti(oggi.n)}${oggi.ml ? ` · ${oggi.ml} ml di rinforzo` : ""}${oggi.minuti ? ` · ${oggi.minuti} min al seno` : ""}</b></div>
       <div class="slot"><span>Ultime 24 ore</span><b>${nPasti(in24)} ${in24 < r.pastiMin ? `<span class="chip warn">meno di ${r.pastiMin}</span>` : in24 > r.pastiMax + 2 ? `<span class="chip">molti</span>` : `<span class="chip ok">ok</span>`}</b></div>
       ${ultimo ? `<div class="slot"><span>Ultimo pasto</span><b>${traQuanto(da)} fa (${ultimo.quando.slice(11)})</b></div>` : ""}
+      ${ultimo ? `<div style="margin-top:8px">${rigaProssimoPasto(true)}</div>` : ""}
       <div class="btns"><button type="button" class="btn pri" data-act="nuovo-pasto">🍼 Segna un pasto</button><button type="button" class="btn sm" data-act="pasti-regola">⚙️ Regola</button></div>
     </div>
     ${boxCronometro()}
@@ -208,11 +209,16 @@ function formRegolaPasti() {
     <div class="grid2"><label class="f">Pasti al giorno da<input type="text" inputmode="numeric" name="pastiMin" value="${r.pastiMin}"></label>
     <label class="f">a<input type="text" inputmode="numeric" name="pastiMax" value="${r.pastiMax}"></label></div>
     <label class="check"><input type="checkbox" name="nascitaGiorno1" ${r.nascitaGiorno1 ? "checked" : ""}> Conta anche il giorno della nascita (se spuntato il ${S.profilo.nascita ? dataBreve(S.profilo.nascita) : "giorno della nascita"} vale già ${r.incremento} ml; se non spuntato vale 0 ml e si parte con ${r.incremento} ml il giorno dopo)</label>
-    <div class="tiny" style="margin-top:6px">Oggi con queste impostazioni: ${etGiorno()} → ${mlPerPasto()} ml a pasto.</div>`,
+    <div class="tiny" style="margin-top:6px">Oggi con queste impostazioni: ${etGiorno()} → ${mlPerPasto()} ml a pasto.</div>
+    <h3 style="font-size:15px;margin:16px 0 0">Promemoria del prossimo pasto</h3>
+    <div class="grid2"><label class="f">Ogni (ore:minuti)<input type="time" name="intervallo" value="${pad(Math.floor(r.intervalloMin / 60))}:${pad(r.intervalloMin % 60)}"></label>
+    <label class="f">Contando dal<select name="intervalloDa"><option value="inizio" ${r.intervalloDa !== "fine" ? "selected" : ""}>inizio dell'ultimo pasto</option><option value="fine" ${r.intervalloDa === "fine" ? "selected" : ""}>fine dell'ultimo pasto</option></select></label></div>
+    <label class="check"><input type="checkbox" name="avvisoPasto" ${r.avvisoPasto !== false ? "checked" : ""}> Avviso nel calendario Google “${NOME_CALENDARIO}” all'ora del prossimo pasto</label>`,
   `<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
     const f = $("#sheetForm"), v = n => num(f.elements[n].value);
-    S.config.pasti = { incremento: v("incremento") || 10, maxMl: v("maxMl") || null, pastiMin: v("pastiMin") || 6, pastiMax: Math.max(v("pastiMax") || 7, v("pastiMin") || 6), nascitaGiorno1: f.elements.nascitaGiorno1.checked, confermato: true };
+    S.config.pasti = { incremento: v("incremento") || 10, maxMl: v("maxMl") || null, pastiMin: v("pastiMin") || 6, pastiMax: Math.max(v("pastiMax") || 7, v("pastiMin") || 6), nascitaGiorno1: f.elements.nascitaGiorno1.checked, confermato: true,
+      intervalloMin: f.elements.intervallo.value ? min(f.elements.intervallo.value) || 210 : 210, intervalloDa: f.elements.intervalloDa.value, avvisoPasto: f.elements.avvisoPasto.checked };
     await salva(); toast("Regola salvata");
   });
 }
@@ -292,15 +298,71 @@ function boxPannolini() {
       <div class="tiny" style="margin-top:6px">Ci vuole almeno 1 pipì ogni 24 ore: se passano 24 ore senza, senti la pediatra. Le prime cacche sono scure (meconio), poi verdi e dal 4°-5° giorno gialle. Pochi pannolini bagnati o feci chiare: senti la pediatra.</div>
     </div>`;
 }
+
+/* =====================================================================
+   PROSSIMO PASTO (ogni 3 h 30 dall'ultimo) e VITAMINA D
+   ===================================================================== */
+const hm = minuti => `${Math.floor(minuti / 60)}:${pad(minuti % 60)}`;
+function prossimoPasto() {
+  const u = pastiOrd()[0]; if (!u) return null;
+  const r = regolaPasti();
+  const base = r.intervalloDa === "fine" && u.fine ? u.fine : u.quando;
+  const d = daOraLocale(base); d.setMinutes(d.getMinutes() + r.intervalloMin);
+  return d;
+}
+function rigaProssimoPasto(grande = false) {
+  const d = prossimoPasto(); if (!d) return "";
+  const diff = d - Date.now(), ora = `${pad(d.getHours())}:${pad(d.getMinutes())}${oggiISO(d) !== oggiISO() ? " di domani" : ""}`;
+  const testo = diff > 0 ? `🍼 Prossimo pasto alle <b>${ora}</b> (tra ${traQuanto(diff)})` : `🍼 <b>Ora del pasto!</b> Previsto alle ${ora} (${traQuanto(-diff)} fa)`;
+  return grande ? `<div class="notice ${diff > 0 ? "info" : "warn"}" style="font-size:16px">${testo}</div>` : testo;
+}
+/* evento "prossimo pasto" nel calendario Google: uno solo, spostato a ogni nuovo pasto (da qualsiasi telefono) */
+async function allineaProssimoPasto(cal) {
+  if (regolaPasti().avvisoPasto === false) return;
+  const j = await gapi(`${CAL}/calendars/${cal}/events?${qs({ privateExtendedProperty: "gioele=prossimoPasto", maxResults: 10, singleEvents: true })}`);
+  const evs = (j.items || []).filter(e => e.status !== "cancelled");
+  for (const e of evs.slice(1)) { try { await gapi(`${CAL}/calendars/${cal}/events/${e.id}`, { method: "DELETE" }); } catch {} }
+  const d = prossimoPasto(), ev0 = evs[0];
+  if (!d || Date.now() - d > 6 * 36e5) {   // nessun pasto recente: niente promemoria
+    if (ev0) { try { await gapi(`${CAL}/calendars/${cal}/events/${ev0.id}`, { method: "DELETE" }); } catch {} }
+    return;
+  }
+  const sig = oraLocale(d), u = pastiOrd()[0], r = regolaPasti();
+  if (ev0 && ev0.extendedProperties?.private?.sig === sig) return;
+  const fine = new Date(d.getTime() + 15 * 60000);
+  const ev = {
+    summary: "🍼 Pasto Gioele", transparency: "transparent",
+    description: `${hm(r.intervalloMin)} dopo l'ultimo pasto (${u.quando.slice(11)}${u.chi ? ", " + u.chi : ""}). Indicati ${mlPerPasto()} ml di rinforzo. Promemoria automatico dell'app Gioele: si sposta da solo quando segnate un nuovo pasto.`,
+    start: { dateTime: sig + ":00", timeZone: "Europe/Rome" }, end: { dateTime: oraLocale(fine) + ":00", timeZone: "Europe/Rome" },
+    reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 0 }] },
+    extendedProperties: { private: { gioele: "prossimoPasto", sig } }
+  };
+  if (ev0) await gapi(`${CAL}/calendars/${cal}/events/${ev0.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev) });
+  else await gapi(`${CAL}/calendars/${cal}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev) });
+}
+const VIT_D = "Vitamina D";
+const vitDOggi = () => attivi("dosi").filter(d => /vitamina\s*d/i.test(d.farmaco) && d.quando.startsWith(oggiISO())).sort((a, b) => a.quando.localeCompare(b.quando))[0];
+function cardVitaminaD() {
+  if (!S.profilo.nascita) return "";
+  const v = vitDOggi();
+  return v ? `<div class="notice info small">💊 Vitamina D di oggi: <b>✓ data alle ${v.quando.slice(11)}</b>${v.chi ? " (" + esc(v.chi) + ")" : ""}${v.dose ? " · " + esc(v.dose) : ""}</div>`
+    : `<div class="notice warn small" style="display:flex;gap:10px;align-items:center;justify-content:space-between">💊 Vitamina D di oggi: <b>da dare</b><button type="button" class="btn sm pri" data-act="vitd-data">Data ✓</button></div>`;
+}
+async function segnaVitaminaD() {
+  const ab = farmaciAbituali().find(f => /vitamina\s*d/i.test(f.nome));
+  S.dosi.push({ id: uid(), farmaco: ab ? ab.nome : VIT_D, dose: ab?.dose || "", quando: oraLocale(), chi: mioNome(), creato: Date.now(), updatedAt: Date.now() });
+  await salva(); toast("💊 Vitamina D segnata");
+}
 /* riquadro in Home */
 function cardHomePasti() {
   if (!S.profilo.nascita || giorniDiVita() > 400) return "";
   const r = regolaPasti(), oggi = giornata(oggiISO()), ultimo = pastiOrd()[0], p = poppataInCorso();
-  return `<div class="notice info small" data-act="vai-salute" data-sez="pasti" style="cursor:pointer">🍼 <b>Oggi ${oggi.n} su ${r.pastiMin}-${r.pastiMax} pasti</b>${oggi.ml ? ` · ${oggi.ml} ml di rinforzo` : ""} · indicati <b>${mlPerPasto()} ml</b> a pasto (${etGiorno()})${ultimo ? `<br>Ultimo pasto: ${traQuanto(Date.now() - daOraLocale(ultimo.quando))} fa` : ""}<br>🧷 Oggi 💧 ${pannoliniGiorno(oggiISO()).pipi} pipì · 💩 ${pannoliniGiorno(oggiISO()).cacca} cacche${p ? `<br>⏱️ Poppata in corso (seno ${p.seno === "sx" ? "sinistro" : "destro"})` : ""}</div>`;
+  return `${rigaProssimoPasto(true)}${cardVitaminaD()}<div class="notice info small" data-act="vai-salute" data-sez="pasti" style="cursor:pointer">🍼 <b>Oggi ${oggi.n} su ${r.pastiMin}-${r.pastiMax} pasti</b>${oggi.ml ? ` · ${oggi.ml} ml di rinforzo` : ""} · indicati <b>${mlPerPasto()} ml</b> a pasto (${etGiorno()})${ultimo ? `<br>Ultimo pasto: ${traQuanto(Date.now() - daOraLocale(ultimo.quando))} fa` : ""}<br>🧷 Oggi 💧 ${pannoliniGiorno(oggiISO()).pipi} pipì · 💩 ${pannoliniGiorno(oggiISO()).cacca} cacche${p ? `<br>⏱️ Poppata in corso (seno ${p.seno === "sx" ? "sinistro" : "destro"})` : ""}</div>`;
 }
 async function azionePasti(act, b) {
   switch (act) {
     case "nuovo-pasto": formPasto(); return true;
+    case "vitd-data": await segnaVitaminaD(); return true;
     case "pannolino-rapido": await pannolinoRapido(b.dataset.tipo); return true;
     case "nuovo-pannolino": formPannolino(); return true;
     case "apri-pannolino": formPannolino(S.pannolini.find(x => x.id === b.dataset.id)); return true;
