@@ -120,7 +120,7 @@ function vPasti() {
   const giorni = []; for (let i = 0; i < 10; i++) { const iso = oggiISO(new Date(Date.now() - i * 864e5)), g = giornata(iso); if (g.n || i === 0 || pannoliniGiorno(iso).lista.length) giorni.push(g); }
   const descr = p => [p.seno && `🤱 ${p.seno === "entrambi" && p.primo ? (p.primo === "sx" ? "sinistro → destro" : "destro → sinistro") : SENI[p.seno].toLowerCase()}${minutiPasto(p) ? ` ${minutiPasto(p)}′` : ""}${p.minSx && p.minDx ? ` (sx ${p.minSx}′, dx ${p.minDx}′)` : ""}`,
     p.ml && `🍼 ${p.ml} ml${p.latte ? " " + (p.latte === "materno" ? "materno" : "artificiale") : ""}`, p.note].filter(Boolean).join(" · ");
-  return `<div class="card">
+  return `<div class="col2"><div class="col"><div class="card">
       <div class="small muted">${etGiorno()} · regola: ${r.incremento} ml in più ogni giorno</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px">
         <div><div class="tiny">Per pasto</div><div style="font-size:26px;font-weight:800">${ml} ml</div></div>
@@ -135,13 +135,15 @@ function vPasti() {
     ${boxCronometro()}
     ${boxPannolini()}
     <div class="card" style="padding:8px">${graficoPasti(7)}<div class="tiny" style="padding:0 6px">Barre: ml di rinforzo al giorno. Fascia arancione: quantità indicata dalla regola (${r.pastiMin}–${r.pastiMax} pasti × ml per pasto).</div></div>
+    </div><div class="col">
     ${giorni.map(g => { const pn = pannoliniGiorno(g.iso);
       const voci = [...g.pasti.map(p => ({ q: p.quando, html: `<div class="slot" data-act="apri-pasto" data-id="${p.id}" style="cursor:pointer"><span><b>${orarioPasto(p)}</b> ${esc(descr(p))}${p.chi ? `<br><span class="tiny">${esc(p.chi)}</span>` : ""}</span>${p.ml && g.obiettivo ? `<span class="chip ${p.ml >= g.obiettivo ? "ok" : ""}">${p.ml}/${g.obiettivo}</span>` : ""}</div>` })),
         ...pn.lista.map(x => ({ q: x.quando, html: `<div class="slot" data-act="apri-pannolino" data-id="${x.id}" style="cursor:pointer"><span><b>${x.quando.slice(11)}</b> ${esc(descrPannolino(x))}${x.chi ? `<br><span class="tiny">${esc(x.chi)}</span>` : ""}</span>${COLORI_ALLARME.includes(x.colore) ? `<span class="chip bad">⚠️</span>` : ""}</div>` }))]
         .sort((a, b) => b.q.localeCompare(a.q));
       return `<h2 style="font-size:16px">${g.iso === oggiISO() ? "Oggi" : dataBreve(g.iso)} <span class="tiny">· ${etGiorno(g.iso)} · ${nPasti(g.n)}${g.ml ? " · " + g.ml + " ml" : ""} · 💧 ${pn.pipi} · 💩 ${pn.cacca}${g.obiettivo ? " · indicati " + g.obiettivo + " ml a pasto" : ""}</span></h2>
       ${voci.length ? `<div class="card" style="padding:4px 12px">${voci.map(v => v.html).join("")}</div>` : `<div class="tiny">Niente segnato.</div>`}`; }).join("")}
-    <div class="tiny" style="margin-top:12px">La regola dei ${r.incremento} ml al giorno e il numero di pasti sono quelli che ci hai indicato: segui sempre le indicazioni della pediatra, che possono cambiare con il peso e la crescita (modificale con “⚙️ Regola”). Se Gioele mangia molto meno del solito, bagna pochi pannolini o è molto sonnolento, senti la pediatra.</div>`;
+    <div class="tiny" style="margin-top:12px">La regola dei ${r.incremento} ml al giorno e il numero di pasti sono quelli che ci hai indicato: segui sempre le indicazioni della pediatra, che possono cambiare con il peso e la crescita (modificale con “⚙️ Regola”). Se Gioele mangia molto meno del solito, bagna pochi pannolini o è molto sonnolento, senti la pediatra.</div>
+    </div></div>`;
 }
 function formPasto(p = {}, preset = {}) {
   p = { quando: oraLocale(), chi: mioNome(), latte: ls.get("ultimoLatte", "artificiale"), ...preset, ...p };
@@ -351,7 +353,7 @@ function cardVitaminaD() {
   if (!S.profilo.nascita) return "";
   const v = vitDOggi();
   return v ? `<div class="notice info small">💊 Vitamina D di oggi: <b>✓ data alle ${v.quando.slice(11)}</b>${v.chi ? " (" + esc(v.chi) + ")" : ""}${v.dose ? " · " + esc(v.dose) : ""}</div>`
-    : `<div class="notice warn small" style="display:flex;gap:10px;align-items:center;justify-content:space-between">💊 Vitamina D di oggi: <b>da dare</b><button type="button" class="btn sm pri" data-act="vitd-data">Data ✓</button></div>`;
+    : `<div class="notice warn small" style="display:flex;gap:10px;align-items:center"><span style="flex:1">💊 Vitamina D di oggi: <b>da dare</b></span><button type="button" class="btn sm pri" data-act="vitd-data">Data ✓</button></div>`;
 }
 async function segnaVitaminaD() {
   const ab = farmaciAbituali().find(f => /vitamina\s*d/i.test(f.nome));
