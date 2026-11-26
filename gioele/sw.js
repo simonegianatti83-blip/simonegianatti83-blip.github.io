@@ -1,13 +1,21 @@
 /* Gioele – service worker: app disponibile anche offline + riceve i file
    condivisi dal telefono (menu "Condividi" → Gioele).
    Per pubblicare una nuova versione cambia il numero qui sotto. */
-const VERSIONE = "gioele-v19";
+const VERSIONE = "gioele-v20";
 const FILE_APP = ["./", "./index.html", "./manifest.webmanifest",
   "./icona-192.png", "./icona-512.png", "./icona-maskable-512.png", "./apple-touch-icon.png",
   "./analisi.js", "./riepilogo.js", "./oms.js", "./salute.js", "./pasti.js"];
 /* librerie pesanti (lettura PDF, OCR, creazione PDF): salvate sul telefono al primo uso */
 const AL_PRIMO_USO = /\/(gioele\/ocr\/|pdf\.min\.mjs|pdf\.worker\.(min|app)\.mjs|compat\.mjs|pdf-lib\.min\.js)/;
 
+/* con poco segnale non si aspetta all'infinito: dopo qualche secondo si usa la copia salvata */
+const ATTESA_RETE_MS = 4000;
+function conTimeout(promessa, ms) {
+  return new Promise((ok, ko) => {
+    const t = setTimeout(() => ko(new Error("timeout")), ms);
+    promessa.then(r => { clearTimeout(t); ok(r); }, err => { clearTimeout(t); ko(err); });
+  });
+}
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSIONE)
     .then(c => c.addAll(FILE_APP.map(u => new Request(u, { cache: "reload" }))))
@@ -55,9 +63,11 @@ self.addEventListener("fetch", e => {
   if (req.method !== "GET" || url.origin !== location.origin) return;
 
   if (req.mode === "navigate") {
-    e.respondWith(fetch(req, { cache: "no-store" })
-      .then(res => { if (res.ok) { const c = res.clone(); caches.open(VERSIONE).then(x => x.put("./index.html", c)); } return res; })
-      .catch(() => caches.match("./index.html")));
+    const radice = new URL("./", self.registration.scope).pathname;
+    const eApp = url.pathname === radice || url.pathname === radice + "index.html";
+    e.respondWith(conTimeout(fetch(req, { cache: "no-store" }), ATTESA_RETE_MS)
+      .then(res => { if (res.ok && eApp) { const c = res.clone(); caches.open(VERSIONE).then(x => x.put("./index.html", c)); } return res; })
+      .catch(() => eApp ? caches.match("./index.html") : caches.match(req, { ignoreSearch: true }).then(r => r || caches.match("./index.html"))));
     return;
   }
   if (AL_PRIMO_USO.test(url.pathname)) {
@@ -68,8 +78,10 @@ self.addEventListener("fetch", e => {
     return;
   }
   /* file dell'app: prima la rete (aggiornamenti subito), poi la copia salvata */
-  e.respondWith(fetch(req).then(res => {
+  const rete = fetch(req).then(res => {
     if (res.ok && url.pathname.startsWith(new URL("./", self.registration.scope).pathname)) { const c = res.clone(); caches.open(VERSIONE).then(x => x.put(req, c)); }
     return res;
-  }).catch(() => caches.match(req, { ignoreSearch: true })));
+  });
+  e.respondWith(conTimeout(rete, ATTESA_RETE_MS)
+    .catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || rete)));
 });

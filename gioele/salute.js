@@ -651,7 +651,7 @@ async function pdfEmergenza() {
   w.y -= 8; w.testo(`Aggiornata al ${dataBreve(oggiISO())}.`, { size: 8, color: w.col.muted });
   const file = new File([await pdf.save()], `Scheda emergenze ${e.nome}.pdf`, { type: "application/pdf" });
   if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: file.name }); return; } catch (err) { if (err.name === "AbortError") return; } }
-  window.open(URL.createObjectURL(file), "_blank");
+  mostraFile(file, file.name);
 }
 
 /* =====================================================================
