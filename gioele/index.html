@@ -136,6 +136,39 @@ table.tab td{padding:7px 6px;border-bottom:1px solid var(--line-2);vertical-alig
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(140px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14.5px;z-index:100;max-width:calc(100vw - 32px);box-shadow:0 6px 18px rgba(0,0,0,.25)}
 ol.steps{padding-left:20px;margin:6px 0} ol.steps li{margin:6px 0}
 code{background:var(--line-2);padding:1px 5px;border-radius:5px;font-size:13.5px;word-break:break-all}
+
+/* ===== due colonne (solo su schermi larghi; sul telefono restano una sotto l'altra) ===== */
+.col2 > .col > h2:first-child{margin-top:4px}
+/* ===== VISTA DESKTOP / TABLET ORIZZONTALE ===== */
+@media (min-width: 900px){
+  :root{--lato:236px;--testa:70px}
+  header.top{height:var(--testa);padding:0;display:flex;align-items:center;position:fixed;left:0;right:0;top:0}
+  header.top .wrap{max-width:none;width:100%;padding:0 24px}
+  nav.tabs{top:var(--testa);bottom:0;right:auto;width:var(--lato);flex-direction:column;justify-content:flex-start;gap:4px;
+    padding:18px 12px 18px;border-top:0;border-right:1px solid var(--line);box-shadow:none;z-index:9;overflow-y:auto}
+  nav.tabs button{flex:none;max-width:none;flex-direction:row;justify-content:flex-start;gap:12px;font-size:15.5px;padding:11px 14px;border-radius:12px;text-align:left}
+  nav.tabs button:hover{background:var(--line-2)}
+  nav.tabs button .e{font-size:22px;width:28px;text-align:center}
+  nav.tabs button[aria-current=page]:hover{background:var(--brand-soft)}
+  main.wrap{max-width:1280px;margin:0 auto 0 max(var(--lato), calc(50vw - 640px + var(--lato) / 2));padding:calc(var(--testa) + 22px) 32px 60px}
+  .fab{right:32px;bottom:32px;width:60px;height:60px}
+  .toast{bottom:40px}
+  dialog{width:min(760px,calc(100vw - 40px))}
+  #viewer{width:min(1000px,calc(100vw - 40px))}
+  /* liste a griglia: le schede una accanto all'altra */
+  main#vista{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:14px;align-items:start}
+  main#vista > *{grid-column:1 / -1}
+  main#vista > .item{grid-column:auto}
+  .col2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 26px;align-items:start}
+  .col2.stretta-destra{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+  .item{margin-bottom:12px}
+  .chips-sez{margin:0 0 8px;padding-left:0;padding-right:0;flex-wrap:wrap;overflow:visible}
+  .empty{padding:40px 10px}
+}
+@media (min-width: 1400px){
+  main#vista{grid-template-columns:repeat(3, minmax(0,1fr))}
+  .col2 .item{width:100%}
+}
 </style>
 </head>
 <body>
@@ -839,7 +872,7 @@ async function caricaMiniature() {
 const CID_RE = /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i;
 function bannerGoogle() {
   if (clientId() && !CID_RE.test(clientId())) return `<div class="notice bad">⚠️ Il Client ID salvato è incompleto (mancano i numeri iniziali). Vai in <a href="#" data-act="tab" data-tab="impostazioni">Altro</a>, tocca <b>“Cambia Client ID”</b> e incollalo intero.</div>`;
-  if (!clientId()) return `<div class="notice info">📱 I dati per ora sono salvati <b>solo su questo telefono</b>. Per condividerli con Silvia e collegare Google Calendar vai in <a href="#" data-act="tab" data-tab="impostazioni">Impostazioni</a>.</div>`;
+  if (!clientId()) return `<div class="notice info">📱 I dati per ora sono salvati <b>solo su questo telefono</b>. Per condividerli con Silvia e collegare Google Calendar vai in <a href="#" data-act="tab" data-tab="impostazioni">Altro</a>.</div>`;
   if (SY.stato === "serve-accesso" || (!googleAttivo() && SY.stato !== "in-corso")) return `<div class="notice warn">🔑 Accedi a Google per sincronizzare con Silvia e con il calendario. <button type="button" class="btn sm pri" data-act="sync">Accedi</button></div>`;
   if (soloLettura()) return `<div class="notice info small">👀 Sei in <b>sola lettura</b>: vedi tutto, ma solo i genitori possono modificare.</div>`;
   if (SY.stato === "ok" && SY.avvisoCal) return `<div class="notice warn">📅 ${esc(SY.avvisoCal)}</div>`;
@@ -853,7 +886,7 @@ function bannerInstalla() {
   const installata = navigator.standalone || matchMedia("(display-mode: standalone)").matches;
   if (!ios || installata || ls.get("noBannerInstalla", false)) return "";
   return `<div class="notice info" style="position:relative;padding-right:40px">📲 <b>Usala a schermo intero, senza barre di Safari:</b> tocca <b>Condividi</b> <span aria-hidden="true">⬆️</span> (o i “…” in basso) → <b>Aggiungi alla schermata Home</b> → lascia attivo “Apri come app web” → <b>Aggiungi</b>. Poi aprila dall'icona verde.
-    <div class="tiny" style="margin-top:4px">Prima, se hai già inserito dati qui in Safari, fai Impostazioni → Esporta e poi Importa nell'app (iPhone tiene separati i dati di Safari e dell'app), oppure collega Google.</div>
+    <div class="tiny" style="margin-top:4px">Prima, se hai già inserito dati qui in Safari, fai Altro → Esporta e poi Importa nell'app (iPhone tiene separati i dati di Safari e dell'app), oppure collega Google.</div>
     <button type="button" class="x" data-act="chiudi-installa" aria-label="Chiudi" style="position:absolute;top:8px;right:8px;width:28px;height:28px;font-size:14px">✕</button></div>`;
 }
 function vHome() {
@@ -865,11 +898,13 @@ function vHome() {
   const amb = ambulatoriDelGiorno(new Date());
   const p = S.profilo;
   return `${bannerInstalla()}${bannerGoogle()}
+  <div class="col2"><div class="col">
   ${cardHomeSalute()}
   <h2>Prossime visite</h2>
   ${prossime.length ? prossime.slice(0, 4).map(rigaVisita).join("") : `<div class="card empty">Nessuna visita in programma.<div class="btns" style="justify-content:center"><button type="button" class="btn pri" data-act="nuova-visita">+ Nuova visita</button><button type="button" class="btn" data-act="tab" data-tab="pediatra">Prenota dalla pediatra</button></div></div>`}
   ${prossime.length > 4 ? `<button type="button" class="btn sm" data-act="tab" data-tab="visite">Vedi tutte (${prossime.length})</button>` : ""}
   ${daCompletare.length ? `<h2>Da completare</h2><div class="tiny" style="margin:-6px 0 8px">Visite passate: segna com'è andata e aggiungi i referti.</div>${daCompletare.slice(0, 3).map(rigaVisita).join("")}` : ""}
+  </div><div class="col">
   <h2>Pediatra oggi</h2>
   <div class="card">
     <div class="t" style="font-weight:700">${esc(PEDIATRA.nome)}</div>
@@ -901,7 +936,8 @@ function vHome() {
       <dt>Allergie</dt><dd>${esc(p.allergie || "nessuna nota")}</dd>
       ${p.note ? `<dt>Note</dt><dd>${esc(p.note)}</dd>` : ""}
     </dl>
-  </div>`;
+  </div>
+  </div></div>`;
 }
 function eta(nascita) {
   const n = parseISO(nascita), o = new Date();
@@ -975,7 +1011,7 @@ function vPediatra() {
   }
   const chiusure = (S.chiusure || []).filter(c => !c.deleted && (c.a || c.da) >= oggiISO()).sort((a, b) => a.da.localeCompare(b.da));
   const orari = st => [1,2,3,4,5,6,0].filter(g => st.orari[g]).map(g => st.orari[g].map(f => `<div class="slot"><b>${GIORNI[g][0].toUpperCase() + GIORNI[g].slice(1)}</b><span>${f[0]} – ${f[1]}${f[2] ? `<br><span class="tiny">${esc(f[2])}</span>` : ""}</span></div>`).join("")).join("");
-  return `<div class="card">
+  return `<div class="col2"><div class="col"><div class="card">
     <div style="font-weight:800;font-size:17px">👩‍⚕️ ${esc(PEDIATRA.nome)}</div>
     <div class="small muted">${PEDIATRA.ruolo}</div>
     <div class="tiny" style="margin-top:6px">Associazione pediatrica: ${PEDIATRA.associazione.map(esc).join(", ")}<br>Infermiere: no · Segretaria: no</div>
@@ -995,6 +1031,7 @@ function vPediatra() {
      ${g.ch ? `<div class="small"><span class="chip bad">Chiuso</span> ${esc(g.ch)}</div>` : ""}
      ${g.a.map(a => `<div class="small muted">${a.da}–${a.a} · ${esc(a.studio.nome.replace("Ambulatorio ", ""))}${a.nota ? ` <span class="chip warn">${esc(a.nota)}</span>` : ""}</div>`).join("")}</div>`).join("")}
     <div class="tiny" style="margin-top:6px">Sempre su appuntamento. Sono già esclusi i festivi nazionali, Pasquetta e il patrono di Sondrio (19 giugno) e le ferie inserite qui sotto.</div></div>
+  </div><div class="col">
   <h2>Ferie e chiusure della pediatra</h2>
   <div class="card">
     ${chiusure.length ? chiusure.map(c => `<div class="slot"><span><b>${dataBreve(c.da)}${c.a && c.a !== c.da ? " → " + dataBreve(c.a) : ""}</b><br><span class="tiny">${esc(c.motivo || "Pediatra assente")}</span></span><button type="button" class="btn sm bad" data-act="togli-chiusura" data-id="${c.id}">Togli</button></div>`).join("") : `<div class="small muted">Nessuna ferie segnata. Quando la pediatra comunica ferie o assenze, aggiungile qui: l'app non proporrà quei giorni (lo vede anche Silvia).</div>`}
@@ -1003,13 +1040,14 @@ function vPediatra() {
   </div>
   ${PEDIATRA.studi.map(st => `<h2>📍 ${esc(st.nome)}</h2><div class="card">
     <div class="small"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(st.indirizzo)}" target="_blank" rel="noopener">${esc(st.indirizzo)} ↗</a></div>
-    <div style="margin-top:6px">${orari(st)}</div></div>`).join("")}`;
+    <div style="margin-top:6px">${orari(st)}</div></div>`).join("")}
+  </div></div>`;
 }
 
 function vImpostazioni() {
   const cid = clientId(), coll = googleAttivo();
   const link = cid ? `${location.origin}${location.pathname}#cid=${encodeURIComponent(cid)}` : "";
-  return `<h2>Condivisione con Silvia e Google Calendar</h2>
+  return `<div class="col2"><div class="col"><h2>Condivisione con Silvia e Google Calendar</h2>
   <div class="card">
     ${!cid ? `<p class="small" style="margin-top:0">Per salvare tutto sul tuo <b>Google Drive</b> (cartella “${NOME_CARTELLA}”), mettere le visite in un calendario Google <b>“${NOME_CALENDARIO}”</b> e condividerli con Silvia serve un “Client ID” Google: si crea una volta sola, gratis, in circa 10 minuti.</p>
       <details><summary><b>Come si crea il Client ID</b></summary>${istruzioniGoogle()}</details>
@@ -1043,6 +1081,7 @@ function vImpostazioni() {
   ${cid && !coll ? `<div class="card small"><b>Sei Silvia?</b> Tocca “Collega Google” e accedi col tuo account: se Simone ti ha già condiviso l'archivio lo trovo da solo.</div>` : ""}
   ${link ? `<div class="card small"><b>Link dell'app</b> (contiene già il Client ID)<div style="margin-top:6px"><code>${esc(link)}</code></div></div>` : ""}
 
+  </div><div class="col">
   <h2>Emergenze</h2>
   <div class="card small">Scheda con allergie, terapie, contatti e numeri utili da dare a nonni e baby-sitter.
     <div class="btns"><button type="button" class="btn bad" data-act="emergenza">🆘 Apri la scheda emergenze</button></div></div>
@@ -1066,7 +1105,8 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v20</div>`;
+  </div></div>
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v21</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1623,7 +1663,7 @@ let ultimoRiepilogo = null;
 
 /* ---------- importa dal calendario personale ---------- */
 async function importaDaCalendario() {
-  if (!clientId()) return toast("Prima collega Google in Impostazioni", 4000);
+  if (!clientId()) return toast("Prima collega Google in Altro", 4000);
   try { await accedi(true); } catch (e) { return toast(e.message, 4000); }
   const da = new Date(); da.setFullYear(da.getFullYear() - 2);
   const a = new Date(); a.setFullYear(a.getFullYear() + 1);
