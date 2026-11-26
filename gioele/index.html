@@ -165,6 +165,11 @@ code{background:var(--line-2);padding:1px 5px;border-radius:5px;font-size:13.5px
   <div class="sheet-f" id="sheetFoot"></div>
 </form></dialog>
 
+<dialog id="viewer" aria-labelledby="viewerTitolo">
+  <div class="sheet-h"><h3 id="viewerTitolo"></h3><button type="button" class="x" id="viewerChiudi" aria-label="Chiudi">✕</button></div>
+  <div id="viewerBody" style="padding:10px;overflow:auto;max-height:calc(100dvh - 170px);background:var(--bg)"></div>
+  <div class="sheet-f"><a class="btn" id="viewerApri" target="_blank" rel="noopener">↗︎ Apri fuori</a><button type="button" class="btn pri" id="viewerCondividi">💬 Condividi / salva</button></div>
+</dialog>
 <input type="file" id="inFoto" accept="image/*" capture="environment" class="hidden">
 <input type="file" id="inFile" accept="application/pdf,image/*,.pdf,.heic" multiple class="hidden">
 <input type="file" id="inBackup" accept="application/json,.json" class="hidden">
@@ -451,7 +456,7 @@ function pianificaSync() {
 }
 async function sincronizza(interattivo) {
   if (!clientId()) return;
-  if (SY.inCorso) return;
+  if (SY.inCorso) { SY.ripeti = true; return; }
   SY.inCorso = true; SY.stato = "in-corso"; SY.errore = ""; aggiornaBadge();
   try {
     await accedi(interattivo);
@@ -483,7 +488,10 @@ async function sincronizza(interattivo) {
     SY.stato = e.message === "serve-accesso" ? "serve-accesso" : "errore";
     SY.errore = e.message === "serve-accesso" ? "" : e.message;
     if (interattivo && SY.errore) toast("Sincronizzazione: " + SY.errore, 5000);
-  } finally { SY.inCorso = false; aggiornaBadge(); }
+  } finally {
+    SY.inCorso = false; aggiornaBadge();
+    if (SY.ripeti) { SY.ripeti = false; setTimeout(() => sincronizza(false), 400); }
+  }
 }
 async function caricaAllegatiInSospeso() {
   for (const d of [...S.documenti, ...(S.spese || []).map(x => ({ ...x, _rif: x, titolo: "Spesa " + (x.descrizione || "") })), ...(S.tappe || []).map(x => ({ ...x, _rif: x }))]) {
@@ -1058,7 +1066,7 @@ function vImpostazioni() {
     Il programma è solo una pagina: <b>nessun dato di Gioele finisce su GitHub</b> né su server di terzi. I dati stanno sul telefono e, se collegato, nel tuo Google Drive e Google Calendar, visibili solo a te e alle persone con cui li condividi.
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v19</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v20</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1347,13 +1355,53 @@ async function aggiungiFiles(list) {
   disegnaBozza();
   if (modoDoc === "personale") analizzaBozzaPers(); else if (modoDoc === "spesa") analizzaBozzaSpesa(); else if (modoDoc === "sanitario") analizzaBozza();
 }
+/* ---------- visualizzatore interno di foto e PDF ----------
+   Su iPhone, con l'app installata, aprire i file in una nuova finestra spesso non funziona:
+   qui si mostrano dentro l'app (PDF disegnati pagina per pagina con pdf.js). */
+const viewer = $("#viewer");
+let viewerFile = null, viewerUrl = "";
+async function mostraFile(blob, nome = "documento") {
+  if (!blob) return toast("File non disponibile", 4000);
+  const mime = blob.type || (/\.pdf$/i.test(nome) ? "application/pdf" : "");
+  viewerFile = new File([blob], nome, { type: mime || "application/octet-stream" });
+  if (viewerUrl) URL.revokeObjectURL(viewerUrl);
+  viewerUrl = URL.createObjectURL(viewerFile);
+  $("#viewerTitolo").textContent = nome;
+  $("#viewerApri").href = viewerUrl;
+  const corpo = $("#viewerBody");
+  if (/^image\//.test(mime)) corpo.innerHTML = `<img src="${viewerUrl}" alt="${esc(nome)}" style="display:block;max-width:100%;margin:0 auto;border-radius:8px">`;
+  else if (mime === "application/pdf") {
+    corpo.innerHTML = `<div class="small muted" id="viewerStato">Apro il PDF…</div>`;
+    if (!viewer.open) viewer.showModal();
+    try {
+      const lib = await libPdfjs(), doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+      const n = Math.min(doc.numPages, 40), larg = Math.min(corpo.clientWidth - 20 || 340, 900);
+      $("#viewerStato").textContent = doc.numPages > n ? `Prime ${n} pagine di ${doc.numPages}` : `${doc.numPages} ${doc.numPages === 1 ? "pagina" : "pagine"}`;
+      for (let i = 1; i <= n; i++) {
+        if (!viewer.open || viewerFile.name !== nome) return;
+        const pg = await doc.getPage(i), vp0 = pg.getViewport({ scale: 1 }), k = larg / vp0.width, vp = pg.getViewport({ scale: k * Math.min(2, window.devicePixelRatio || 1) });
+        const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height; c.style.cssText = "display:block;width:100%;margin:0 auto 10px;background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.15)";
+        corpo.appendChild(c);
+        await pg.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+      }
+    } catch (e) { corpo.innerHTML = `<div class="notice warn">Non riesco a mostrare il PDF qui (${esc(e.message)}). Usa “Condividi / salva” per aprirlo con un'altra app.</div>`; }
+    return;
+  } else corpo.innerHTML = `<div class="notice info">Questo tipo di file non si può vedere qui: usa “Condividi / salva”.</div>`;
+  if (!viewer.open) viewer.showModal();
+}
+$("#viewerChiudi").addEventListener("click", () => viewer.close());
+viewer.addEventListener("close", () => { $("#viewerBody").innerHTML = ""; });
+$("#viewerCondividi").addEventListener("click", async () => {
+  if (!viewerFile) return;
+  if (navigator.canShare?.({ files: [viewerFile] })) { try { await navigator.share({ files: [viewerFile], title: viewerFile.name }); return; } catch (e) { if (e.name === "AbortError") return; } }
+  const a = document.createElement("a"); a.href = viewerUrl; a.download = viewerFile.name; document.body.appendChild(a); a.click(); a.remove();
+});
 async function apriFile(f) {
-  const w = window.open("", "_blank");  // aperta subito (altrimenti iPhone la blocca)
   try {
-    const u = f.blob ? URL.createObjectURL(f.blob) : await urlAllegato(f);
-    if (!u) { w?.close(); return toast("File non disponibile: è sul telefono dell'altro genitore e non è ancora stato caricato su Drive.", 5000); }
-    if (w) w.location.href = u; else location.href = u;
-  } catch (e) { w?.close(); toast(e.message === "serve-accesso" ? "Accedi a Google per scaricare il file" : e.message, 5000); }
+    const b = f.blob || await blobAllegato(f);
+    if (!b) return toast("File non disponibile: è sul telefono dell'altro genitore e non è ancora stato caricato su Drive.", 5000);
+    await mostraFile(f.mime && b.type !== f.mime ? new Blob([b], { type: f.mime }) : b, f.nome);
+  } catch (e) { toast(e.message === "serve-accesso" ? "Accedi a Google per scaricare il file" : e.message, 5000); }
 }
 
 /* ---------- documenti personali (non sanitari) ---------- */
@@ -1561,12 +1609,10 @@ function formRiepilogo() {
         avanzamento: (t, p) => { box.innerHTML = `<div class="notice info">${esc(t)} – ${Math.round(p * 100)}%</div>`; } });
       const nome = `Riepilogo sanitario Gioele ${oggiISO()}.pdf`;
       ultimoRiepilogo = new File([r.bytes], nome, { type: "application/pdf" });
-      const u = URL.createObjectURL(ultimoRiepilogo);
       box.innerHTML = `<div class="notice info">✅ PDF pronto (${r.pagineRiepilogo} ${r.pagineRiepilogo === 1 ? "pagina" : "pagine"} di riepilogo${f.elements.allegati.checked ? " + allegati" : ""}, ${(ultimoRiepilogo.size / 1048576).toFixed(1)} MB).
         ${r.mancanti.length ? `<br><span style="color:var(--warn)">Non allegati (file non disponibile): ${esc([...new Set(r.mancanti)].join(", "))}</span>` : ""}
-        <div class="btns"><a class="btn pri" href="${u}" target="_blank" rel="noopener">👁️ Apri</a>
-        <button type="button" class="btn" data-act="condividi-riepilogo">💬 Invia / stampa</button>
-        <a class="btn" href="${u}" download="${esc(nome)}">⬇️ Scarica</a>
+        <div class="btns"><button type="button" class="btn pri" data-act="riepilogo-apri">👁️ Apri</button>
+        <button type="button" class="btn" data-act="condividi-riepilogo">💬 Invia / stampa / salva</button>
         ${googleAttivo() ? `<button type="button" class="btn" data-act="riepilogo-drive">☁️ Salva su Drive</button>` : ""}</div></div>`;
     } catch (e) { box.innerHTML = `<div class="notice bad">Non sono riuscito a creare il PDF: ${esc(e.message)}</div>`; }
     finally { btn.disabled = false; }
@@ -1686,6 +1732,7 @@ document.addEventListener("click", async e => {
     case "importa-cal": importaDaCalendario(); break;
     case "analizza": if (!bozzaFiles.length) toast("Prima aggiungi una foto o un PDF"); else if (modoDoc === "personale") analizzaBozzaPers(); else { $("#rigaStorico") && delete $("#rigaStorico").dataset.toccato; analizzaBozza(); } break;
     case "riepilogo": formRiepilogo(); break;
+    case "riepilogo-apri": if (ultimoRiepilogo) mostraFile(ultimoRiepilogo, ultimoRiepilogo.name); break;
     case "condividi-riepilogo": if (ultimoRiepilogo) condividi({ titolo: ultimoRiepilogo.name, testo: "Riepilogo sanitario di Gioele", files: [ultimoRiepilogo] }); break;
     case "riepilogo-drive":
       b.disabled = true;
