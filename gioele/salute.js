@@ -277,7 +277,7 @@ async function allineaPromemoria(cal) {
   }
   for (const p of dovuti.values()) {
     const fine = parseISO(p.data); fine.setDate(fine.getDate() + 1);
-    const ev = { summary: p.titolo, description: p.testo, start: { date: p.data }, end: { date: oggiISO(fine) }, transparency: "transparent", reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 7 * 1440 }, { method: "popup", minutes: 1440 }] } };
+    const ev = { summary: p.titolo, description: p.testo, start: { date: p.data }, end: { date: oggiISO(fine) }, transparency: "transparent", reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 7 * 1440 }, { method: "popup", minutes: 1440 }] }, extendedProperties: { private: { gioele: "promemoria" } } };
     const sig = JSON.stringify(ev);
     let c = S.check.find(x => x.id === p.k);
     if (c && c.calEventId && c.calSig === sig) continue;
