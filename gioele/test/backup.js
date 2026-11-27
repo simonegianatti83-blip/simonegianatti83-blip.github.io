@@ -1,4 +1,4 @@
-// Collegamento sempre attivo (ponte Apps Script simulato) + backup automatico settimanale
+// Backup automatico settimanale nella cartella Drive (Google simulato)
 const { chromium, devices } = require('playwright');
 const drive = { files: {}, n: 0 }, cal = { events: {}, n: 0 }; const log = [];
 function google(email, m, url, body) {   // finto Google Drive / Calendar: restituisce { status, type, body(Buffer) }
@@ -37,13 +37,6 @@ function google(email, m, url, body) {   // finto Google Drive / Calendar: resti
     const c = await b.newContext({ ...devices['iPhone 13'] });
     await c.route('https://accounts.google.com/gsi/client', r => r.fulfill({ contentType: 'text/javascript', body: `window.google={accounts:{oauth2:{hasGrantedAllScopes:()=>true,revoke(){},initTokenClient(o){return{requestAccessToken(){setTimeout(()=>o.callback({access_token:'tok',expires_in:3600}),10)}}}}}}` }));
     await c.route(/googleapis\.com/, r => { const q = r.request(); const x = google(email, q.method(), q.url(), q.postDataBuffer() || Buffer.alloc(0)); r.fulfill({ status: x.status, contentType: x.type, body: x.body }); });
-    // finto Apps Script: controlla la chiave e inoltra a "Google" come Simone
-    await c.route('https://script.google.com/macros/s/PONTE/exec', r => {
-      const req = JSON.parse(r.request().postData());
-      if (req.chiave !== 'CHIAVE-OK') return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ errore: 'chiave non valida' }) });
-      const x = google('ponte(simone)', req.metodo, req.url, Buffer.from(req.corpo || '', 'base64'));
-      r.fulfill({ contentType: 'application/json', body: JSON.stringify({ stato: x.status, tipo: x.type, corpo: x.body.toString('base64') }) });
-    });
     const p = await c.newPage(); p.on('pageerror', e => errs.push(email + ' ' + e.message)); p.on('dialog', d => d.accept()); return p;
   };
   // 1) Simone collega Google normalmente: viene creato l'archivio e il primo backup
@@ -58,22 +51,6 @@ function google(email, m, url, body) {   // finto Google Drive / Calendar: resti
   // 2) l'accesso scade: senza ponte la sincronizzazione si ferma
   await p1.evaluate(() => { G.token = null; ls.del('tok'); }); await p1.evaluate(() => sincronizza(false)); await p1.waitForTimeout(600);
   console.log('2) token scaduto, stato:', await p1.evaluate(() => SY.stato));
-  // 3) attiva il collegamento sempre attivo
-  await p1.evaluate(() => vai('impostazioni')); await p1.click('[data-act=ponte-prepara]'); await p1.waitForTimeout(200);
-  console.log('3) codice generato con cartella e calendario:', await p1.evaluate(() => { const c = document.querySelector('#ponteCodice textarea').value; return c.includes(S.config.folderId) && c.includes(S.config.calendarId); }));
-  await p1.evaluate(() => ls.set('ponteChiave', 'CHIAVE-OK'));
-  await p1.fill('#inPonteUrl', 'https://script.google.com/macros/s/PONTE/exec'); await p1.click('[data-act=ponte-attiva]'); await p1.waitForTimeout(2000);
-  console.log('   attivato:', await p1.locator('.toast').textContent(), '| stato:', await p1.evaluate(() => SY.stato));
-  const n0 = log.filter(l => l.startsWith('ponte')).length;
-  await p1.evaluate(async () => { S.pasti.push({ id: 'pp1', quando: oggiISO() + 'T10:00', fine: oggiISO() + 'T10:20', seno: 'sx', minuti: 20, minSx: 20, updatedAt: Date.now() }); await salva(); }); await p1.waitForTimeout(2500);
-  console.log('   pasto salvato passando dal ponte (senza token):', log.filter(l => l.startsWith('ponte')).length - n0 > 0, '| eventi pasto nel calendario:', Object.values(cal.events).filter(e => e.extendedProperties?.private?.gioele === 'pasto').length, '| token:', await p1.evaluate(() => G.token));
-  // 4) Silvia apre il link con il ponte
-  const link = await p1.evaluate(() => linkPonte());
-  const p2 = await apri('silvia@x.it'); await p2.goto('http://localhost:8765/gioele/' + link.slice(link.indexOf('#'))); await p2.waitForTimeout(2500);
-  console.log('4) Silvia con il link: stato', await p2.evaluate(() => SY.stato), '| vede il pasto:', await p2.evaluate(() => attivi('pasti').length), '| hash ripulito:', await p2.evaluate(() => location.hash === ''));
-  // 5) chiave sbagliata
-  await p2.evaluate(() => ls.set('ponte', { url: 'https://script.google.com/macros/s/PONTE/exec', chiave: 'SBAGLIATA' })); await p2.evaluate(() => sincronizza(false)); await p2.waitForTimeout(800);
-  console.log('5) chiave sbagliata:', await p2.evaluate(() => SY.stato + ' – ' + SY.errore));
   console.log('errori:', errs, log.filter(l => l.includes('non simulato')));
   await b.close();
 })();
