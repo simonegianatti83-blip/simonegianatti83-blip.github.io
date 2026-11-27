@@ -169,6 +169,27 @@ code{background:var(--line-2);padding:1px 5px;border-radius:5px;font-size:13.5px
   main#vista{grid-template-columns:repeat(3, minmax(0,1fr))}
   .col2 .item{width:100%}
 }
+
+/* ===== modalità notte ===== */
+#notte{position:fixed;inset:0;z-index:60;background:#000;color:#cfcfcf;overflow-y:auto;padding:calc(14px + env(safe-area-inset-top)) 14px calc(20px + env(safe-area-inset-bottom))}
+#notte[hidden]{display:none}
+.notte-in{max-width:760px;margin:0 auto}
+.notte-testa{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.notte-ora{font-size:46px;font-weight:800;color:#e6e6e6;line-height:1}
+.notte-sub{font-size:15px;color:#9a9a9a;margin-top:6px}
+.notte-esci{border:1px solid #333;background:#111;color:#bbb;width:48px;height:48px;border-radius:50%;font-size:20px}
+.notte-griglia{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.nb{min-height:84px;border:1px solid #2a2a2a;background:#141414;color:#d6d6d6;border-radius:18px;font-size:19px;font-weight:700;padding:10px}
+.nb:active{background:#222}
+.nb[disabled]{opacity:.35}
+.nb-pri{background:#0b3b37;border-color:#145e57;color:#e8f5f3}
+.notte-blocco{background:#0d0d0d;border:1px solid #222;border-radius:18px;padding:14px;margin-bottom:10px}
+.notte-grande{font-size:26px;font-weight:800;color:#e6e6e6;margin-bottom:10px}
+.notte-nota{font-size:13px;color:#777;text-align:center;margin-top:8px}
+/* ===== blocco dell'app ===== */
+#blocco{position:fixed;inset:0;z-index:200;background:var(--brand);color:#fff;display:grid;place-items:center;text-align:center;padding:20px}
+:root[data-theme="dark"] #blocco{background:#0F3F3B}
+.top .notte-btn{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;border-radius:999px;width:38px;height:34px;font-size:17px}
 </style>
 </head>
 <body>
@@ -176,6 +197,7 @@ code{background:var(--line-2);padding:1px 5px;border-radius:5px;font-size:13.5px
   <div class="wrap row">
     <img src="icona-192.png" alt="">
     <div class="grow"><h1>Gioele</h1><div class="sub" id="subtitolo">Visite e documenti</div></div>
+    <button class="notte-btn" type="button" data-act="notte-apri" aria-label="Modalità notte" title="Modalità notte">🌙</button>
     <button class="sync" id="btnSync" type="button">…</button>
   </div>
 </header>
@@ -324,7 +346,7 @@ const fileDel = k => idb("file", "readwrite", s => s.delete(k));
    STATO
    ===================================================================== */
 /* raccolte sincronizzate (per ogni voce vince la modifica più recente) */
-const COLLEZIONI = ["visite", "documenti", "chiusure", "misure", "check", "farmaci", "dosi", "diario", "tappe", "domande", "spese", "pasti", "pannolini"];
+const COLLEZIONI = ["visite", "documenti", "chiusure", "misure", "check", "farmaci", "dosi", "diario", "tappe", "domande", "spese", "pasti", "pannolini", "sonno"];
 function statoVuoto() {
   return { v: 1, profilo: { nome: "Gioele", updatedAt: 0 }, ...Object.fromEntries(COLLEZIONI.map(k => [k, []])), config: {} };
 }
@@ -375,8 +397,8 @@ const G = { token: null, exp: 0, email: ls.get("email", ""), client: null, gisPr
 (function () { const t = (() => { ls.get("tok") })();
   if (t && t.exp > Date.now() + 60000) { G.token = t.token; G.exp = t.exp; } })();
 const clientId = () => ls.get("clientId", "");
-const googleAttivo = () => !!clientId() && !!ls.get("collegato", false);
-const tokenValido = () => G.token && G.exp > Date.now() + 60000;
+const googleAttivo = () => (!!clientId() || !!ponte()) && !!ls.get("collegato", false);
+const tokenValido = () => !!ponte() || (G.token && G.exp > Date.now() + 60000);
 
 function caricaGIS() {
   if (G.gisPronto) return G.gisPronto;
@@ -388,6 +410,7 @@ function caricaGIS() {
   return G.gisPronto;
 }
 async function accedi(interattivo = true) {
+  if (ponte()) return "ponte";
   if (tokenValido()) return G.token;
   if (!interattivo) throw new Error("serve-accesso");
   await caricaGIS();
@@ -407,6 +430,7 @@ async function accedi(interattivo = true) {
   });
 }
 async function gapi(url, opt = {}) {
+  if (ponte()) return gapiPonte(url, opt);
   if (!tokenValido()) throw new Error("serve-accesso");
   const r = await fetch(url, { ...opt, headers: { Authorization: "Bearer " + G.token, ...(opt.headers || {}) } });
   if (r.status === 401) { G.token = null; ls.del("tok"); throw new Error("serve-accesso"); }
@@ -488,7 +512,7 @@ function pianificaSync() {
   clearTimeout(SY.timer); SY.timer = setTimeout(() => sincronizza(false), 1200);
 }
 async function sincronizza(interattivo) {
-  if (!clientId()) return;
+  if (!clientId() && !ponte()) return;
   if (SY.inCorso) { SY.ripeti = true; return; }
   SY.inCorso = true; SY.stato = "in-corso"; SY.errore = ""; aggiornaBadge();
   try {
@@ -511,6 +535,7 @@ async function sincronizza(interattivo) {
     SY.avvisoCal = "";
     try { await preparaCalendario(); SY.daCalendario = ""; await importaDalCalendarioGioele(encodeURIComponent(S.config.calendarId)); await allineaCalendario(); }
     catch (e) { if (e.message === "serve-accesso") throw e; SY.avvisoCal = "Calendario Google non aggiornato: " + e.message; }
+    try { await backupSettimanale(); } catch (e) { console.warn("backup", e); }
     if (firmaStato(S) !== prima) await driveCarica({ id: fileId, blob: new Blob([JSON.stringify(S)], { type: "application/json" }) });
     await kvSet("stato", S);
     SY.ultimo = Date.now(); ls.set("ultimoSync", SY.ultimo); SY.stato = "ok";
@@ -686,7 +711,7 @@ function aggiornaBadge() {
     "locale": "📱 Solo qui", "da-fare": "⏳ Da salvare", "in-corso": "🔄 Sincronizzo…", "ok": "✓ Condiviso",
     "serve-accesso": "🔑 Accedi", "errore": "⚠️ Riprova", "nessun-archivio": "☁️ Collega"
   }[googleAttivo() || SY.stato !== "locale" ? SY.stato : "locale"];
-  b.textContent = clientId() ? t : "📱 Solo qui";
+  b.textContent = clientId() || ponte() ? t : "📱 Solo qui";
   b.title = SY.errore || (SY.ultimo ? "Ultima sincronizzazione: " + new Date(SY.ultimo).toLocaleString("it-IT") : "");
 }
 
@@ -874,7 +899,7 @@ async function caricaMiniature() {
 const CID_RE = /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i;
 function bannerGoogle() {
   if (clientId() && !CID_RE.test(clientId())) return `<div class="notice bad">⚠️ Il Client ID salvato è incompleto (mancano i numeri iniziali). Vai in <a href="#" data-act="tab" data-tab="impostazioni">Altro</a>, tocca <b>“Cambia Client ID”</b> e incollalo intero.</div>`;
-  if (!clientId()) return `<div class="notice info">📱 I dati per ora sono salvati <b>solo su questo telefono</b>. Per condividerli con Silvia e collegare Google Calendar vai in <a href="#" data-act="tab" data-tab="impostazioni">Altro</a>.</div>`;
+  if (!clientId() && !ponte()) return `<div class="notice info">📱 I dati per ora sono salvati <b>solo su questo telefono</b>. Per condividerli con Silvia e collegare Google Calendar vai in <a href="#" data-act="tab" data-tab="impostazioni">Altro</a>.</div>`;
   if (SY.stato === "serve-accesso" || (!googleAttivo() && SY.stato !== "in-corso")) return `<div class="notice warn">🔑 Accedi a Google per sincronizzare con Silvia e con il calendario. <button type="button" class="btn sm pri" data-act="sync">Accedi</button></div>`;
   if (soloLettura()) return `<div class="notice info small">👀 Sei in <b>sola lettura</b>: vedi tutto, ma solo i genitori possono modificare.</div>`;
   if (SY.stato === "ok" && SY.avvisoCal) return `<div class="notice warn">📅 ${esc(SY.avvisoCal)}</div>`;
@@ -1084,6 +1109,7 @@ function vImpostazioni() {
   ${link ? `<div class="card small"><b>Link dell'app</b> (contiene già il Client ID)<div style="margin-top:6px"><code>${esc(link)}</code></div></div>` : ""}
 
   </div><div class="col">
+  ${cardsAltroExtra()}
   <h2>Emergenze</h2>
   <div class="card small">Scheda con allergie, terapie, contatti e numeri utili da dare a nonni e baby-sitter.
     <div class="btns"><button type="button" class="btn bad" data-act="emergenza">🆘 Apri la scheda emergenze</button></div></div>
@@ -1108,7 +1134,7 @@ function vImpostazioni() {
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
   </div></div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v25</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v26</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1728,6 +1754,7 @@ document.addEventListener("click", async e => {
   const act = b.dataset.act, id = b.dataset.id;
   if (b.tagName === "A" && b.getAttribute("href") === "#") e.preventDefault();
   if (soloLettura() && AZIONI_SCRITTURA.has(act)) { e.preventDefault(); return toast("Sei in sola lettura: puoi vedere ma non modificare"); }
+  if (await azioneExtra(act, b, e)) return;
   if (await azioneSalute(act, b, e)) return;
   switch (act) {
     case "tab": e.preventDefault(); vai(b.dataset.tab); break;
@@ -1830,7 +1857,7 @@ document.addEventListener("click", async e => {
 });
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => vai(b.dataset.tab)));
 const AZIONI_SCRITTURA = new Set(["nuova-visita", "nuova-visita-ped", "nota-consulto", "nuova-chiusura", "togli-chiusura", "aggiungi-domanda", "domanda-fatta", "nuova-misura", "nuova-dose",
-  "nuova-febbre", "nuova-spesa", "nuovo-pers", "doc-per-visita", "farmaci-abituali", "scatta-nuovo", "pdf-nuovo", "condividi-silvia", "importa", "importa-cal", "nuova-visita-bil", "elimina-voce", "nuovo-pasto", "vitd-data", "pannolino-rapido", "nuovo-pannolino", "poppata-avvia", "poppata-cambia", "poppata-fine", "pasti-regola", "pasti-nascita", "elimina-visita", "elimina-doc"]);
+  "nuova-febbre", "nuova-spesa", "nuovo-pers", "doc-per-visita", "farmaci-abituali", "scatta-nuovo", "pdf-nuovo", "condividi-silvia", "importa", "importa-cal", "nuova-visita-bil", "elimina-voce", "nuovo-pasto", "vitd-data", "ripeti-pasto", "sonno-dorme", "sonno-sveglio", "sonno-nuovo", "pg-spunta", "notte-poppata", "notte-fine-poppata", "notte-biberon", "notte-ripeti", "notte-pann", "pannolino-rapido", "nuovo-pannolino", "poppata-avvia", "poppata-cambia", "poppata-fine", "pasti-regola", "pasti-nascita", "elimina-visita", "elimina-doc"]);
 function vai(tab) { vista = tab; ls.set("tab", tab); render(); window.scrollTo(0, 0); }
 $("#fab").addEventListener("click", () => {
   if (soloLettura()) return;
@@ -1901,6 +1928,7 @@ async function controllaInbox() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   if (googleAttivo() && tokenValido()) sincronizza(false);
+  await avvioExtra();
   await controllaInbox();
   if (new URLSearchParams(location.search).has("ricevuto")) history.replaceState(null, "", location.pathname);
 })();
@@ -1910,5 +1938,6 @@ async function controllaInbox() {
 <script src="oms.js"></script>
 <script src="salute.js"></script>
 <script src="pasti.js"></script>
+<script src="extra.js"></script>
 </body>
 </html>

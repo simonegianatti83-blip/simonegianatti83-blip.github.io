@@ -1,0 +1,7 @@
+{
+  "name": "gioele-prove",
+  "private": true,
+  "description": "Prove automatiche dell'app Gioele (browser simulato, Google simulato)",
+  "scripts": { "test": "node esegui.js" },
+  "devDependencies": { "playwright": "1.63.0" }
+}

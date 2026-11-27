@@ -138,7 +138,7 @@ function vCrescita() {
     return `<tr data-act="apri-misura" data-id="${x.id}" style="cursor:pointer"><td>${dataBreve(x.data)}<br><span class="tiny">${etaAlGiorno(g)}</span></td><td>${cell("peso")}</td><td>${cell("lunghezza")}</td><td>${cell("testa")}</td></tr>`;
   }).join("");
   return `<div class="card">
-      ${ultima ? `<div class="small muted">Ultima misura: ${dataBreve(ultima.data)} (${etaAlGiorno(giorniDiVita(ultima.data))})</div>${(() => { const up = misureOrd().filter(m => m.peso).pop(); const c = up && confrontoPeso(up.data, up.peso, up.id); const t = testoConfronto(c); return t ? `<div class="small" style="margin-top:6px">⚖️ Ultimo peso ${fmt(up.peso, 3).replace(/0+$/, "").replace(/,$/, "")} kg (${dataBreve(up.data)}): ${t}</div>` : ""; })()}` : `<div class="small muted">Nessuna misura ancora. Inserisci quelle della nascita (le trovi nel foglio di dimissione) e di ogni controllo.</div>`}
+      ${ultima ? `<div class="small muted">Ultima misura: ${dataBreve(ultima.data)} (${etaAlGiorno(giorniDiVita(ultima.data))})</div>${(() => { const up = misureOrd().filter(m => m.peso).pop(); const c = up && confrontoPeso(up.data, up.peso, up.id); const t = testoConfronto(c); return t ? `<div class="small" style="margin-top:6px">⚖️ Ultimo peso ${fmt(up.peso, 3).replace(/0+$/, "").replace(/,$/, "")} kg (${dataBreve(up.data)}): ${t}</div>${c?.allaSettimana != null && giorniDiVita() <= 130 && (!c.nascita || c.percNascita >= 0) ? `<div class="tiny" style="margin-top:4px">Indicazione comune nei primi 3-4 mesi, dopo il recupero del peso di nascita: circa 150–200 g a settimana (circa 20–30 g al giorno). Ogni bambino ha il suo ritmo: valuta la pediatra.</div>` : ""}` : ""; })()}` : `<div class="small muted">Nessuna misura ancora. Inserisci quelle della nascita (le trovi nel foglio di dimissione) e di ogni controllo.</div>`}
       <div class="btns"><button type="button" class="btn pri" data-act="nuova-misura">📏 Aggiungi misure</button></div>
     </div>
     <div class="toolbar" style="gap:6px">${Object.entries(IND).map(([k, v]) => `<button type="button" class="btn sm ${sez === k ? "pri" : ""}" data-act="ind-crescita" data-ind="${k}">${v.nome.split(" /")[0].replace("Circonferenza della testa", "Testa")}</button>`).join("")}</div>
@@ -702,16 +702,16 @@ async function pdfEmergenza() {
 /* =====================================================================
    VISTA "SALUTE" E AZIONI
    ===================================================================== */
-const SEZ_SALUTE = { pasti: "🍼 Pasti e pannolini", crescita: "📏 Crescita", vaccini: "💉 Vaccini", bilanci: "🩺 Bilanci", screening: "👶 Screening", farmaci: "💊 Farmaci", febbre: "🌡️ Febbre", tappe: "⭐ Tappe" };
+const SEZ_SALUTE = { pasti: "🍼 Pasti e pannolini", sonno: "😴 Sonno", crescita: "📏 Crescita", vaccini: "💉 Vaccini", bilanci: "🩺 Bilanci", screening: "👶 Screening", farmaci: "💊 Farmaci", febbre: "🌡️ Febbre", tappe: "⭐ Tappe", pratiche: "📋 Primi giorni" };
 let sezSalute = ls.get("sezSalute", "pasti");
 function vSalute() {
-  const viste = { pasti: vPasti, crescita: vCrescita, vaccini: vVaccini, bilanci: vBilanci, screening: vScreening, farmaci: vFarmaci, febbre: vFebbre, tappe: vTappe };
+  const viste = { pasti: vPasti, sonno: vSonno, pratiche: vPrimiGiorni, crescita: vCrescita, vaccini: vVaccini, bilanci: vBilanci, screening: vScreening, farmaci: vFarmaci, febbre: vFebbre, tappe: vTappe };
   return `${typeof bannerGoogle === "function" ? bannerGoogle() : ""}
     <div class="chips-sez">${Object.entries(SEZ_SALUTE).map(([k, t]) => `<button type="button" class="btn sm ${k === sezSalute ? "pri" : ""}" data-act="sez-salute" data-sez="${k}" ${k === sezSalute ? 'aria-current="true"' : ""}>${t}</button>`).join("")}</div>
     ${(viste[sezSalute] || vCrescita)()}`;
 }
 function fabSalute() {
-  ({ pasti: () => formPasto(), crescita: () => formMisura(), vaccini: () => formVisita({}, { tipo: "vaccino" }), bilanci: () => formVisita({}, { tipo: "bilancio" }), screening: () => formDoc(),
+  ({ pasti: () => formPasto(), sonno: () => formSonno(), pratiche: () => toast("Spunta le voci dell'elenco quando sono fatte"), crescita: () => formMisura(), vaccini: () => formVisita({}, { tipo: "vaccino" }), bilanci: () => formVisita({}, { tipo: "bilancio" }), screening: () => formDoc(),
     farmaci: () => formDose(), febbre: () => formFebbre(), tappe: () => formTappa() }[sezSalute] || (() => formMisura()))();
 }
 /* salva una voce nuova o modificata in una raccolta */
@@ -728,6 +728,8 @@ function cardHomeSalute() {
   return `<div class="btns" style="margin-top:4px">
       <button type="button" class="btn pri" data-act="nuovo-pasto">🍼 Pasto</button>
       <button type="button" class="btn" data-act="nuovo-pannolino">🧷 Pannolino</button>
+      <button type="button" class="btn" data-act="${typeof sonnoInCorso === "function" && sonnoInCorso() ? "sonno-sveglio" : "sonno-dorme"}">${typeof sonnoInCorso === "function" && sonnoInCorso() ? "☀️ Sveglio" : "😴 Dorme"}</button>
+      <button type="button" class="btn" data-act="notte-apri">🌙 Notte</button>
       <button type="button" class="btn" data-act="nuova-dose">💊 Farmaco</button>
       <button type="button" class="btn" data-act="nuova-febbre">🌡️ Febbre</button>
       <button type="button" class="btn" data-act="nuova-misura">📏 Misure</button>

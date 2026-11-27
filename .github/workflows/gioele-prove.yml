@@ -1,0 +1,25 @@
+# Prove automatiche dell'app Gioele: partono a ogni modifica della cartella gioele/
+name: Prove app Gioele
+on:
+  push:
+    paths: ["gioele/**", ".github/workflows/gioele-prove.yml"]
+  pull_request:
+    paths: ["gioele/**"]
+  workflow_dispatch:
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TZ: Europe/Rome
+    defaults:
+      run:
+        working-directory: gioele/test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: node esegui.js

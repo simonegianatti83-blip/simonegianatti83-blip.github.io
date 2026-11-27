@@ -10,9 +10,22 @@
   "background_color": "#F3F7F6",
   "theme_color": "#0E746E",
   "icons": [
-    { "src": "icona-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icona-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icona-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icona-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icona-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icona-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "share_target": {
     "action": "./ricevi",
@@ -21,7 +34,64 @@
     "params": {
       "title": "title",
       "text": "text",
-      "files": [{ "name": "file", "accept": ["application/pdf", "image/*", ".pdf", ".jpg", ".jpeg", ".png", ".heic"] }]
+      "files": [
+        {
+          "name": "file",
+          "accept": [
+            "application/pdf",
+            "image/*",
+            ".pdf",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".heic"
+          ]
+        }
+      ]
     }
-  }
+  },
+  "shortcuts": [
+    {
+      "name": "Modalità notte",
+      "short_name": "Notte",
+      "url": "./#azione=notte",
+      "icons": [
+        {
+          "src": "icona-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Biberon",
+      "url": "./#azione=biberon",
+      "icons": [
+        {
+          "src": "icona-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Pipì",
+      "url": "./#azione=pipi",
+      "icons": [
+        {
+          "src": "icona-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Ripeti ultimo pasto",
+      "short_name": "Ripeti pasto",
+      "url": "./#azione=ripeti",
+      "icons": [
+        {
+          "src": "icona-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }
