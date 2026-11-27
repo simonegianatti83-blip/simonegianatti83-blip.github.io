@@ -27,7 +27,7 @@ const PROVE = {
   "moduli-errori": ["campo evidenziato: ml", "messaggio visibile: true", "scritto 55: 55", "3) dopo Invio foglio aperto: true", "4) dopo Salva foglio aperto: false", "campo: fine"],
   "peso": ["+80 g", "rispetto al 24 nov 2026", "−4,6%", "calo oltre il 10%"],
   "notte-sonno-faceid": ["pipì con un tocco: 1", "dopo Annulla: 0", "sonno: true", "notte chiusa, tema ripristinato: true", "link #azione=cacca: true", "sbloccata con Face ID: true", "codice sbagliato: Codice sbagliato", "sbloccata con codice: true"],
-  "ponte-backup": ["1) backup dopo il collegamento: [ 'gioele-backup-", "seconda sincronizzazione (nessun nuovo backup): 1", "token scaduto, stato: serve-accesso", "funziona!", "pasto salvato passando dal ponte (senza token): true", "vede il pasto: 1", "chiave non valida"],
+  "backup": ["1) backup dopo il collegamento: [ 'gioele-backup-", "seconda sincronizzazione (nessun nuovo backup): 1", "token scaduto, stato: serve-accesso"],
   "sync-tre-persone": ['Silvia vede: {"misure":1', '"sola":true', "scritture della nonna: nessuna", "Simone vede la febbre di Silvia: 1"],
   "calendario-import": ["2a sinc. (niente doppioni): 2 visite", "titolo evento U1: Visita oculistica Gioele", "annullata"],
   "calendario-pasti": ["1) pasto segnato:", "2) dopo la correzione: [ 'E", "10:30-10:55", "visite importate per errore dal calendario: 0"],

@@ -35,7 +35,6 @@ App familiare (funziona nel browser e si installa sul telefono) per gestire le v
 - **Primi giorni**: checklist di pratiche e cure (dichiarazione di nascita, pediatra, tessera, assegno unico con scadenza, congedo, cordone…).
 - **Blocco con Face ID** (o codice di riserva) su ogni telefono.
 - **Backup automatico** settimanale nella cartella Drive "Copie di sicurezza" (si tengono le ultime 8).
-- **Collegamento sempre attivo** (facoltativo): un piccolo Google Apps Script sull'account di Simone fa da ponte verso Drive e Calendar, così l'accesso non scade ogni ora. Lo script lo genera l'app (Altro → Collegamento sempre attivo) e accetta solo richieste con la chiave segreta e solo verso la cartella e il calendario di Gioele.
 - **Azioni da link** (`…/gioele/#azione=pipi`, `biberon`, `ripeti`, `notte`, `dorme`, `sveglio`, `vitd`…) e scorciatoie Android tenendo premuta l'icona.
 - **Festivi e ferie**: l'app conosce i festivi italiani (Pasqua e Pasquetta comprese, 4 ottobre dal 2026) e il patrono di Sondrio (19 giugno); le ferie della pediatra si aggiungono a mano e valgono anche per Silvia.
 - **Riepilogo PDF per il medico**: un tasto crea un PDF con dati, anamnesi, ricoveri e PS, visite specialistiche, esami (valori fuori norma e andamento), ecografie/RX, vaccini e visite dal pediatra, dalla nascita a oggi, con in fondo (a scelta) la copia di tutti i documenti.
@@ -59,4 +58,4 @@ Google mostrerà "app non verificata": è normale per un'app personale → *Avan
 - Lettura e creazione PDF: pdf.js e pdf-lib già presenti nella radice del sito.
 
 ## Prove automatiche
-In `test/` ci sono le prove dell'app (browser simulato su iPhone, iPad e computer; Google Drive, Calendar e lo script ponte simulati; documenti di prova finti). Partono da sole su GitHub a ogni modifica della cartella `gioele/` (Actions → "Prove app Gioele"). In locale: `cd gioele/test && npm install && npx playwright install chromium && node esegui.js`.
+In `test/` ci sono le prove dell'app (browser simulato su iPhone, iPad e computer; Google Drive e Calendar simulati; documenti di prova finti). Partono da sole su GitHub a ogni modifica della cartella `gioele/` (Actions → "Prove app Gioele"). In locale: `cd gioele/test && npm install && npx playwright install chromium && node esegui.js`.

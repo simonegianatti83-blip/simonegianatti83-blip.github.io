@@ -1,8 +1,7 @@
 /* =====================================================================
    Gioele – EXTRA
    modalità notte e azioni con un tocco, sonno, statistiche dei pasti,
-   checklist dei primi giorni, blocco con Face ID, backup automatico,
-   collegamento "sempre attivo" tramite Google Apps Script (ponte).
+   checklist dei primi giorni, blocco con Face ID, backup automatico.
    ===================================================================== */
 "use strict";
 
@@ -306,161 +305,16 @@ async function backupSettimanale() {
 }
 
 /* =====================================================================
-   COLLEGAMENTO SEMPRE ATTIVO (ponte Google Apps Script)
-   Lo script gira sull'account Google di Simone e fa le richieste a Drive e
-   Calendar al posto dell'app: niente accesso che scade ogni ora.
-   ===================================================================== */
-const ponte = () => ls.get("ponte", null);   // { url, chiave }
-async function gapiPonte(url, opt = {}) {
-  const p = ponte();
-  let corpo = "", tipo = opt.headers?.["Content-Type"] || "";
-  if (opt.body instanceof FormData) { const r = new Response(opt.body); tipo = r.headers.get("content-type"); corpo = b64Buf(await r.arrayBuffer()); }
-  else if (opt.body != null) corpo = b64Buf(new TextEncoder().encode(String(opt.body)));
-  let r;
-  try { r = await fetch(p.url, { method: "POST", body: JSON.stringify({ chiave: p.chiave, url, metodo: opt.method || "GET", tipo, corpo }), headers: { "Content-Type": "text/plain;charset=utf-8" } }); }
-  catch (e) { throw new Error("Collegamento sempre attivo non raggiungibile (sei offline?)"); }
-  let j; try { j = await r.json(); } catch { throw new Error("Risposta non valida dal collegamento sempre attivo: controlla l'indirizzo dello script"); }
-  if (j.errore) throw new Error("Collegamento sempre attivo: " + j.errore);
-  const bytes = Uint8Array.from(atob(j.corpo || ""), c => c.charCodeAt(0));
-  if (j.stato >= 400) {
-    let msg = "Errore " + j.stato;
-    try { msg = JSON.parse(new TextDecoder().decode(bytes)).error?.message || msg; } catch {}
-    throw new Error(msg);
-  }
-  if (j.stato === 204 || !bytes.length) return null;
-  if (opt.blob) return new Blob([bytes], { type: (j.tipo || "").split(";")[0] || "application/octet-stream" });
-  const testo = new TextDecoder().decode(bytes);
-  return (j.tipo || "").includes("json") ? JSON.parse(testo) : testo;
-}
-function b64Buf(buf) { const a = new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); }
-function codicePonte(chiave) {
-  return `/* Gioele – collegamento sempre attivo (Google Apps Script)
-   Fa da ponte tra l'app e il tuo Google Drive / Google Calendar.
-   Accetta SOLO richieste con la chiave qui sotto e SOLO verso la cartella
-   e il calendario di Gioele. Non condividere la chiave fuori dalla famiglia. */
-const CHIAVE = "${chiave}";
-const CARTELLA = "${S.config.folderId || ""}";
-const CALENDARIO = "${S.config.calendarId || ""}";
-
-function doGet() { return risposta({ ok: true, app: "Gioele" }); }
-
-function doPost(e) {
-  try {
-    const r = JSON.parse(e.postData.contents);
-    if (r.chiave !== CHIAVE) return risposta({ errore: "chiave non valida" });
-    if (!permesso(r)) return risposta({ errore: "richiesta non permessa" });
-    const p = { method: String(r.metodo || "GET").toLowerCase(), headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
-    if (r.corpo) { p.payload = Utilities.base64Decode(r.corpo); p.contentType = r.tipo || "application/octet-stream"; }
-    const res = UrlFetchApp.fetch(r.url, p);
-    const h = res.getHeaders();
-    return risposta({ stato: res.getResponseCode(), tipo: h["Content-Type"] || h["content-type"] || "", corpo: Utilities.base64Encode(res.getContent()) });
-  } catch (err) { return risposta({ errore: String(err) }); }
-}
-
-function permesso(r) {
-  const u = String(r.url);
-  if (u.indexOf("https://www.googleapis.com/oauth2/v3/userinfo") === 0) return true;
-  let m = u.match(/^https:\\/\\/www\\.googleapis\\.com\\/calendar\\/v3\\/calendars\\/([^/?]+)/);
-  if (m) return decodeURIComponent(m[1]) === CALENDARIO;
-  if (u.indexOf("https://www.googleapis.com/calendar/v3/users/me/calendarList") === 0) return true;
-  m = u.match(/^https:\\/\\/www\\.googleapis\\.com\\/(upload\\/)?drive\\/v3\\/files\\/([\\w-]+)/);
-  if (m) return nellaCartella(m[2]);
-  if (/^https:\\/\\/www\\.googleapis\\.com\\/drive\\/v3\\/files\\?/.test(u)) {
-    const q = decodeURIComponent((u.match(/[?&]q=([^&]*)/) || [])[1] || "").replace(/\\+/g, " ");
-    if (r.metodo === "POST") return genitoreNellaCartella(r);
-    return q.indexOf("'" + CARTELLA + "' in parents") >= 0 || /^name='gioele-dati\\.json' and trashed=false$/.test(q) || q.indexOf(" in parents") > 0 && nellaCartella((q.match(/'([\\w-]+)' in parents/) || [])[1]);
-  }
-  if (/^https:\\/\\/www\\.googleapis\\.com\\/upload\\/drive\\/v3\\/files\\?/.test(u)) return genitoreNellaCartella(r);
-  return false;
-}
-function genitoreNellaCartella(r) {
-  try {
-    const testo = Utilities.newBlob(Utilities.base64Decode(r.corpo || "")).getDataAsString();
-    const m = testo.match(/"parents"\\s*:\\s*\\[\\s*"([\\w-]+)"/);
-    return !!m && nellaCartella(m[1]);
-  } catch (e) { return false; }
-}
-function nellaCartella(id) {
-  if (!id) return false;
-  if (id === CARTELLA) return true;
-  try {
-    let corrente = [id];
-    for (let livello = 0; livello < 5 && corrente.length; livello++) {
-      const prossimi = [];
-      for (const x of corrente) {
-        const it = (livello === 0 ? (function () { try { return DriveApp.getFolderById(x).getParents(); } catch (e) { return DriveApp.getFileById(x).getParents(); } })() : DriveApp.getFolderById(x).getParents());
-        while (it.hasNext()) { const f = it.next().getId(); if (f === CARTELLA) return true; prossimi.push(f); }
-      }
-      corrente = prossimi;
-    }
-  } catch (e) {}
-  return false;
-}
-function risposta(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
-`;
-}
-const MANIFEST_PONTE = `{
-  "timeZone": "Europe/Rome",
-  "runtimeVersion": "V8",
-  "exceptionLogging": "STACKDRIVER",
-  "oauthScopes": [
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/script.external_request",
-    "https://www.googleapis.com/auth/userinfo.email"
-  ],
-  "webapp": { "executeAs": "USER_DEPLOYING", "access": "ANYONE_ANONYMOUS" }
-}`;
-function cardPonte() {
-  const p = ponte();
-  if (p) return `<div class="card"><b>⚡ Collegamento sempre attivo: attivo</b>
-      <div class="small muted" style="margin-top:4px">Le modifiche arrivano a Drive e al calendario senza dover rifare l'accesso ogni ora.</div>
-      <div class="btns"><button type="button" class="btn" data-act="ponte-prova">🔍 Prova</button><button type="button" class="btn" data-act="ponte-link">💬 Manda a Silvia</button><button type="button" class="btn bad" data-act="ponte-togli">Disattiva su questo telefono</button></div></div>`;
-  if (!S.config.folderId || !S.config.calendarId) return `<div class="card small"><b>⚡ Collegamento sempre attivo</b><br>Prima collega Google (sopra): serve la cartella e il calendario di Gioele.</div>`;
-  return `<div class="card"><b>⚡ Collegamento sempre attivo (consigliato)</b>
-    <div class="small muted" style="margin-top:4px">Oggi l'accesso a Google dura un'ora: poi le modifiche non arrivano a Silvia e al calendario finché non tocchi “Accedi”. Con un piccolo script sul tuo account Google l'app resta sempre collegata. Si fa una volta sola, dal computer (10 minuti).</div>
-    <details style="margin-top:8px"><summary><b>Come si attiva</b></summary><ol class="steps small">
-      <li>Tocca <b>“Prepara lo script”</b> qui sotto: l'app crea il codice con una chiave segreta.</li>
-      <li>Sul computer vai su <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com</a> (con il tuo account Google) → nuovo progetto, nome “Gioele ponte”.</li>
-      <li>Cancella tutto in <b>Codice.gs</b> e incolla il <b>codice</b>. In <b>Impostazioni progetto</b> spunta “Mostra il file manifest appsscript.json”, aprilo e sostituiscilo con il <b>manifest</b>.</li>
-      <li><b>Esegui il deployment → Nuovo deployment → Applicazione web</b>: “Esegui come: Me”, “Chi ha accesso: Chiunque”. Autorizza (Avanzate → Vai a Gioele ponte).</li>
-      <li>Copia l'<b>URL dell'applicazione web</b> (finisce con /exec) e incollalo qui sotto, poi “Attiva”.</li></ol></details>
-    <div class="btns"><button type="button" class="btn" data-act="ponte-prepara">🧩 Prepara lo script</button></div>
-    <div id="ponteCodice"></div>
-    <label class="f">URL dello script (…/exec)<input type="url" id="inPonteUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
-    <div class="btns"><button type="button" class="btn pri" data-act="ponte-attiva">⚡ Attiva</button></div></div>`;
-}
-async function preparaPonte() {
-  let k = ls.get("ponteChiave", "");
-  if (!k) { k = b64u(crypto.getRandomValues(new Uint8Array(24))); ls.set("ponteChiave", k); }
-  const codice = codicePonte(k);
-  $("#ponteCodice").innerHTML = `<label class="f">Codice (Codice.gs)<textarea readonly style="min-height:120px;font-family:monospace;font-size:12px">${esc(codice)}</textarea></label>
-    <div class="btns"><button type="button" class="btn sm" data-act="ponte-copia" data-cosa="codice">📋 Copia il codice</button><button type="button" class="btn sm" data-act="ponte-copia" data-cosa="manifest">📋 Copia il manifest</button><button type="button" class="btn sm" data-act="ponte-invia">💬 Mandalo al computer</button></div>
-    <label class="f">Manifest (appsscript.json)<textarea readonly style="min-height:90px;font-family:monospace;font-size:12px">${esc(MANIFEST_PONTE)}</textarea></label>`;
-}
-async function attivaPonte() {
-  const url = ($("#inPonteUrl")?.value || "").trim(), chiave = ls.get("ponteChiave", "");
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) throw new Error("L'indirizzo deve essere quello dell'applicazione web (https://script.google.com/macros/s/…/exec)");
-  if (!chiave) throw new Error("Prima tocca “Prepara lo script”");
-  ls.set("ponte", { url, chiave });
-  try { await gapi("https://www.googleapis.com/oauth2/v3/userinfo"); }
-  catch (e) { ls.del("ponte"); throw e; }
-  ls.set("collegato", true); toast("⚡ Collegamento sempre attivo: funziona!", 4000); render(); sincronizza(false);
-}
-const linkPonte = () => { const p = ponte(); return `${location.origin}${location.pathname}#ponte=${encodeURIComponent(p.url)}&chiave=${encodeURIComponent(p.chiave)}`; };
-
-/* =====================================================================
-   SCHEDE IN "ALTRO": blocco, scorciatoie, ponte
+   SCHEDE IN "ALTRO": blocco e scorciatoie
    ===================================================================== */
 function cardsAltroExtra() {
   const base = `${location.origin}${location.pathname}`;
   const scorc = [["notte", "🌙 Modalità notte"], ["biberon", "🍼 Biberon (ml del giorno)"], ["ripeti", "🔁 Ripeti l'ultimo pasto"], ["pipi", "💧 Pipì"], ["cacca", "💩 Cacca"], ["dorme", "😴 Si è addormentato"], ["sveglio", "☀️ Si è svegliato"], ["vitd", "💊 Vitamina D data"]];
-  return `<h2>Collegamento sempre attivo</h2>${cardPonte()}
-  <h2>Blocco dell'app</h2>
+  return `<h2>Blocco dell'app</h2>
   <div class="card small">${bloccoAttivo() ? `🔒 <b>Attivo</b>: all'apertura (e dopo 5 minuti in sottofondo) l'app chiede Face ID o il codice.<div class="btns"><button type="button" class="btn bad" data-act="blocco-togli">Togli il blocco</button></div>`
     : `Protegge i dati sanitari e i documenti di Gioele con <b>Face ID</b> (o il codice) quando apri l'app su questo telefono.<div class="btns"><button type="button" class="btn" data-act="blocco-attiva">🔒 Attiva il blocco</button></div>`}</div>
   <h2>Azioni con un tocco</h2>
-  <div class="card small">Ogni link segna subito l'azione aprendo l'app. Su Android tieni premuta l'icona di Gioele per le scorciatoie principali. Su iPhone, nell'app <b>Comandi</b>, crea un comando “Apri URL” con uno di questi indirizzi e mettilo sulla schermata Home o su “Tocca il retro” (Impostazioni → Accessibilità → Tocco). <i>Nota: su iPhone i Comandi aprono il link in Safari: funziona bene se anche Safari è collegato a Google (o con il collegamento sempre attivo).</i>
+  <div class="card small">Ogni link segna subito l'azione aprendo l'app. Su Android tieni premuta l'icona di Gioele per le scorciatoie principali. Su iPhone, nell'app <b>Comandi</b>, crea un comando “Apri URL” con uno di questi indirizzi e mettilo sulla schermata Home o su “Tocca il retro” (Impostazioni → Accessibilità → Tocco). <i>Nota: su iPhone i Comandi aprono il link in Safari, che ha una memoria separata dall'app installata: su iPhone conviene usare la modalità notte.</i>
     ${scorc.map(([a, t]) => `<div class="slot"><span>${t}</span><button type="button" class="btn sm" data-act="copia-link" data-link="${esc(base + "#azione=" + a)}">📋 Copia link</button></div>`).join("")}</div>`;
 }
 
@@ -486,24 +340,14 @@ async function azioneExtra(act, b, e) {
     case "blocco-attiva": await attivaBlocco(); return true;
     case "blocco-togli": disattivaBlocco(); return true;
     case "copia-link": try { await navigator.clipboard.writeText(b.dataset.link); toast("Link copiato"); } catch { prompt("Copia il link:", b.dataset.link); } return true;
-    case "ponte-prepara": await preparaPonte(); return true;
-    case "ponte-copia": { const t = b.dataset.cosa === "manifest" ? MANIFEST_PONTE : codicePonte(ls.get("ponteChiave", "")); try { await navigator.clipboard.writeText(t); toast("Copiato"); } catch { toast("Copia non riuscita: seleziona il testo e copialo a mano", 4000); } return true; }
-    case "ponte-invia": condividi({ titolo: "Gioele – script ponte", testo: "CODICE (Codice.gs):\n\n" + codicePonte(ls.get("ponteChiave", "")) + "\n\nMANIFEST (appsscript.json):\n\n" + MANIFEST_PONTE }); return true;
-    case "ponte-attiva": b.disabled = true; try { await attivaPonte(); } catch (err) { toast(err.message, 6000); } finally { b.disabled = false; } return true;
-    case "ponte-prova": try { await gapi("https://www.googleapis.com/oauth2/v3/userinfo"); toast("⚡ Funziona"); } catch (err) { toast(err.message, 6000); } return true;
-    case "ponte-link": condividi({ titolo: "Gioele – collegamento sempre attivo", testo: `Apri questo link sul tuo telefono per collegare l'app Gioele senza dover rifare l'accesso (è personale, non inoltrarlo):\n${linkPonte()}` }); return true;
-    case "ponte-togli": if (confirm("Disattivare il collegamento sempre attivo su questo telefono? Tornerai all'accesso Google normale.")) { ls.del("ponte"); render(); } return true;
   }
   return false;
 }
 
-/* avvio: link con azioni o con il collegamento, blocco */
+/* avvio: link con azioni, blocco */
 async function avvioExtra() {
   const h = new URLSearchParams(location.hash.slice(1));
-  if (h.get("ponte") && h.get("chiave")) {
-    ls.set("ponte", { url: h.get("ponte"), chiave: h.get("chiave") }); ls.set("collegato", true);
-    history.replaceState(null, "", location.pathname); toast("⚡ Collegamento sempre attivo impostato", 4000); render(); sincronizza(false);
-  }
+  ls.del("ponte"); ls.del("ponteChiave");   // impostazioni di una versione precedente, non più usate
   mostraBlocco();
   const az = h.get("azione");
   if (az) { history.replaceState(null, "", location.pathname); await eseguiAzioneDaLink(az, h); render(); }

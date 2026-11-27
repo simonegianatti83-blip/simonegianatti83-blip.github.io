@@ -397,8 +397,8 @@ const G = { token: null, exp: 0, email: ls.get("email", ""), client: null, gisPr
 (function () { const t = (() => { ls.get("tok") })();
   if (t && t.exp > Date.now() + 60000) { G.token = t.token; G.exp = t.exp; } })();
 const clientId = () => ls.get("clientId", "");
-const googleAttivo = () => (!!clientId() || !!ponte()) && !!ls.get("collegato", false);
-const tokenValido = () => !!ponte() || (G.token && G.exp > Date.now() + 60000);
+const googleAttivo = () => !!clientId() && !!ls.get("collegato", false);
+const tokenValido = () => G.token && G.exp > Date.now() + 60000;
 
 function caricaGIS() {
   if (G.gisPronto) return G.gisPronto;
@@ -410,7 +410,6 @@ function caricaGIS() {
   return G.gisPronto;
 }
 async function accedi(interattivo = true) {
-  if (ponte()) return "ponte";
   if (tokenValido()) return G.token;
   if (!interattivo) throw new Error("serve-accesso");
   await caricaGIS();
@@ -430,7 +429,6 @@ async function accedi(interattivo = true) {
   });
 }
 async function gapi(url, opt = {}) {
-  if (ponte()) return gapiPonte(url, opt);
   if (!tokenValido()) throw new Error("serve-accesso");
   const r = await fetch(url, { ...opt, headers: { Authorization: "Bearer " + G.token, ...(opt.headers || {}) } });
   if (r.status === 401) { G.token = null; ls.del("tok"); throw new Error("serve-accesso"); }
@@ -512,7 +510,7 @@ function pianificaSync() {
   clearTimeout(SY.timer); SY.timer = setTimeout(() => sincronizza(false), 1200);
 }
 async function sincronizza(interattivo) {
-  if (!clientId() && !ponte()) return;
+  if (!clientId()) return;
   if (SY.inCorso) { SY.ripeti = true; return; }
   SY.inCorso = true; SY.stato = "in-corso"; SY.errore = ""; aggiornaBadge();
   try {
@@ -711,7 +709,7 @@ function aggiornaBadge() {
     "locale": "📱 Solo qui", "da-fare": "⏳ Da salvare", "in-corso": "🔄 Sincronizzo…", "ok": "✓ Condiviso",
     "serve-accesso": "🔑 Accedi", "errore": "⚠️ Riprova", "nessun-archivio": "☁️ Collega"
   }[googleAttivo() || SY.stato !== "locale" ? SY.stato : "locale"];
-  b.textContent = clientId() || ponte() ? t : "📱 Solo qui";
+  b.textContent = clientId() ? t : "📱 Solo qui";
   b.title = SY.errore || (SY.ultimo ? "Ultima sincronizzazione: " + new Date(SY.ultimo).toLocaleString("it-IT") : "");
 }
 
@@ -899,7 +897,7 @@ async function caricaMiniature() {
 const CID_RE = /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i;
 function bannerGoogle() {
   if (clientId() && !CID_RE.test(clientId())) return `<div class="notice bad">⚠️ Il Client ID salvato è incompleto (mancano i numeri iniziali). Vai in <a href="#" data-act="tab" data-tab="impostazioni">Altro</a>, tocca <b>“Cambia Client ID”</b> e incollalo intero.</div>`;
-  if (!clientId() && !ponte()) return `<div class="notice info">📱 I dati per ora sono salvati <b>solo su questo telefono</b>. Per condividerli con Silvia e collegare Google Calendar vai in <a href="#" data-act="tab" data-tab="impostazioni">Altro</a>.</div>`;
+  if (!clientId()) return `<div class="notice info">📱 I dati per ora sono salvati <b>solo su questo telefono</b>. Per condividerli con Silvia e collegare Google Calendar vai in <a href="#" data-act="tab" data-tab="impostazioni">Altro</a>.</div>`;
   if (SY.stato === "serve-accesso" || (!googleAttivo() && SY.stato !== "in-corso")) return `<div class="notice warn">🔑 Accedi a Google per sincronizzare con Silvia e con il calendario. <button type="button" class="btn sm pri" data-act="sync">Accedi</button></div>`;
   if (soloLettura()) return `<div class="notice info small">👀 Sei in <b>sola lettura</b>: vedi tutto, ma solo i genitori possono modificare.</div>`;
   if (SY.stato === "ok" && SY.avvisoCal) return `<div class="notice warn">📅 ${esc(SY.avvisoCal)}</div>`;
@@ -1134,7 +1132,7 @@ function vImpostazioni() {
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
   </div></div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v26</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v27</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
