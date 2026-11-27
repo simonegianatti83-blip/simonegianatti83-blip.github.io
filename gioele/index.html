@@ -624,6 +624,7 @@ async function allineaCalendario() {
     v.calEventId = r.id; v.calSig = sig; v.calUpdated = r.updated || v.calUpdated || ""; v.updatedAt = Date.now();
   }
   await allineaPromemoria(cal);
+  await allineaPastiCalendario(cal);
   await allineaProssimoPasto(cal);
   /* scadenze dei documenti personali: evento di un giorno con promemoria 4 settimane e 1 settimana prima */
   for (const d of S.documenti) {
@@ -1106,7 +1107,7 @@ function vImpostazioni() {
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
   </div></div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v21</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v22</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
