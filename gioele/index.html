@@ -339,8 +339,30 @@ async function idb(store, mode, fn) {
 }
 const kvGet = k => idb("kv", "readonly", s => s.get(k));
 const kvSet = (k, v) => idb("kv", "readwrite", s => s.put(v, k));
-const fileGet = k => idb("file", "readonly", s => s.get(k));
-const fileSet = (k, v) => idb("file", "readwrite", s => s.put(v, k));
+/* I file si salvano come dati semplici (ArrayBuffer): su iPhone/iPad Safari non riesce a inviare
+   a Google i Blob letti da IndexedDB ("Load failed"). Le voci salvate dalle versioni precedenti
+   (Blob) vengono lette e riconvertite. */
+async function fileGet(k) {
+  const v = await idb("file", "readonly", s => s.get(k));
+  if (v && v.buf instanceof ArrayBuffer) return new Blob([v.buf], { type: v.type || "" });
+  return v;
+}
+async function fileSet(k, v) {
+  if (v instanceof Blob) v = { buf: await v.arrayBuffer(), type: v.type || "" };
+  return idb("file", "readwrite", s => s.put(v, k));
+}
+/* converte una volta i file salvati come Blob dalle versioni precedenti */
+async function convertiFileVecchi() {
+  if (ls.get("fileConvertiti", false)) return;
+  try {
+    const chiavi = await idb("file", "readonly", s => s.getAllKeys());
+    for (const k of chiavi || []) {
+      const v = await idb("file", "readonly", s => s.get(k));
+      if (v instanceof Blob) { try { await fileSet(k, new Blob([await v.arrayBuffer()], { type: v.type })); } catch (e) { console.warn("file non convertito", k, e); } }
+    }
+    ls.set("fileConvertiti", true);
+  } catch (e) { console.warn("conversione file", e); }
+}
 const fileDel = k => idb("file", "readwrite", s => s.delete(k));
 
 /* =====================================================================
@@ -395,7 +417,7 @@ const firmaStato = s => JSON.stringify([s.profilo, s.config, ...COLLEZIONI.map(k
    GOOGLE: accesso, Drive, Calendar
    ===================================================================== */
 const G = { token: null, exp: 0, email: ls.get("email", ""), client: null, gisPronto: null };
-(function () { const t = (() => { ls.get("tok") })();
+(function () { const t = ls.get("tok");
   if (t && t.exp > Date.now() + 60000) { G.token = t.token; G.exp = t.exp; } })();
 const clientId = () => ls.get("clientId", "");
 const googleAttivo = () => !!clientId() && !!ls.get("collegato", false);
@@ -431,7 +453,14 @@ async function accedi(interattivo = true) {
 }
 async function gapi(url, opt = {}) {
   if (!tokenValido()) throw new Error("serve-accesso");
-  const r = await fetch(url, { ...opt, headers: { Authorization: "Bearer " + G.token, ...(opt.headers || {}) } });
+  let r;
+  for (let tentativo = 1; ; tentativo++) {
+    try { r = await fetch(url, { ...opt, headers: { Authorization: "Bearer " + G.token, ...(opt.headers || {}) } }); break; }
+    catch (e) {   // errore di rete ("Load failed" su Safari, "Failed to fetch" su Chrome): si riprova una volta
+      if (tentativo >= 2 || opt.body instanceof ReadableStream) throw new Error(navigator.onLine === false ? "sei offline: riprovo appena torna la connessione" : "collegamento con Google non riuscito (rete debole?). Riprova tra poco.");
+      await new Promise(ok => setTimeout(ok, 1500));
+    }
+  }
   if (r.status === 401) { G.token = null; ls.del("tok"); throw new Error("serve-accesso"); }
   if (!r.ok) {
     let msg = r.status + " " + r.statusText;
@@ -450,6 +479,7 @@ async function driveCerca(q, fields = "files(id,name,modifiedTime,parents,owners
   return j.files || [];
 }
 async function driveCarica({ id, nome, mime, parents, blob }) {
+  blob = new Blob([await blob.arrayBuffer()], { type: blob.type || mime || "application/octet-stream" });   // copia in memoria: evita "Load failed" di Safari
   const meta = id ? {} : { name: nome, mimeType: mime, parents };
   const fd = new FormData();
   fd.append("metadata", new Blob([JSON.stringify(meta)], { type: "application/json" }));
@@ -530,8 +560,9 @@ async function sincronizza(interattivo) {
     const prima = firmaStato(remoto.v ? remoto : statoVuoto());
     S = unisci(S, remoto.v ? remoto : statoVuoto());
     if (!S.config.docsFolderId && S.config.folderId) S.config.docsFolderId = S.config.folderId;
-    await caricaAllegatiInSospeso();
     SY.avvisoCal = "";
+    const nonCaricati = await caricaAllegatiInSospeso();
+    if (nonCaricati) SY.avvisoCal = `${nonCaricati} file non ancora caricati su Drive: riprovo alla prossima sincronizzazione.`;
     try { await preparaCalendario(); SY.daCalendario = ""; await importaDalCalendarioGioele(encodeURIComponent(S.config.calendarId)); await allineaCalendario(); }
     catch (e) { if (e.message === "serve-accesso") throw e; SY.avvisoCal = "Calendario Google non aggiornato: " + e.message; }
     try { await backupSettimanale(); } catch (e) { console.warn("backup", e); }
@@ -551,6 +582,7 @@ async function sincronizza(interattivo) {
   }
 }
 async function caricaAllegatiInSospeso() {
+  let falliti = 0;
   for (const d of [...S.documenti, ...(S.spese || []).map(x => ({ ...x, _rif: x, titolo: "Spesa " + (x.descrizione || "") })), ...(S.tappe || []).map(x => ({ ...x, _rif: x }))]) {
     if (d.deleted || !d.files) continue;
     for (const f of d.files) {
@@ -558,10 +590,16 @@ async function caricaAllegatiInSospeso() {
       const blob = await fileGet(f.fid);
       if (!blob) continue;  // il file è sul telefono dell'altro genitore: lo caricherà lui
       const nome = `${d.data || ""} ${d.titolo || "documento"} – ${f.nome}`.trim().replace(/[\\/]/g, "-");
-      const r = await driveCarica({ nome, mime: f.mime, parents: [S.config.docsFolderId || S.config.folderId], blob });
-      f.driveId = r.id; (d._rif || d).updatedAt = Date.now();
+      try {
+        const r = await driveCarica({ nome, mime: f.mime, parents: [S.config.docsFolderId || S.config.folderId], blob });
+        f.driveId = r.id; (d._rif || d).updatedAt = Date.now();
+      } catch (e) {   // un file che non parte non deve bloccare tutta la sincronizzazione
+        if (e.message === "serve-accesso") throw e;
+        console.warn("allegato non caricato", f.nome, e); falliti++;
+      }
     }
   }
+  return falliti;
 }
 /* ---------- dal calendario "Gioele – Visite" all'app ----------
    Gli eventi inseriti a mano nel calendario (da Simone, da Silvia, dall'iPhone…)
@@ -1133,7 +1171,7 @@ function vImpostazioni() {
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
   </div></div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v28</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v29</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1930,6 +1968,7 @@ async function controllaInbox() {
   try { const s = await kvGet("stato"); if (s && s.v) S = { ...statoVuoto(), ...s }; } catch (e) { console.warn(e); }
   if (googleAttivo()) SY.stato = tokenValido() ? "da-fare" : "serve-accesso";
   render();
+  await convertiFileVecchi();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   if (googleAttivo() && tokenValido()) sincronizza(false);
