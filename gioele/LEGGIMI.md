@@ -29,6 +29,14 @@ App familiare (funziona nel browser e si installa sul telefono) per gestire le v
 - **Spese mediche per il 730** (Documenti → Spese): foto dello scontrino con lettura di importo, data, tipo, pagamento tracciabile e codice fiscale; totale annuo ed elenco CSV.
 - **Scheda emergenze** (Home e Altro): allergie, terapie, contatti e numeri utili, in PDF da stampare.
 - **Nonni in sola lettura**: condivisione con ruolo "solo vedere" su Drive e Calendar; l'app non permette modifiche.
+- **Modalità notte** (🌙 in alto o in Home): schermo nero e tasti grandi; un tocco segna subito poppata (con cronometro), biberon, ripeti l'ultimo pasto, pipì/cacca, sonno, vitamina D, con "Annulla l'ultimo".
+- **Sonno**: addormentato/sveglio con un tocco, ore delle ultime 24 ore e dei 7 giorni.
+- **Statistiche dei pasti**: pasti e ml delle 24 ore, intervallo medio e pausa più lunga, rinforzo medio, medie dei giorni precedenti.
+- **Primi giorni**: checklist di pratiche e cure (dichiarazione di nascita, pediatra, tessera, assegno unico con scadenza, congedo, cordone…).
+- **Blocco con Face ID** (o codice di riserva) su ogni telefono.
+- **Backup automatico** settimanale nella cartella Drive "Copie di sicurezza" (si tengono le ultime 8).
+- **Collegamento sempre attivo** (facoltativo): un piccolo Google Apps Script sull'account di Simone fa da ponte verso Drive e Calendar, così l'accesso non scade ogni ora. Lo script lo genera l'app (Altro → Collegamento sempre attivo) e accetta solo richieste con la chiave segreta e solo verso la cartella e il calendario di Gioele.
+- **Azioni da link** (`…/gioele/#azione=pipi`, `biberon`, `ripeti`, `notte`, `dorme`, `sveglio`, `vitd`…) e scorciatoie Android tenendo premuta l'icona.
 - **Festivi e ferie**: l'app conosce i festivi italiani (Pasqua e Pasquetta comprese, 4 ottobre dal 2026) e il patrono di Sondrio (19 giugno); le ferie della pediatra si aggiungono a mano e valgono anche per Silvia.
 - **Riepilogo PDF per il medico**: un tasto crea un PDF con dati, anamnesi, ricoveri e PS, visite specialistiche, esami (valori fuori norma e andamento), ecografie/RX, vaccini e visite dal pediatra, dalla nascita a oggi, con in fondo (a scelta) la copia di tutti i documenti.
 - **Referti dell'ospedale**: si scaricano dal Fascicolo Sanitario Elettronico Lombardia e si mandano all'app con *Condividi → Gioele* (Android) oppure con il tasto *+*.
@@ -49,3 +57,6 @@ Google mostrerà "app non verificata": è normale per un'app personale → *Avan
 ## Librerie incluse
 - `ocr/`: Tesseract.js 5.1.1 e dati per l'italiano (licenza Apache 2.0, vedi `ocr/LICENSE-tesseract.txt`).
 - Lettura e creazione PDF: pdf.js e pdf-lib già presenti nella radice del sito.
+
+## Prove automatiche
+In `test/` ci sono le prove dell'app (browser simulato su iPhone, iPad e computer; Google Drive, Calendar e lo script ponte simulati; documenti di prova finti). Partono da sole su GitHub a ogni modifica della cartella `gioele/` (Actions → "Prove app Gioele"). In locale: `cd gioele/test && npm install && npx playwright install chromium && node esegui.js`.

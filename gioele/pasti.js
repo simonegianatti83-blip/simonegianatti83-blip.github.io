@@ -130,10 +130,11 @@ function vPasti() {
       <div class="slot"><span>Ultime 24 ore</span><b>${nPasti(in24)} ${in24 < r.pastiMin ? `<span class="chip warn">meno di ${r.pastiMin}</span>` : in24 > r.pastiMax + 2 ? `<span class="chip">molti</span>` : `<span class="chip ok">ok</span>`}</b></div>
       ${ultimo ? `<div class="slot"><span>Ultimo pasto</span><b>${traQuanto(da)} fa (${ultimo.quando.slice(11)})</b></div>` : ""}
       ${ultimo ? `<div style="margin-top:8px">${rigaProssimoPasto(true)}</div>` : ""}
-      <div class="btns"><button type="button" class="btn pri" data-act="nuovo-pasto">🍼 Segna un pasto</button><button type="button" class="btn sm" data-act="pasti-regola">⚙️ Regola</button></div>
+      <div class="btns"><button type="button" class="btn pri" data-act="nuovo-pasto">🍼 Segna un pasto</button>${ultimo ? `<button type="button" class="btn" data-act="ripeti-pasto">🔁 Ripeti l'ultimo</button>` : ""}<button type="button" class="btn sm" data-act="pasti-regola">⚙️ Regola</button><button type="button" class="btn sm" data-act="notte-apri">🌙 Notte</button></div>
     </div>
     ${boxCronometro()}
     ${boxPannolini()}
+    ${cardStatistichePasti()}
     <div class="card" style="padding:8px">${graficoPasti(7)}<div class="tiny" style="padding:0 6px">Barre: ml di rinforzo al giorno. Fascia arancione: quantità indicata dalla regola (${r.pastiMin}–${r.pastiMax} pasti × ml per pasto).</div></div>
     </div><div class="col">
     ${giorni.map(g => { const pn = pannoliniGiorno(g.iso);
