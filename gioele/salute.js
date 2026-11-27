@@ -57,6 +57,48 @@ function percentile(ind, giorno, valore) {
 }
 const Z_CURVE = [[-1.881, "3°"], [-1.036, "15°"], [0, "50°"], [1.036, "85°"], [1.881, "97°"]];
 const misureOrd = () => attivi("misure").sort((a, b) => a.data.localeCompare(b.data));
+/* ---------- variazione del peso ---------- */
+const grammi = kg => Math.round(kg * 1000);
+const conSegno = n => (n > 0 ? "+" : n < 0 ? "−" : "±") + Math.abs(n).toLocaleString("it-IT");
+/* peso di nascita: la misura del giorno della nascita (o del giorno dopo) */
+function pesoNascita() {
+  if (!S.profilo.nascita) return null;
+  return misureOrd().find(m => m.peso && giorniDiVita(m.data) <= 1) || null;
+}
+/* confronto di un peso (in kg, alla data indicata) con la pesata precedente e con la nascita */
+function confrontoPeso(data, peso, escludiId) {
+  if (!peso || !data) return null;
+  const prec = misureOrd().filter(m => m.peso && m.data < data && m.id !== escludiId).pop();
+  const out = { peso };
+  if (prec) {
+    const giorni = Math.round((parseISO(data) - parseISO(prec.data)) / 864e5);
+    out.prec = prec; out.diff = grammi(peso) - grammi(prec.peso); out.giorni = giorni;
+    if (giorni > 0) { out.alGiorno = Math.round(out.diff / giorni); out.allaSettimana = Math.round(out.diff / giorni * 7); }
+  }
+  const n = pesoNascita(), g = giorniDiVita(data);
+  if (n && n.id !== escludiId && n.data < data && g != null && g <= 42) {
+    out.nascita = n; out.diffNascita = grammi(peso) - grammi(n.peso); out.percNascita = (peso - n.peso) / n.peso * 100;
+  }
+  return out;
+}
+function testoConfronto(c, breve = false) {
+  if (!c || (!c.prec && !c.nascita)) return "";
+  const parti = [];
+  if (c.prec) {
+    const col = c.diff > 0 ? "var(--ok)" : c.diff < 0 ? "var(--bad)" : "var(--ink-2)";
+    parti.push(breve ? `<span style="color:${col};font-weight:700">${conSegno(c.diff)} g</span>`
+      : `<b style="color:${col}">${conSegno(c.diff)} g</b> rispetto al ${dataBreve(c.prec.data)} (${fmt(c.prec.peso, 3).replace(/0+$/, "").replace(/,$/, "")} kg)${c.giorni > 0 ? `, in ${c.giorni} ${c.giorni === 1 ? "giorno" : "giorni"}: <b>${conSegno(c.alGiorno)} g al giorno</b>${c.giorni >= 2 ? ` (circa ${conSegno(c.allaSettimana)} g alla settimana)` : ""}` : ""}`);
+  }
+  if (c.nascita && !breve) {
+    const p = c.percNascita;
+    let nota = "";
+    if (p < -10) nota = ` <span class="chip bad">calo oltre il 10%: sentite la pediatra</span>`;
+    else if (p < 0) nota = `<br><span class="tiny">Nei primi giorni un calo fino a circa il 10% è normale; di solito il peso di nascita si recupera entro 2 settimane.</span>`;
+    else nota = ` <span class="chip ok">peso di nascita recuperato</span>`;
+    parti.push(`Dalla nascita (${fmt(c.nascita.peso, 3).replace(/0+$/, "").replace(/,$/, "")} kg): <b>${conSegno(c.diffNascita)} g</b> (${p >= 0 ? "+" : "−"}${fmt(Math.abs(p), 1)}%)${nota}`);
+  }
+  return parti.join("<br>");
+}
 
 /* grafico SVG: curve dei percentili + punti di Gioele */
 function graficoCrescita(ind, { larg = 380, alt = 270, perStampa = false } = {}) {
@@ -92,11 +134,11 @@ function vCrescita() {
   const sez = ls.get("indCrescita", "peso");
   const righe = m.slice().reverse().map(x => {
     const g = giorniDiVita(x.data);
-    const cell = k => x[k] ? `${fmt(x[k], k === "peso" ? 2 : 1)}<br><span class="tiny">${percentile(k, g, x[k])?.testo || ""}</span>` : "–";
+    const cell = k => x[k] ? `${fmt(x[k], k === "peso" ? 2 : 1)}<br><span class="tiny">${percentile(k, g, x[k])?.testo || ""}</span>${k === "peso" ? (() => { const c = confrontoPeso(x.data, x.peso, x.id); return c?.prec ? `<br><span class="tiny">${testoConfronto(c, true)}${c.giorni > 0 ? ` in ${c.giorni} g` : ""}</span>` : ""; })() : ""}` : "–";
     return `<tr data-act="apri-misura" data-id="${x.id}" style="cursor:pointer"><td>${dataBreve(x.data)}<br><span class="tiny">${etaAlGiorno(g)}</span></td><td>${cell("peso")}</td><td>${cell("lunghezza")}</td><td>${cell("testa")}</td></tr>`;
   }).join("");
   return `<div class="card">
-      ${ultima ? `<div class="small muted">Ultima misura: ${dataBreve(ultima.data)} (${etaAlGiorno(giorniDiVita(ultima.data))})</div>` : `<div class="small muted">Nessuna misura ancora. Inserisci quelle della nascita (le trovi nel foglio di dimissione) e di ogni controllo.</div>`}
+      ${ultima ? `<div class="small muted">Ultima misura: ${dataBreve(ultima.data)} (${etaAlGiorno(giorniDiVita(ultima.data))})</div>${(() => { const up = misureOrd().filter(m => m.peso).pop(); const c = up && confrontoPeso(up.data, up.peso, up.id); const t = testoConfronto(c); return t ? `<div class="small" style="margin-top:6px">⚖️ Ultimo peso ${fmt(up.peso, 3).replace(/0+$/, "").replace(/,$/, "")} kg (${dataBreve(up.data)}): ${t}</div>` : ""; })()}` : `<div class="small muted">Nessuna misura ancora. Inserisci quelle della nascita (le trovi nel foglio di dimissione) e di ogni controllo.</div>`}
       <div class="btns"><button type="button" class="btn pri" data-act="nuova-misura">📏 Aggiungi misure</button></div>
     </div>
     <div class="toolbar" style="gap:6px">${Object.entries(IND).map(([k, v]) => `<button type="button" class="btn sm ${sez === k ? "pri" : ""}" data-act="ind-crescita" data-ind="${k}">${v.nome.split(" /")[0].replace("Circonferenza della testa", "Testa")}</button>`).join("")}</div>
@@ -122,14 +164,17 @@ function formMisura(x = {}) {
     const dati = { data: f.elements.data.value, peso, lunghezza: num(f.elements.lunghezza.value), testa: num(f.elements.testa.value), note: f.elements.note.value.trim(), updatedAt: Date.now() };
     if (!dati.data) throw new Error("Indica la data");
     if (!dati.peso && !dati.lunghezza && !dati.testa) throw new Error("Inserisci almeno una misura");
-    salvaVoce("misure", x, dati); await salva(); toast("Misure salvate");
+    const c = dati.peso ? confrontoPeso(dati.data, dati.peso, x.id) : null;
+    salvaVoce("misure", x, dati); await salva();
+    toast(c?.prec ? `Misure salvate · peso ${c.diff >= 0 ? "+" : "−"}${Math.abs(c.diff)} g dal ${dataBreve(c.prec.data)}${c.giorni > 0 ? ` (${conSegno(c.alGiorno)} g al giorno)` : ""}` : "Misure salvate", 5000);
   });
   const f = $("#sheetForm");
   const anteprima = () => {
     const g = giorniDiVita(f.elements.data.value); if (g == null) return;
     let peso = num(f.elements.peso.value); if (peso > 100) peso /= 1000;
     const v = { peso, lunghezza: num(f.elements.lunghezza.value), testa: num(f.elements.testa.value) };
-    $("#anteprimaPerc").innerHTML = Object.keys(IND).filter(k => v[k]).map(k => `${IND[k].nome}: <b>${percentile(k, g, v[k])?.testo || "fuori tabella"}</b> percentile`).join("<br>");
+    const conf = v.peso ? testoConfronto(confrontoPeso(f.elements.data.value, v.peso, x.id)) : "";
+    $("#anteprimaPerc").innerHTML = (conf ? `<div class="notice info small" style="margin:0 0 8px">⚖️ ${conf}</div>` : "") + Object.keys(IND).filter(k => v[k]).map(k => `${IND[k].nome}: <b>${percentile(k, g, v[k])?.testo || "fuori tabella"}</b> percentile`).join("<br>");
   };
   ["data", "peso", "lunghezza", "testa"].forEach(n => f.elements[n].addEventListener("input", anteprima)); anteprima();
 }
