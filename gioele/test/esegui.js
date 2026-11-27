@@ -28,6 +28,7 @@ const PROVE = {
   "peso": ["+80 g", "rispetto al 24 nov 2026", "−4,6%", "calo oltre il 10%"],
   "notte-sonno-faceid": ["pipì con un tocco: 1", "dopo Annulla: 0", "sonno: true", "notte chiusa, tema ripristinato: true", "link #azione=cacca: true", "sbloccata con Face ID: true", "codice sbagliato: Codice sbagliato", "sbloccata con codice: true"],
   "backup": ["1) backup dopo il collegamento: [ 'gioele-backup-", "seconda sincronizzazione (nessun nuovo backup): 1", "token scaduto, stato: serve-accesso"],
+  "allegati-rete": ["vecchio file convertito: FOTO-DI-PROVA", "1) rete caduta, stato: ok | avviso: 1 file non ancora caricati", "foto su Drive: false", "2) dopo il nuovo tentativo, stato: ok | foto su Drive: true", "contenuto su Drive: FOTO-DI-PROVA", "accesso ancora valido: true"],
   "sync-tre-persone": ['Silvia vede: {"misure":1', '"sola":true', "scritture della nonna: nessuna", "Simone vede la febbre di Silvia: 1"],
   "calendario-import": ["2a sinc. (niente doppioni): 2 visite", "titolo evento U1: Visita oculistica Gioele", "annullata"],
   "calendario-pasti": ["1) pasto segnato:", "2) dopo la correzione: [ 'E", "10:30-10:55", "visite importate per errore dal calendario: 0"],
