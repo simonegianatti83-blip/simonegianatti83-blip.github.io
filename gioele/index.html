@@ -625,6 +625,7 @@ async function allineaCalendario() {
   }
   await allineaPromemoria(cal);
   await allineaPastiCalendario(cal);
+  try { await allineaVitaminaD(cal); } catch (e) { if (e.message === "serve-accesso") throw e; console.warn("vitamina D", e); }
   await allineaProssimoPasto(cal);
   /* scadenze dei documenti personali: evento di un giorno con promemoria 4 settimane e 1 settimana prima */
   for (const d of S.documenti) {
@@ -1107,7 +1108,7 @@ function vImpostazioni() {
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
   </div></div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v22</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v23</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">

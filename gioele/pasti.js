@@ -396,6 +396,41 @@ async function allineaProssimoPasto(cal) {
   else await gapi(`${CAL}/calendars/${cal}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev) });
 }
 const VIT_D = "Vitamina D";
+const vitDDelGiorno = iso => attivi("dosi").filter(d => /vitamina\s*d/i.test(d.farmaco) && d.quando.startsWith(iso)).sort((a, b) => a.quando.localeCompare(b.quando))[0];
+/* vitamina D nel calendario: l'evento ricorrente "💊 Vitamina D a Gioele" del giorno
+   diventa "✅ … assunta alle HH:MM (chi)" quando la dose è segnata nell'app (e non suona più);
+   se la dose viene tolta, torna com'era. Si controllano oggi e i due giorni prima. */
+async function allineaVitaminaD(cal) {
+  let id = S.config.vitDEventId;
+  if (!id) {
+    const j = await gapi(`${CAL}/calendars/${cal}/events?${qs({ q: "Vitamina D", singleEvents: false, maxResults: 50 })}`);
+    const e = (j.items || []).find(x => x.recurrence && x.status !== "cancelled" && /vitamina\s*d/i.test(x.summary || ""));
+    if (!e) return;   // nessun promemoria ricorrente della vitamina D nel calendario
+    id = e.id; S.config.vitDEventId = id; S.config.vitDTitolo = e.summary;
+  }
+  const da = new Date(); da.setDate(da.getDate() - 2); da.setHours(0, 0, 0, 0);
+  const a = new Date(); a.setHours(23, 59, 59, 0);
+  let j;
+  try { j = await gapi(`${CAL}/calendars/${cal}/events/${id}/instances?${qs({ timeMin: da.toISOString(), timeMax: a.toISOString(), maxResults: 10 })}`); }
+  catch (e) { if (/not found|404|410|deleted/i.test(e.message)) { delete S.config.vitDEventId; return; } throw e; }
+  const base = S.config.vitDTitolo || "💊 Vitamina D a Gioele";
+  for (const ist of j.items || []) {
+    if (ist.status === "cancelled") continue;
+    const inizio = ist.originalStartTime?.dateTime || ist.start?.dateTime || ist.originalStartTime?.date || ist.start?.date || "";
+    const giorno = inizio.length > 10 ? oggiISO(new Date(inizio)) : inizio.slice(0, 10);
+    if (!giorno) continue;
+    const dose = vitDDelGiorno(giorno);
+    if (dose) {
+      const voluto = `✅ Vitamina D a Gioele – assunta alle ${dose.quando.slice(11)}${dose.chi ? " (" + dose.chi + ")" : ""}`;
+      if (ist.summary === voluto) continue;
+      await gapi(`${CAL}/calendars/${cal}/events/${ist.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary: voluto, description: `Data alle ${dose.quando.slice(11)}${dose.chi ? " da " + dose.chi : ""}${dose.dose ? " · " + dose.dose : ""}. Segnata nell'app Gioele.`, reminders: { useDefault: false, overrides: [] } }) });
+    } else if ((ist.summary || "").startsWith("✅")) {   // dose tolta nell'app: l'evento torna promemoria
+      await gapi(`${CAL}/calendars/${cal}/events/${ist.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary: base, description: "Promemoria giornaliero della vitamina D. Quando l'avete data, segnatela nell'app Gioele.", reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 0 }] } }) });
+    }
+  }
+}
 const vitDOggi = () => attivi("dosi").filter(d => /vitamina\s*d/i.test(d.farmaco) && d.quando.startsWith(oggiISO())).sort((a, b) => a.quando.localeCompare(b.quando))[0];
 function cardVitaminaD() {
   if (!S.profilo.nascita) return "";

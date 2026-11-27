@@ -17,7 +17,7 @@ App familiare (funziona nel browser e si installa sul telefono) per gestire le v
   - *Pasti*: poppate (seno, minuti, cronometro con cambio seno) e rinforzi in ml; quantità indicata per pasto = giorni di vita × 10 ml (il giorno della nascita non conta: 0 ml, poi 10, 20, 30…), 6-7 pasti nelle 24 ore; regola modificabile; grafico e totali giornalieri, anche nel riepilogo PDF.
   - *Cronologia dei pasti nel calendario*: ogni pasto è un evento (senza notifiche) nel calendario "Gioele – Visite"; correggendo il pasto nell'app si aggiorna lo stesso evento, eliminandolo sparisce.
   - *Prossimo pasto*: ogni 3 h 30 dall'inizio dell'ultimo pasto (modificabile), mostrato in Home e spostato in automatico come evento con avviso nel calendario Google.
-  - *Vitamina D*: riquadro in Home "da dare / data ✓" (promemoria giornaliero nel calendario).
+  - *Vitamina D*: riquadro in Home "da dare / data ✓"; segnata la dose, l'evento del giorno nel calendario diventa "✅ … assunta alle HH:MM" e non suona più.
   - *Pannolini*: pipì e cacca con un tocco (o con colore e consistenza), conteggi del giorno e delle 24 ore (avviso se nessuna pipì in 24 ore), avviso per feci molto chiare o con sangue; nel riepilogo PDF.
   - *Crescita*: peso, lunghezza e circonferenza della testa con percentili e grafici sulle curve OMS 2006 (dati LMS ufficiali OMS, maschi 0-5 anni, in `oms.js`).
   - *Vaccini* e *bilanci di salute*: calendario indicativo calcolato dalla data di nascita, da segnare come fatto; i bilanci si segnano da soli con le visite "Bilancio di salute"; promemoria nel calendario Google per i prossimi 4 mesi.
