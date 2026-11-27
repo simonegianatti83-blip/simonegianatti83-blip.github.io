@@ -254,8 +254,9 @@ const LUOGHI = [
   "Ambulatorio Chiesa in Valmalenco – Via Roma, 120 – Chiesa in Valmalenco",
   "Ospedale di Sondrio – Via Stelvio, 25 – Sondrio"
 ];
+const MEDICI_EXTRA = ["Ostetrica", "Ostetrica del consultorio", "Consultorio familiare", "Assistente sanitaria", "Psicologa del consultorio"];
 const TIPI = {
-  pediatra: "🩺 Pediatra", bilancio: "📏 Bilancio di salute", specialista: "👨‍⚕️ Specialista",
+  pediatra: "🩺 Pediatra", bilancio: "📏 Bilancio di salute", ostetrica: "🤱 Ostetrica a domicilio", consultorio: "🏡 Consultorio", specialista: "👨‍⚕️ Specialista",
   ps: "🚑 Pronto soccorso", ricovero: "🛏️ Ricovero", ospedale: "🏥 Ospedale / day hospital", vaccino: "💉 Vaccinazione", esami: "🧪 Esami / analisi", altro: "📌 Altro"
 };
 const CATEGORIE = {
@@ -569,7 +570,7 @@ async function caricaAllegatiInSospeso() {
    eventi ricorrenti (es. vitamina D) non vengono importati. */
 function tipoDaTesto(t) {
   t = (t || "").toLowerCase();
-  return /bilancio/.test(t) ? "bilancio" : /pediatr|lopez|erba|masa/.test(t) ? "pediatra" : /vaccin|esavalente|pneumococ|meningococ|rotavirus|mprv/.test(t) ? "vaccino"
+  return /ostetric/.test(t) && /domicil|casa/.test(t) ? "ostetrica" : /consultori/.test(t) ? "consultorio" : /ostetric/.test(t) ? "ostetrica" : /bilancio/.test(t) ? "bilancio" : /pediatr|lopez|erba|masa/.test(t) ? "pediatra" : /vaccin|esavalente|pneumococ|meningococ|rotavirus|mprv/.test(t) ? "vaccino"
     : /pronto soccorso|\bps\b/.test(t) ? "ps" : /ricover/.test(t) ? "ricovero" : /esam|prelievo|analisi|ecograf|radiograf|\brx\b|ecg/.test(t) ? "esami"
     : /ospedal|day hospital/.test(t) ? "ospedale" : /visita|specialist|controllo|otorino|oculist|cardiolog|ortoped|dermatolog|neurolog|allergolog/.test(t) ? "specialista" : "altro";
 }
@@ -990,7 +991,7 @@ function vVisite() {
     </select>
   </div>
   ${l.length ? l.map(rigaVisita).join("") : `<div class="empty">Nessuna visita ${filtroVis.quando === "future" ? "in programma" : "trovata"}.</div>`}
-  <div class="btns"><button type="button" class="btn" data-act="importa-cal">📥 Importa visite dal mio Google Calendar</button></div>`;
+  <div class="btns"><button type="button" class="btn" data-act="nuova-visita-ost">🤱 Ostetrica a domicilio</button><button type="button" class="btn" data-act="nuova-visita-cons">🏡 Consultorio</button><button type="button" class="btn" data-act="importa-cal">📥 Importa visite dal mio Google Calendar</button></div>`;
 }
 
 function vDocumenti() {
@@ -1132,7 +1133,7 @@ function vImpostazioni() {
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
   </div></div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v27</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v28</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">
@@ -1202,7 +1203,7 @@ function formVisita(v = {}, preset = {}) {
     <label class="f">Luogo<input type="text" name="luogo" list="dlLuoghi" value="${esc(v.luogo || "")}" placeholder="Scegli o scrivi"></label>
     <datalist id="dlLuoghi">${[...new Set([...LUOGHI, ...visiteAttive().map(x => x.luogo).filter(Boolean)])].map(l => `<option value="${esc(l)}">`).join("")}</datalist>
     <label class="f">Medico / reparto<input type="text" name="medico" list="dlMedici" value="${esc(v.medico ?? "")}"></label>
-    <datalist id="dlMedici">${[...new Set([...PEDIATRA.associazione, ...visiteAttive().map(x => x.medico).filter(Boolean)])].map(l => `<option value="${esc(l)}">`).join("")}</datalist>
+    <datalist id="dlMedici">${[...new Set([...PEDIATRA.associazione, ...MEDICI_EXTRA, ...visiteAttive().map(x => x.medico).filter(Boolean)])].map(l => `<option value="${esc(l)}">`).join("")}</datalist>
     <label class="f">Motivo<input type="text" name="motivo" value="${esc(v.motivo || "")}" placeholder="es. febbre, controllo, vaccino esavalente"></label>
     <label class="f">Esito / cosa ha detto il medico<textarea name="esito" placeholder="Diagnosi, terapia, prossimi controlli…">${esc(v.esito || "")}</textarea></label>
     <label class="f">Note (cosa portare, domande da fare…)<textarea name="note">${esc(v.note || "")}</textarea></label>
@@ -1238,6 +1239,8 @@ function formVisita(v = {}, preset = {}) {
     $("#rigaFine").classList.toggle("hidden", f.elements.tipo.value !== "ricovero");
     if (["pediatra", "bilancio"].includes(f.elements.tipo.value) && !f.elements.medico.value) f.elements.medico.value = PEDIATRA.nome;
     if (["pediatra", "bilancio"].includes(f.elements.tipo.value) && !f.elements.luogo.value) f.elements.luogo.value = luogoPerData(f.elements.data.value);
+    if (f.elements.tipo.value === "ostetrica") { if (!f.elements.luogo.value || LUOGHI.slice(0, 2).includes(f.elements.luogo.value)) f.elements.luogo.value = "A domicilio"; if (!f.elements.medico.value || f.elements.medico.value === PEDIATRA.nome) f.elements.medico.value = "Ostetrica"; }
+    if (f.elements.tipo.value === "consultorio") { if (!f.elements.luogo.value || LUOGHI.slice(0, 2).includes(f.elements.luogo.value)) f.elements.luogo.value = "Consultorio familiare"; if (f.elements.medico.value === PEDIATRA.nome) f.elements.medico.value = ""; }
     verifica();
   });
   f.elements.data.addEventListener("change", () => {
@@ -1712,7 +1715,7 @@ async function importaDaCalendario() {
       const e = ev.find(x => x.id === id), s = e.start.dateTime ? new Date(e.start.dateTime) : parseISO(e.start.date);
       const fine = e.end?.dateTime ? new Date(e.end.dateTime) : null;
       const testo = (e.summary || "").toLowerCase();
-      const tipo = /pediatr|lopez|bilancio/.test(testo) ? "pediatra" : /vaccin/.test(testo) ? "vaccino" : /esam|prelievo|analisi/.test(testo) ? "esami" : /ospedal|pronto/.test(testo) ? "ospedale" : "specialista";
+      const tipo = /consultori/.test(testo) ? "consultorio" : /ostetric/.test(testo) ? "ostetrica" : /pediatr|lopez|bilancio/.test(testo) ? "pediatra" : /vaccin/.test(testo) ? "vaccino" : /esam|prelievo|analisi/.test(testo) ? "esami" : /ospedal|pronto/.test(testo) ? "ospedale" : "specialista";
       S.visite.push({ id: uid(), tipo, data: oggiISO(s), ora: e.start.dateTime ? `${pad(s.getHours())}:${pad(s.getMinutes())}` : "", durata: fine ? Math.max(15, Math.round((fine - s) / 60000)) : 30,
         stato: s < new Date() ? "fatta" : "programmata", luogo: e.location || "", medico: tipo === "pediatra" ? PEDIATRA.nome : "", motivo: e.summary || "", note: e.description ? e.description.replace(/<[^>]+>/g, " ").slice(0, 1000) : "",
         importDa: e.id, noCal: s < new Date(), creato: Date.now(), updatedAt: Date.now() });
@@ -1757,6 +1760,8 @@ document.addEventListener("click", async e => {
   switch (act) {
     case "tab": e.preventDefault(); vai(b.dataset.tab); break;
     case "nuova-visita": formVisita(); break;
+    case "nuova-visita-ost": formVisita({}, { tipo: "ostetrica", luogo: "A domicilio", medico: "Ostetrica", durata: 60 }); break;
+    case "nuova-visita-cons": formVisita({}, { tipo: "consultorio", luogo: "Consultorio familiare" }); break;
     case "nuova-visita-ped": formVisita({}, { tipo: "pediatra" }); break;
     case "nota-consulto": formVisita({}, { tipo: "pediatra", data: oggiISO(), ora: `${pad(new Date().getHours())}:${pad(new Date().getMinutes() - new Date().getMinutes() % 5)}`, durata: 15, stato: "fatta", luogo: "Consulto telefonico", medico: PEDIATRA.nome, noCal: true }); break;
     case "apri-visita": formVisita(S.visite.find(v => v.id === id)); break;
@@ -1854,7 +1859,7 @@ document.addEventListener("click", async e => {
   }
 });
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => vai(b.dataset.tab)));
-const AZIONI_SCRITTURA = new Set(["nuova-visita", "nuova-visita-ped", "nota-consulto", "nuova-chiusura", "togli-chiusura", "aggiungi-domanda", "domanda-fatta", "nuova-misura", "nuova-dose",
+const AZIONI_SCRITTURA = new Set(["nuova-visita", "nuova-visita-ost", "nuova-visita-cons", "nuova-visita-ped", "nota-consulto", "nuova-chiusura", "togli-chiusura", "aggiungi-domanda", "domanda-fatta", "nuova-misura", "nuova-dose",
   "nuova-febbre", "nuova-spesa", "nuovo-pers", "doc-per-visita", "farmaci-abituali", "scatta-nuovo", "pdf-nuovo", "condividi-silvia", "importa", "importa-cal", "nuova-visita-bil", "elimina-voce", "nuovo-pasto", "vitd-data", "ripeti-pasto", "sonno-dorme", "sonno-sveglio", "sonno-nuovo", "pg-spunta", "notte-poppata", "notte-fine-poppata", "notte-biberon", "notte-ripeti", "notte-pann", "pannolino-rapido", "nuovo-pannolino", "poppata-avvia", "poppata-cambia", "poppata-fine", "pasti-regola", "pasti-nascita", "elimina-visita", "elimina-doc"]);
 function vai(tab) { vista = tab; ls.set("tab", tab); render(); window.scrollTo(0, 0); }
 $("#fab").addEventListener("click", () => {
@@ -1864,6 +1869,8 @@ $("#fab").addEventListener("click", () => {
   if (vista === "visite" || vista === "pediatra") return formVisita();
   apriSheet("Aggiungi", `<div class="btns" style="flex-direction:column">
       <button type="button" class="btn pri" data-act="nuova-visita">🩺 Nuova visita / appuntamento</button>
+      <button type="button" class="btn" data-act="nuova-visita-ost">🤱 Ostetrica a domicilio</button>
+      <button type="button" class="btn" data-act="nuova-visita-cons">🏡 Consultorio</button>
       <button type="button" class="btn" data-act="scatta-nuovo">📷 Fotografa un referto</button>
       <button type="button" class="btn" data-act="pdf-nuovo">📄 Carica un PDF / file</button>
       <button type="button" class="btn" data-act="nuovo-pers">🪪 Documento personale (nascita, tessera, identità…)</button>

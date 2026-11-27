@@ -5,7 +5,7 @@ App familiare (funziona nel browser e si installa sul telefono) per gestire le v
 **Indirizzo:** https://simonegianatti83-blip.github.io/gioele/
 
 ## Cosa fa
-- **Visite**: appuntamenti con data, ora, luogo, medico, motivo, esito e note. Per le visite dalla pediatra propone in automatico l'ambulatorio giusto per quel giorno e avvisa se l'orario è fuori ambulatorio.
+- **Visite**: appuntamenti con data, ora, luogo, medico, motivo, esito e note. Per le visite dalla pediatra propone in automatico l'ambulatorio giusto per quel giorno e avvisa se l'orario è fuori ambulatorio. Tipi dedicati per **ostetrica a domicilio** e **consultorio** (con tasti rapidi in Visite), riportati in una sezione apposita del riepilogo PDF.
 - **Documenti**: referti, ricette, impegnative, esami, lettere di dimissione, certificati, vaccinazioni. Si fotografano (anche più pagine) o si carica il PDF, e si collegano alla visita.
 - **Pediatra** (Dr.ssa Lopez Rios Norma Beatriz): orari dei due ambulatori, prossimi giorni di apertura, tasti per chiamare, e indica se *adesso* la linea prenotazioni (9–11) o i consulti telefonici (8:30–9:30, 14–14:30) sono aperti.
 - **Dal calendario all'app**: gli eventi inseriti a mano nel calendario "Gioele – Visite" diventano visite dell'app; se vengono spostati o cancellati nel calendario, la visita si aggiorna o diventa annullata. Promemoria dell'app ed eventi ricorrenti (es. vitamina D) sono esclusi.

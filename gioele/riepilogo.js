@@ -134,6 +134,7 @@ function datiRiepilogo(daISO) {
     imaging: docs.filter(d => d.categoria === "imaging"),
     vaccini: [...vis(["vaccino"]).map(v => ({ v })), ...docs.filter(d => d.categoria === "vaccini" && !visite.some(v => v.id === d.visitaId && v.tipo === "vaccino")).map(d => ({ d }))],
     pediatra: vis(["pediatra", "bilancio"]),
+    nascita: vis(["ostetrica", "consultorio"]),
     altri: vis(["altro"]),
     docs, docsDi, prossime
   };
@@ -308,6 +309,12 @@ async function creaRiepilogoPdf({ da, allegati, note, avanzamento }) {
     w.titolo("Visite, bilanci di salute e consulti dal pediatra");
     w.tabella([{ t: "Data", w: .14 }, { t: "Tipo", w: .22 }, { t: "Motivo ed esito", w: .64 }], R.pediatra.map(v => [dIt(v.data),
       v.tipo === "bilancio" ? "Bilancio di salute" : /telefon/i.test(v.luogo || "") ? "Consulto telefonico" : "Visita",
+      [v.motivo && "Motivo: " + v.motivo, v.esito && "Esito: " + v.esito, v.note, elencoDoc(R.docsDi(v))].filter(Boolean).join("\n") || "—"]));
+  }
+  if (R.nascita.length) {
+    w.titolo("Ostetrica a domicilio e consultorio");
+    w.tabella([{ t: "Data", w: .14 }, { t: "Tipo / chi", w: .26 }, { t: "Motivo ed esito", w: .6 }], R.nascita.map(v => [dIt(v.data),
+      [v.tipo === "ostetrica" ? "Ostetrica a domicilio" : "Consultorio", v.medico, v.tipo === "consultorio" ? v.luogo : ""].filter(Boolean).join("\n"),
       [v.motivo && "Motivo: " + v.motivo, v.esito && "Esito: " + v.esito, v.note, elencoDoc(R.docsDi(v))].filter(Boolean).join("\n") || "—"]));
   }
   if (R.altri.length) {
