@@ -5,7 +5,7 @@
    ===================================================================== */
 "use strict";
 
-const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: false, pastiMin: 6, pastiMax: 7, maxMl: null, intervalloMin: 210, intervalloDa: "inizio", avvisoPasto: true };
+const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: false, pastiMin: 6, pastiMax: 7, maxMl: null, intervalloMin: 210, intervalloDa: "inizio", avvisoPasto: true, pastiCalendario: true };
 function regolaPasti() {
   const c = { ...(S.config.pasti || {}) };
   if (!c.confermato) delete c.nascitaGiorno1;   // impostazione vecchia mai scelta a mano: vale la nuova (nascita non conta)
@@ -220,12 +220,13 @@ function formRegolaPasti() {
     <h3 style="font-size:15px;margin:16px 0 0">Promemoria del prossimo pasto</h3>
     <div class="grid2"><label class="f">Ogni (ore:minuti)<input type="time" name="intervallo" value="${pad(Math.floor(r.intervalloMin / 60))}:${pad(r.intervalloMin % 60)}"></label>
     <label class="f">Contando dal<select name="intervalloDa"><option value="inizio" ${r.intervalloDa !== "fine" ? "selected" : ""}>inizio dell'ultimo pasto</option><option value="fine" ${r.intervalloDa === "fine" ? "selected" : ""}>fine dell'ultimo pasto</option></select></label></div>
-    <label class="check"><input type="checkbox" name="avvisoPasto" ${r.avvisoPasto !== false ? "checked" : ""}> Avviso nel calendario Google “${NOME_CALENDARIO}” all'ora del prossimo pasto</label>`,
+    <label class="check"><input type="checkbox" name="avvisoPasto" ${r.avvisoPasto !== false ? "checked" : ""}> Avviso nel calendario Google “${NOME_CALENDARIO}” all'ora del prossimo pasto</label>
+    <label class="check"><input type="checkbox" name="pastiCalendario" ${r.pastiCalendario !== false ? "checked" : ""}> Registra ogni pasto nel calendario (cronologia dell'allattamento; se correggi un pasto, l'evento si aggiorna)</label>`,
   `<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
     const f = $("#sheetForm"), v = n => num(f.elements[n].value);
     S.config.pasti = { incremento: v("incremento") || 10, maxMl: v("maxMl") || null, pastiMin: v("pastiMin") || 6, pastiMax: Math.max(v("pastiMax") || 7, v("pastiMin") || 6), nascitaGiorno1: f.elements.nascitaGiorno1.checked, confermato: true,
-      intervalloMin: f.elements.intervallo.value ? min(f.elements.intervallo.value) || 210 : 210, intervalloDa: f.elements.intervalloDa.value, avvisoPasto: f.elements.avvisoPasto.checked };
+      intervalloMin: f.elements.intervallo.value ? min(f.elements.intervallo.value) || 210 : 210, intervalloDa: f.elements.intervalloDa.value, avvisoPasto: f.elements.avvisoPasto.checked, pastiCalendario: f.elements.pastiCalendario.checked };
     await salva(); toast("Regola salvata");
   });
 }
@@ -324,6 +325,53 @@ function rigaProssimoPasto(grande = false) {
   return grande ? `<div class="notice ${diff > 0 ? "info" : "warn"}" style="font-size:16px">${testo}</div>` : testo;
 }
 /* evento "prossimo pasto" nel calendario Google: uno solo, spostato a ogni nuovo pasto (da qualsiasi telefono) */
+/* ---------- cronologia dell'allattamento nel calendario ----------
+   Ogni pasto (poppata e/o rinforzo) è un evento nel calendario "Gioele – Visite".
+   Se il pasto viene corretto nell'app (orario, seno, ml) si aggiorna LO STESSO evento;
+   se viene eliminato, l'evento sparisce. Gli eventi sono "liberi" e senza notifiche. */
+function testoPastoCal(p) {
+  const seno = p.seno ? (p.seno === "entrambi" ? (p.primo === "dx" ? "destro → sinistro" : "sinistro → destro") : SENI[p.seno].toLowerCase()) : "";
+  return [seno && `seno ${seno}${minutiPasto(p) ? " " + minutiPasto(p) + "′" : ""}`, p.ml && `${p.ml} ml${p.latte ? " " + (p.latte === "materno" ? "materno" : "artificiale") : ""}`].filter(Boolean).join(" + ") || "pasto";
+}
+function eventoPasto(p) {
+  const fine = p.fine && p.fine > p.quando ? p.fine : piuMinuti(p.quando, minutiPasto(p) || 15);
+  return {
+    summary: `${p.seno ? "🤱" : "🍼"} Gioele – ${testoPastoCal(p)}`,
+    description: [p.seno && p.minSx && p.minDx ? `Sinistro ${p.minSx}′, destro ${p.minDx}′` : "", p.chi && `Segnato da ${p.chi}`, p.note, "Cronologia dei pasti dall'app Gioele: se correggi il pasto nell'app, questo evento si aggiorna."].filter(Boolean).join("\n"),
+    start: { dateTime: p.quando + ":00", timeZone: "Europe/Rome" }, end: { dateTime: fine + ":00", timeZone: "Europe/Rome" },
+    transparency: "transparent", colorId: "7",
+    reminders: { useDefault: false, overrides: [] },
+    extendedProperties: { private: { gioele: "pasto", pastoId: p.id } }
+  };
+}
+async function allineaPastiCalendario(cal) {
+  const attivo = regolaPasti().pastiCalendario !== false;
+  const limite = oraLocale(new Date(Date.now() - 60 * 864e5));   // si registrano i pasti degli ultimi 60 giorni
+  for (const p of S.pasti) {
+    const togli = p.deleted || !attivo || p.quando < limite;
+    if (togli) {
+      if (p.calEventId && (p.deleted || !attivo)) {
+        try { await gapi(`${CAL}/calendars/${cal}/events/${p.calEventId}`, { method: "DELETE" }); } catch (e) { if (!/not found|deleted|410|404/i.test(e.message)) throw e; }
+        p.calEventId = ""; p.calSig = ""; p.updatedAt = Date.now();
+      }
+      continue;
+    }
+    const ev = eventoPasto(p), sig = JSON.stringify(ev);
+    if (p.calEventId && p.calSig === sig) continue;
+    let r;
+    if (!p.calEventId) {   // un altro telefono potrebbe averlo già creato: si cerca prima di crearne un doppione
+      const j = await gapi(`${CAL}/calendars/${cal}/events?${qs({ privateExtendedProperty: "pastoId=" + p.id, maxResults: 5 })}`);
+      const gia = (j.items || []).filter(e => e.status !== "cancelled");
+      if (gia.length) { p.calEventId = gia[0].id; for (const e of gia.slice(1)) { try { await gapi(`${CAL}/calendars/${cal}/events/${e.id}`, { method: "DELETE" }); } catch {} } }
+    }
+    if (p.calEventId) {
+      try { r = await gapi(`${CAL}/calendars/${cal}/events/${p.calEventId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev) }); }
+      catch (e) { if (!/not found|404|410/i.test(e.message)) throw e; }
+    }
+    if (!r) r = await gapi(`${CAL}/calendars/${cal}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ev) });
+    p.calEventId = r.id; p.calSig = sig; p.updatedAt = Date.now();
+  }
+}
 async function allineaProssimoPasto(cal) {
   if (regolaPasti().avvisoPasto === false) return;
   const j = await gapi(`${CAL}/calendars/${cal}/events?${qs({ privateExtendedProperty: "gioele=prossimoPasto", maxResults: 10, singleEvents: true })}`);
