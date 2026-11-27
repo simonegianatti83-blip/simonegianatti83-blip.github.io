@@ -16,7 +16,7 @@ function caricaPdfLib() {
 const EXTRA_WINANSI = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
 function pdfTesto(s) {
   return String(s ?? "")
-    .replace(/≥/g, ">=").replace(/≤/g, "<=").replace(/→/g, "->").replace(/↑/g, "(alto)").replace(/↓/g, "(basso)")
+    .replace(/[−‐‑]/g, "-").replace(/[′]/g, "'").replace(/≥/g, ">=").replace(/≤/g, "<=").replace(/→/g, "->").replace(/↑/g, "(alto)").replace(/↓/g, "(basso)")
     .replace(/÷/g, "-").replace(/\t/g, " ").replace(/\r/g, "")
     .replace(/[^\n\x20-\x7E\xA0-\xFF€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/g, "")
     .replace(/ {2,}/g, " ");
@@ -193,8 +193,30 @@ async function creaRiepilogoPdf({ da, allegati, note, avanzamento }) {
   if (mis.length && p.nascita) {
     w.titolo("Crescita", "Percentili secondo gli standard di crescita OMS 2006 (maschi).");
     const cel = (m, k) => { if (!m[k]) return "–"; const pc = percentile(k, giorniDiVita(m.data), m[k]); return `${fmt(m[k], k === "peso" ? 2 : 1)}${pc ? "  (" + pc.testo + " perc.)" : ""}`; };
-    w.tabella([{ t: "Data", w: .14 }, { t: "Età", w: .16 }, { t: "Peso kg", w: .23 }, { t: "Lunghezza cm", w: .24 }, { t: "Testa cm", w: .23 }],
-      mis.map(m => [dIt(m.data), etaAlGiorno(giorniDiVita(m.data)), cel(m, "peso"), cel(m, "lunghezza"), cel(m, "testa")]));
+    /* variazione del peso rispetto alla pesata precedente (g e g al giorno) */
+    const varPeso = m => {
+      if (!m.peso || typeof confrontoPeso !== "function") return "";
+      const c = confrontoPeso(m.data, m.peso, m.id); if (!c?.prec) return { t: "–" };
+      return { t: `${conSegno(c.diff)} g${c.giorni > 0 ? `\nin ${c.giorni} ${c.giorni === 1 ? "giorno" : "giorni"}\n(${conSegno(c.alGiorno)} g/giorno)` : ""}`, color: c.diff < 0 ? w.col.bad : undefined, bold: c.diff < 0 };
+    };
+    w.tabella([{ t: "Data", w: .13 }, { t: "Età", w: .14 }, { t: "Peso kg", w: .19 }, { t: "Variazione peso", w: .17 }, { t: "Lunghezza cm", w: .19 }, { t: "Testa cm", w: .18 }],
+      mis.map(m => [dIt(m.data), etaAlGiorno(giorniDiVita(m.data)), cel(m, "peso"), varPeso(m) || "", cel(m, "lunghezza"), cel(m, "testa")]));
+    /* sintesi: ultimo peso, andamento recente e confronto con la nascita */
+    const pesi = mis.filter(m => m.peso);
+    if (pesi.length && typeof confrontoPeso === "function") {
+      const u = pesi[pesi.length - 1], c = confrontoPeso(u.data, u.peso, u.id), righe = [];
+      const kg = v => fmt(v, 3).replace(/0+$/, "").replace(/,$/, "");
+      if (c?.prec) righe.push(`Ultimo peso ${kg(u.peso)} kg il ${dIt(u.data)}: ${conSegno(c.diff)} g rispetto al ${dIt(c.prec.data)}${c.giorni > 0 ? ` (${conSegno(c.alGiorno)} g al giorno, circa ${conSegno(c.allaSettimana)} g alla settimana)` : ""}.`);
+      const n = pesoNascita();
+      if (n && n.id !== u.id) {
+        const d = grammi(u.peso) - grammi(n.peso), perc = (u.peso - n.peso) / n.peso * 100, gg = Math.round((parseISO(u.data) - parseISO(n.data)) / 864e5);
+        righe.push(`Rispetto al peso di nascita (${kg(n.peso)} kg): ${conSegno(d)} g (${perc >= 0 ? "+" : "-"}${fmt(Math.abs(perc), 1)}%) in ${gg} ${gg === 1 ? "giorno" : "giorni"}${perc < -10 ? " - calo superiore al 10%" : perc < 0 ? " - peso di nascita non ancora recuperato" : " - peso di nascita recuperato"}.`);
+        /* minimo raggiunto dopo la nascita (calo fisiologico) */
+        const minimo = pesi.filter(m => m.data > n.data).reduce((a, m) => (!a || m.peso < a.peso ? m : a), null);
+        if (minimo && minimo.peso < n.peso && minimo.id !== u.id) righe.push(`Peso minimo dopo la nascita: ${kg(minimo.peso)} kg il ${dIt(minimo.data)} (${fmt((minimo.peso - n.peso) / n.peso * 100, 1)}%).`);
+      }
+      if (righe.length) { w.y -= 2; for (const r of righe) w.testo(r, { size: 9.5 }); w.y -= 4; }
+    }
     for (const k of ["peso", "lunghezza", "testa"]) {
       if (!mis.some(m => m[k])) continue;
       try { w.spazio(250); w.testo(IND[k].nome + " sulle curve OMS (3°-97° percentile)", { size: 9, bold: true }); await w.immagine(await svgInPng(graficoCrescita(k, { larg: 640, alt: 260, perStampa: true }), 640, 260), w.W - 2 * w.M); }
