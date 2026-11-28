@@ -26,7 +26,7 @@ const { chromium, devices } = require('playwright');
   await p.tap('#notte [data-act=sonno-dorme]'); await p.waitForTimeout(150);
   console.log('sonno:', await p.evaluate(() => !!sonnoInCorso()));
   await p.tap('#notte [data-act=notte-chiudi]'); await p.waitForTimeout(150);
-  console.log('notte chiusa, tema ripristinato:', await p.evaluate(() => document.getElementById('notte').hidden && !document.documentElement.dataset.theme));
+  console.log('notte chiusa, tema ripristinato:', await p.evaluate(() => document.getElementById('notte').hidden && document.documentElement.dataset.theme === (temaScuroAdesso() ? 'dark' : 'light')));
   // sonno: sveglio
   await p.evaluate(() => { const x = sonnoInCorso(); x.inizio = oraLocale(new Date(Date.now() - 95 * 60000)); });
   await p.evaluate(() => { sezSalute = 'sonno'; vai('salute'); }); await p.tap('[data-act=sonno-sveglio] >> nth=0'); await p.waitForTimeout(150);
