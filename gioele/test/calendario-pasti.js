@@ -48,7 +48,7 @@ async function mock(ctx, email) {
   await p1.waitForTimeout(2500); console.log('1) pasto segnato:', pe());
   // correzione dell'orario dal modulo dell'app
   await p1.evaluate(() => { sezSalute = 'pasti'; vai('salute'); }); await p1.click('[data-act=apri-pasto][data-id=pz]'); await p1.waitForTimeout(200);
-  await p1.fill('input[name=inizio]', '10:30'); await p1.fill('input[name=fine]', '10:55'); await p1.click('button[value=ok]'); await p1.waitForTimeout(2800);
+  await p1.fill('input[name=inizio]', '10:30'); await p1.fill('input[name=minSx]', '25'); await p1.click('button[value=ok]'); await p1.waitForTimeout(2800);
   console.log('2) dopo la correzione:', pe());
   // Silvia (secondo telefono) non deve creare doppioni
   await p1.click('[data-tab=impostazioni]'); await p1.fill('#inEmailSilvia', 'silvia@x.it'); await p1.click('[data-act=condividi-silvia]'); await p1.waitForTimeout(600);

@@ -69,7 +69,8 @@ function finePoppata() {
   p[p.seno === "sx" ? "minSx" : "minDx"] += minutiSegmento(p);
   ls.del("poppataInCorso");
   const minSx = Math.round(p.minSx), minDx = Math.round(p.minDx);
-  formPasto({}, { quando: p.inizio, fine: piuMinuti(p.inizio, Math.max(1, Math.round(p.minSx + p.minDx))), seno: minSx && minDx ? "entrambi" : minDx ? "dx" : "sx", primo: p.primo || p.seno, finito: p.seno });
+  const sx = minSx || (!minDx && p.seno === "sx" ? 1 : 0), dx = minDx || (!minSx && p.seno === "dx" ? 1 : 0);   // almeno 1 minuto
+  formPasto({}, { quando: p.inizio, minSx: sx || null, minDx: dx || null, primo: p.primo || p.seno });
 }
 function boxCronometro() {
   const p = poppataInCorso();
@@ -149,12 +150,19 @@ function vPasti() {
 function formPasto(p = {}, preset = {}) {
   p = { quando: oraLocale(), chi: mioNome(), latte: ls.get("ultimoLatte", "artificiale"), ...preset, ...p };
   const nuovo = !p.id, ob = mlPerPasto(p.quando.slice(0, 10));
-  const fineIni = p.fine ? hhmm(p.fine) : !nuovo && minutiPasto(p) ? hhmm(piuMinuti(p.quando, minutiPasto(p))) : "";
+  /* voci vecchie con il solo totale: i minuti vanno sul seno indicato (o a metà se "entrambi") */
+  if (p.seno && p.minSx == null && p.minDx == null && p.minuti) {
+    if (p.seno === "entrambi") { const m1 = Math.ceil(p.minuti / 2); p = { ...p, [p.primo === "dx" ? "minDx" : "minSx"]: m1, [p.primo === "dx" ? "minSx" : "minDx"]: p.minuti - m1 }; }
+    else p = { ...p, [p.seno === "dx" ? "minDx" : "minSx"]: p.minuti };
+  }
   apriSheet("Pasto", `
-    <label class="f">Poppata al seno<select name="seno">${Object.entries(SENI).map(([k, t]) => `<option value="${k}" ${(p.seno || "") === k ? "selected" : ""}>${k ? t : "Nessuna (solo biberon)"}</option>`).join("")}</select></label>
-    <label class="f">Data<input type="date" name="data" value="${esc(p.quando.slice(0, 10))}"></label>
-    <div class="grid2"><label class="f">Ora di inizio<input type="time" name="inizio" value="${esc(hhmm(p.quando))}"></label>
-    <label class="f" id="rigaFine">Ora di fine<input type="time" name="fine" value="${esc(fineIni)}"></label></div>
+    <div class="grid2"><label class="f">Data<input type="date" name="data" value="${esc(p.quando.slice(0, 10))}"></label>
+    <label class="f">Ora di inizio<input type="time" name="inizio" value="${esc(hhmm(p.quando))}"></label></div>
+    <div class="small muted" style="margin-top:10px">Minuti di poppata al seno (lascia vuoto il seno non usato; tutti e due vuoti = solo biberon)</div>
+    <div class="grid2">
+      <label class="f">Seno sinistro (min)<input type="number" inputmode="numeric" min="0" max="120" step="1" name="minSx" value="${p.minSx || ""}" placeholder="–" style="text-align:center;font-size:20px;font-weight:700"></label>
+      <label class="f">Seno destro (min)<input type="number" inputmode="numeric" min="0" max="120" step="1" name="minDx" value="${p.minDx || ""}" placeholder="–" style="text-align:center;font-size:20px;font-weight:700"></label>
+    </div>
     <div id="rigaEntrambi">
       <label class="f">Ha iniziato dal seno<select name="primo"><option value="sx" ${p.primo !== "dx" ? "selected" : ""}>Sinistro</option><option value="dx" ${p.primo === "dx" ? "selected" : ""}>Destro</option></select></label>
     </div>
@@ -172,41 +180,33 @@ function formPasto(p = {}, preset = {}) {
   `${!nuovo ? `<button type="button" class="btn bad" data-act="elimina-voce" data-col="pasti" data-id="${p.id}">Elimina</button><span style="flex:1"></span>` : ""}<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
     const f = $("#sheetForm"), v = n => f.elements[n].value.trim();
-    const seno = v("seno"), data = v("data") || oggiISO(), inizio = v("inizio"), fine = v("fine"), ml = num(v("ml"));
+    const data = v("data") || oggiISO(), inizio = v("inizio"), ml = num(v("ml"));
+    const minSx = Math.round(num(v("minSx")) || 0), minDx = Math.round(num(v("minDx")) || 0);
     if (!inizio) throw errore("Inserisci l'ora di inizio", "inizio");
-    if (seno && !fine) throw errore("Inserisci l'ora di fine della poppata", "fine");
-    if (!seno && !ml) throw errore("Scegli la poppata al seno oppure inserisci i ml di rinforzo", "ml");
-    const quando = `${data}T${inizio}`, minuti = seno ? minutiTra(inizio, fine) : null;
-    if (seno && minuti === 0) throw errore("L'ora di fine è uguale a quella di inizio", "fine");
-    if (minuti > 120 && !confirm(`La poppata risulta di ${minuti} minuti (dalle ${inizio} alle ${fine}). È giusto?`)) return false;
-    const dati = { quando, fine: seno ? piuMinuti(quando, minuti) : (fine ? piuMinuti(quando, minutiTra(inizio, fine)) : ""), seno, minuti,
-      minSx: null, minDx: null, primo: "", cambio: "", finito: "", ml, latte: v("latte"), chi: v("chi"), note: v("note"), updatedAt: Date.now() };
-    if (seno === "sx") { dati.minSx = minuti; dati.finito = "sx"; }
-    if (seno === "dx") { dati.minDx = minuti; dati.finito = "dx"; }
-    if (seno === "entrambi") {   // la durata si divide a metà tra i due seni
-      dati.primo = v("primo");
-      const secondo = dati.primo === "sx" ? "dx" : "sx"; dati.finito = secondo;
-      const m1 = Math.ceil(minuti / 2);
-      dati[dati.primo === "sx" ? "minSx" : "minDx"] = m1; dati[secondo === "sx" ? "minSx" : "minDx"] = minuti - m1;
-    }
+    if (minSx < 0 || minDx < 0) throw errore("I minuti non possono essere negativi", minSx < 0 ? "minSx" : "minDx");
+    if (!minSx && !minDx && !ml) throw errore("Inserisci i minuti di almeno un seno oppure i ml di rinforzo", "minSx");
+    const minuti = minSx + minDx || null;
+    if (minuti > 120 && !confirm(`La poppata risulta di ${minuti} minuti in tutto. È giusto?`)) return false;
+    const seno = minSx && minDx ? "entrambi" : minSx ? "sx" : minDx ? "dx" : "";
+    const quando = `${data}T${inizio}`, primo = seno === "entrambi" ? v("primo") : "";
+    const dati = { quando, fine: minuti ? piuMinuti(quando, minuti) : "", seno, minuti, minSx: minSx || null, minDx: minDx || null,
+      primo, cambio: "", finito: seno === "entrambi" ? (primo === "sx" ? "dx" : "sx") : seno, ml, latte: v("latte"), chi: v("chi"), note: v("note"), updatedAt: Date.now() };
     if (dati.ml) ls.set("ultimoLatte", dati.latte);
     salvaVoce("pasti", p, dati); await salva(); toast("Pasto segnato");
   });
   const f = $("#sheetForm");
   const agg = () => {
-    const seno = f.elements.seno.value, ini = f.elements.inizio.value, fin = f.elements.fine.value;
-    $("#rigaEntrambi").classList.toggle("hidden", seno !== "entrambi");
-    $("#rigaFine").firstChild.textContent = seno ? "Ora di fine" : "Ora di fine (facoltativa)";
-    const m = minutiTra(ini, fin);
+    const sx = Math.round(num(f.elements.minSx.value) || 0), dx = Math.round(num(f.elements.minDx.value) || 0), ini = f.elements.inizio.value;
+    $("#rigaEntrambi").classList.toggle("hidden", !(sx && dx));
     let t = "";
-    if (seno && m != null) {
-      t = `⏱️ Durata: <b>${m} minuti</b>`;
-      if (seno === "entrambi") { const m1 = Math.ceil(m / 2), pr = f.elements.primo.value; t += ` → metà per seno: ${pr === "sx" ? "sinistro" : "destro"} ${m1}′, ${pr === "sx" ? "destro" : "sinistro"} ${m - m1}′`; }
-      if (min(fin) < min(ini)) t += " · finita dopo mezzanotte";
+    if (sx + dx > 0) {
+      t = `⏱️ Totale: <b>${sx + dx} minuti</b>`;
+      if (sx && dx) t += ` (sinistro ${sx}′ + destro ${dx}′)`;
+      if (ini) { const fineM = min(ini) + sx + dx; t += ` · finita verso le ${pad(Math.floor(fineM / 60) % 24)}:${pad(fineM % 60)}${fineM >= 1440 ? " (dopo mezzanotte)" : ""}`; }
     }
     $("#durataPasto").innerHTML = t;
   };
-  ["seno", "inizio", "fine", "primo"].forEach(n => { f.elements[n].addEventListener("input", agg); f.elements[n].addEventListener("change", agg); }); agg();
+  ["minSx", "minDx", "inizio", "primo"].forEach(n => { f.elements[n].addEventListener("input", agg); f.elements[n].addEventListener("change", agg); }); agg();
 }
 function formRegolaPasti() {
   const r = regolaPasti();

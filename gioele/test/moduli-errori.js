@@ -19,10 +19,10 @@ const { chromium, devices } = require('playwright');
   // 4) salva solo biberon 55 ml -> si chiude
   await p.tap('button[value=ok]'); await p.waitForTimeout(300);
   console.log('4) dopo Salva foglio aperto:', await p.evaluate(() => document.querySelector('#sheet').open), '| salvato:', await p.evaluate(() => JSON.stringify(pastiOrd()[0] && { ml: pastiOrd()[0].ml, seno: pastiOrd()[0].seno })));
-  // 5) poppata senza ora di fine -> errore sul campo fine, poi inserita -> salva
-  await p.tap('[data-act=nuovo-pasto] >> nth=0'); await p.selectOption('select[name=seno]', 'sx'); await p.tap('button[value=ok]'); await p.waitForTimeout(300);
+  // 5) né minuti né ml -> errore sul campo dei minuti, poi inseriti -> salva
+  await p.tap('[data-act=nuovo-pasto] >> nth=0'); await p.tap('button[value=ok]'); await p.waitForTimeout(300);
   console.log('5) errore:', await p.textContent('#sheetErrore'), '| campo:', await p.evaluate(() => document.querySelector('.campo-errore')?.name));
-  await p.fill('input[name=inizio]', '10:00'); await p.fill('input[name=fine]', '10:18'); await p.tap('button[value=ok]'); await p.waitForTimeout(300);
+  await p.fill('input[name=inizio]', '10:00'); await p.fill('input[name=minSx]', '18'); await p.tap('button[value=ok]'); await p.waitForTimeout(300);
   console.log('   dopo correzione foglio aperto:', await p.evaluate(() => document.querySelector('#sheet').open), '| ultimo:', await p.evaluate(() => orarioPasto(pastiOrd()[0])));
   console.log('errori:', errs); await b.close();
 })();
