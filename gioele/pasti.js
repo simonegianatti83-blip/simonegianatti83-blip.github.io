@@ -7,10 +7,11 @@
    ===================================================================== */
 "use strict";
 
-const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: false, pastiMin: 6, pastiMax: 7, senoMin: 8, senoMax: 12, maxMl: null, intervalloMin: 210, intervalloDa: "inizio", avvisoPasto: true, pastiCalendario: true };
+const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: false, pastiMin: 6, pastiMax: 7, senoMin: 8, senoMax: 12, maxMl: null, intervalloMin: 240, intervalloDa: "inizio", avvisoPasto: true, pastiCalendario: true };
 function regolaPasti() {
   const c = { ...(S.config.pasti || {}) };
-  if (!c.confermato) delete c.nascitaGiorno1;   // impostazione vecchia mai scelta a mano: vale la nuova (nascita non conta)
+  if (!c.confermato) delete c.nascitaGiorno1;
+  if (!c.intervalloScelto && (c.intervalloMin == null || c.intervalloMin === 210)) c.intervalloMin = 240;   // nuova indicazione: un pasto ogni 4 ore (prima 3 h 30)   // impostazione vecchia mai scelta a mano: vale la nuova (nascita non conta)
   return { ...REGOLA_PASTI_BASE, ...c };
 }
 const pastiOrd = () => attivi("pasti").sort((a, b) => b.quando.localeCompare(a.quando));
@@ -245,7 +246,7 @@ function formRegolaPasti() {
   async () => {
     const f = $("#sheetForm"), v = n => num(f.elements[n].value);
     S.config.pasti = { incremento: v("incremento") || 10, maxMl: v("maxMl") || null, pastiMin: v("pastiMin") || 6, pastiMax: Math.max(v("pastiMax") || 7, v("pastiMin") || 6), senoMin: v("senoMin") || 8, senoMax: Math.max(v("senoMax") || 12, v("senoMin") || 8), nascitaGiorno1: f.elements.nascitaGiorno1.checked, confermato: true,
-      intervalloMin: f.elements.intervallo.value ? min(f.elements.intervallo.value) || 210 : 210, intervalloDa: f.elements.intervalloDa.value, avvisoPasto: f.elements.avvisoPasto.checked, pastiCalendario: f.elements.pastiCalendario.checked };
+      intervalloMin: f.elements.intervallo.value ? min(f.elements.intervallo.value) || 240 : 240, intervalloScelto: true, intervalloDa: f.elements.intervalloDa.value, avvisoPasto: f.elements.avvisoPasto.checked, pastiCalendario: f.elements.pastiCalendario.checked };
     await salva(); toast("Regola salvata");
   });
 }
@@ -327,7 +328,7 @@ function boxPannolini() {
 }
 
 /* =====================================================================
-   PROSSIMO PASTO (ogni 3 h 30 dall'ultimo) e VITAMINA D
+   PROSSIMO PASTO (ogni 4 ore dall'ultimo) e VITAMINA D
    ===================================================================== */
 const hm = minuti => `${Math.floor(minuti / 60)}:${pad(minuti % 60)}`;
 function prossimoPasto() {

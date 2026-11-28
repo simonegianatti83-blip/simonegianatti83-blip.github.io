@@ -35,6 +35,10 @@
   --warn:#F0A24B; --warn-soft:#3A2A14; --bad:#F2776C; --bad-soft:#3B1C19; --ok:#5BC47E; --ok-soft:#173222;
 }
 *{box-sizing:border-box}
+:root{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark}}
+::placeholder{color:var(--ink-3);opacity:1}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 var(--font);-webkit-text-size-adjust:100%}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -86,7 +90,7 @@ h2:first-child{margin-top:4px}
 
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .toolbar input,.toolbar select{flex:1;min-width:140px}
-input[type=text],input[type=date],input[type=time],input[type=email],input[type=search],select,textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-sm);padding:10px 11px;font-size:16px}
+input[type=text],input[type=date],input[type=time],input[type=email],input[type=search],input[type=number],input[type=tel],input[type=password],input:not([type]),select,textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:var(--r-sm);padding:10px 11px;font-size:16px}
 textarea{min-height:76px;resize:vertical}
 label.f{display:block;margin:11px 0 0;font-size:13.5px;font-weight:700;color:var(--ink-2)}
 label.f > input,label.f > select,label.f > textarea{margin-top:4px;font-weight:400;color:var(--ink)}
@@ -1171,7 +1175,7 @@ function vImpostazioni() {
     ${cid ? `<div class="btns"><button type="button" class="btn sm bad" data-act="scollega">Scollega Google da questo telefono</button></div>` : ""}
   </div>
   </div></div>
-  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v31</div>`;
+  <div class="tiny" style="text-align:center;margin-top:18px">Gioele · v32</div>`;
 }
 function istruzioniGoogle() {
   return `<ol class="steps small">

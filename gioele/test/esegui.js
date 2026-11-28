@@ -33,7 +33,7 @@ const PROVE = {
   "calendario-import": ["2a sinc. (niente doppioni): 2 visite", "titolo evento U1: Visita oculistica Gioele", "annullata"],
   "calendario-pasti": ["1) pasto segnato:", "2) dopo la correzione: [ 'E", "10:30-10:55", "visite importate per errore dal calendario: 0"],
   "calendario-vitd": ["✅ Vitamina D a Gioele – assunta", "modifiche in più alla sinc. successiva: 0", "visite importate per errore: 0"],
-  "tema-pasti": ["Sondrio 28 nov alba/tramonto: 7:38 16:39", "a mezzogiorno tema: light", "alle 21 tema: dark", "scelto sempre chiaro alle 21: light chiaro", "scelto sempre scuro: dark", "come il telefono: undefined", "notte chiusa alle 21: dark", "formula: true | seno: true"],
+  "tema-pasti": ["Sondrio 28 nov alba/tramonto: 7:38 16:39", "a mezzogiorno tema: light", "alle 21 tema: dark", "scelto sempre chiaro alle 21: light chiaro", "scelto sempre scuro: dark", "come il telefono: undefined", "notte chiusa alle 21: dark", "formula: true | seno: true", "numeri leggibili in scuro: true", "intervallo pasti: 240", "vecchio 3h30 salvato → ora: 240"],
   "ostetrica": ["tipo: ostetrica | luogo: A domicilio | medico: Ostetrica", "elenco medici con ostetrica: true", "foglio chiuso: true", "consultorio luogo: Consultorio familiare", "elenco visite: true", "dal calendario: ostetrica,consultorio,pediatra", "voci ostetrica/consultorio 2, PDF pronto: true"],
   "esplora-tutto": ["ERRORI: nessuno"],
   "visualizzatore": ["foglio aperto: true", "pagine disegnate: 1", "immagine mostrata 1", "riepilogo nel visualizzatore: pagine 1"],
