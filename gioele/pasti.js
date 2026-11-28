@@ -1,11 +1,13 @@
 /* =====================================================================
    Gioele – PASTI: poppate al seno e rinforzi (latte in ml)
    Quantità indicata per pasto = giorno di vita × incremento (regola
-   data dalla pediatra/punto nascita, modificabile), 6-7 pasti nelle 24 ore.
+   data dalla pediatra/punto nascita, modificabile). Nelle 24 ore: almeno 6
+   biberon di formula (rinforzi) e 8-12 poppate al seno, verso 8 se
+   l'integrazione è piena e verso 12 se è poca.
    ===================================================================== */
 "use strict";
 
-const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: false, pastiMin: 6, pastiMax: 7, maxMl: null, intervalloMin: 210, intervalloDa: "inizio", avvisoPasto: true, pastiCalendario: true };
+const REGOLA_PASTI_BASE = { incremento: 10, nascitaGiorno1: false, pastiMin: 6, pastiMax: 7, senoMin: 8, senoMax: 12, maxMl: null, intervalloMin: 210, intervalloDa: "inizio", avvisoPasto: true, pastiCalendario: true };
 function regolaPasti() {
   const c = { ...(S.config.pasti || {}) };
   if (!c.confermato) delete c.nascitaGiorno1;   // impostazione vecchia mai scelta a mano: vale la nuova (nascita non conta)
@@ -44,6 +46,17 @@ function prossimoSeno() {
   const fine = u.finito || (u.seno === "entrambi" ? "" : u.seno);
   return fine === "sx" ? "dx" : fine === "dx" ? "sx" : "";
 }
+/* conteggi separati delle ultime 24 ore: biberon di formula (rinforzi) e poppate al seno */
+function ultime24(ora = Date.now()) {
+  const r = regolaPasti(), l = pastiOrd().filter(p => ora - daOraLocale(p.quando) < 864e5);
+  const bib = l.filter(p => p.ml), pop = l.filter(p => p.seno);
+  const mlF = bib.reduce((a, p) => a + p.ml, 0), ob = (mlPerPasto() || 0) * r.pastiMin;
+  const quota = ob ? Math.min(1, mlF / ob) : (bib.length ? Math.min(1, bib.length / r.pastiMin) : 0);   // quanto dell'integrazione indicata è stata data
+  return { biberon: bib.length, ml: mlF, poppate: pop.length, minuti: pop.reduce((a, p) => a + (minutiPasto(p) || 0), 0),
+    quota, poppateIndicate: Math.round(r.senoMax - (r.senoMax - r.senoMin) * quota) };
+}
+const chipBiberon = (n, r = regolaPasti()) => n < r.pastiMin ? `<span class="chip warn">meno di ${r.pastiMin}</span>` : `<span class="chip ok">ok</span>`;
+const chipPoppate = u => u.poppate < u.poppateIndicate - 1 ? `<span class="chip warn">indicate ~${u.poppateIndicate}</span>` : `<span class="chip ok">ok</span>`;
 const nPasti = n => n + (n === 1 ? " pasto" : " pasti");
 const hhmm = dt => dt ? dt.slice(11, 16) : "";
 /* minuti tra due orari HH:MM (se la fine è "prima" dell'inizio si è passati la mezzanotte) */
@@ -117,7 +130,7 @@ function vPasti() {
   if (!S.profilo.nascita) return `<div class="notice warn">Serve la data di nascita di Gioele per calcolare le quantità. <button type="button" class="btn sm pri" data-act="pasti-nascita">Gioele è nato il 22/11/2026</button> oppure <a href="#" data-act="profilo">inseriscila qui</a>.</div>`;
   const r = regolaPasti(), oggi = giornata(oggiISO()), gdv = giornoDiVita(), ml = mlPerPasto();
   const ultimo = pastiOrd()[0], da = ultimo ? Date.now() - daOraLocale(ultimo.quando) : null;
-  const in24 = pastiOrd().filter(p => Date.now() - daOraLocale(p.quando) < 864e5).length;
+  const u24 = ultime24();
   const giorni = []; for (let i = 0; i < 10; i++) { const iso = oggiISO(new Date(Date.now() - i * 864e5)), g = giornata(iso); if (g.n || i === 0 || pannoliniGiorno(iso).lista.length) giorni.push(g); }
   const descr = p => [p.seno && `🤱 ${p.seno === "entrambi" && p.primo ? (p.primo === "sx" ? "sinistro → destro" : "destro → sinistro") : SENI[p.seno].toLowerCase()}${minutiPasto(p) ? ` ${minutiPasto(p)}′` : ""}${p.minSx && p.minDx ? ` (sx ${p.minSx}′, dx ${p.minDx}′)` : ""}`,
     p.ml && `🍼 ${p.ml} ml${p.latte ? " " + (p.latte === "materno" ? "materno" : "artificiale") : ""}`, p.note].filter(Boolean).join(" · ");
@@ -125,10 +138,12 @@ function vPasti() {
       <div class="small muted">${etGiorno()} · regola: ${r.incremento} ml in più ogni giorno</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px">
         <div><div class="tiny">Per pasto</div><div style="font-size:26px;font-weight:800">${ml} ml</div></div>
-        <div><div class="tiny">Nelle 24 ore (${r.pastiMin}-${r.pastiMax} pasti)</div><div style="font-size:26px;font-weight:800">${ml * r.pastiMin}–${ml * r.pastiMax} ml</div></div>
+        <div><div class="tiny">Formula nelle 24 ore (${r.pastiMin}-${r.pastiMax} biberon)</div><div style="font-size:26px;font-weight:800">${ml * r.pastiMin}–${ml * r.pastiMax} ml</div></div>
       </div>
-      <div class="slot"><span>Oggi</span><b>${nPasti(oggi.n)}${oggi.ml ? ` · ${oggi.ml} ml di rinforzo` : ""}${oggi.minuti ? ` · ${oggi.minuti} min al seno` : ""}</b></div>
-      <div class="slot"><span>Ultime 24 ore</span><b>${nPasti(in24)} ${in24 < r.pastiMin ? `<span class="chip warn">meno di ${r.pastiMin}</span>` : in24 > r.pastiMax + 2 ? `<span class="chip">molti</span>` : `<span class="chip ok">ok</span>`}</b></div>
+      <div class="slot"><span>🍼 Formula · ultime 24 ore</span><b>${u24.biberon} biberon${u24.ml ? ` · ${u24.ml} ml` : ""} ${chipBiberon(u24.biberon, r)}</b></div>
+      <div class="slot"><span>🤱 Seno · ultime 24 ore</span><b>${u24.poppate} poppate${u24.minuti ? ` · ${u24.minuti} min` : ""} ${chipPoppate(u24)}</b></div>
+      <div class="tiny">Biberon di formula: almeno ${r.pastiMin}. Poppate al seno: ${r.senoMin}-${r.senoMax}, verso ${r.senoMin} con l'integrazione piena e verso ${r.senoMax} con poca integrazione; con quella delle ultime 24 ore (${Math.round(u24.quota * 100)}% del rinforzo indicato) ne sono indicate circa <b>${u24.poppateIndicate}</b>.</div>
+      <div class="slot"><span>Oggi</span><b>🤱 ${oggi.poppate} poppate${oggi.minuti ? ` (${oggi.minuti} min)` : ""} · 🍼 ${oggi.rinforzi} biberon${oggi.ml ? ` (${oggi.ml} ml)` : ""}</b></div>
       ${ultimo ? `<div class="slot"><span>Ultimo pasto</span><b>${traQuanto(da)} fa (${ultimo.quando.slice(11)})</b></div>` : ""}
       ${ultimo ? `<div style="margin-top:8px">${rigaProssimoPasto(true)}</div>` : ""}
       <div class="btns"><button type="button" class="btn pri" data-act="nuovo-pasto">🍼 Segna un pasto</button>${ultimo ? `<button type="button" class="btn" data-act="ripeti-pasto">🔁 Ripeti l'ultimo</button>` : ""}<button type="button" class="btn sm" data-act="pasti-regola">⚙️ Regola</button><button type="button" class="btn sm" data-act="notte-apri">🌙 Notte</button></div>
@@ -136,13 +151,13 @@ function vPasti() {
     ${boxCronometro()}
     ${boxPannolini()}
     ${cardStatistichePasti()}
-    <div class="card" style="padding:8px">${graficoPasti(7)}<div class="tiny" style="padding:0 6px">Barre: ml di rinforzo al giorno. Fascia arancione: quantità indicata dalla regola (${r.pastiMin}–${r.pastiMax} pasti × ml per pasto).</div></div>
+    <div class="card" style="padding:8px">${graficoPasti(7)}<div class="tiny" style="padding:0 6px">Barre: ml di rinforzo al giorno. Fascia arancione: formula indicata dalla regola (${r.pastiMin}–${r.pastiMax} biberon × ml per biberon).</div></div>
     </div><div class="col">
     ${giorni.map(g => { const pn = pannoliniGiorno(g.iso);
       const voci = [...g.pasti.map(p => ({ q: p.quando, html: `<div class="slot" data-act="apri-pasto" data-id="${p.id}" style="cursor:pointer"><span><b>${orarioPasto(p)}</b> ${esc(descr(p))}${p.chi ? `<br><span class="tiny">${esc(p.chi)}</span>` : ""}</span>${p.ml && g.obiettivo ? `<span class="chip ${p.ml >= g.obiettivo ? "ok" : ""}">${p.ml}/${g.obiettivo}</span>` : ""}</div>` })),
         ...pn.lista.map(x => ({ q: x.quando, html: `<div class="slot" data-act="apri-pannolino" data-id="${x.id}" style="cursor:pointer"><span><b>${x.quando.slice(11)}</b> ${esc(descrPannolino(x))}${x.chi ? `<br><span class="tiny">${esc(x.chi)}</span>` : ""}</span>${COLORI_ALLARME.includes(x.colore) ? `<span class="chip bad">⚠️</span>` : ""}</div>` }))]
         .sort((a, b) => b.q.localeCompare(a.q));
-      return `<h2 style="font-size:16px">${g.iso === oggiISO() ? "Oggi" : dataBreve(g.iso)} <span class="tiny">· ${etGiorno(g.iso)} · ${nPasti(g.n)}${g.ml ? " · " + g.ml + " ml" : ""} · 💧 ${pn.pipi} · 💩 ${pn.cacca}${g.obiettivo ? " · indicati " + g.obiettivo + " ml a pasto" : ""}</span></h2>
+      return `<h2 style="font-size:16px">${g.iso === oggiISO() ? "Oggi" : dataBreve(g.iso)} <span class="tiny">· ${etGiorno(g.iso)} · 🤱 ${g.poppate} · 🍼 ${g.rinforzi}${g.ml ? " (" + g.ml + " ml)" : ""} · 💧 ${pn.pipi} · 💩 ${pn.cacca}${g.obiettivo ? " · indicati " + g.obiettivo + " ml a pasto" : ""}</span></h2>
       ${voci.length ? `<div class="card" style="padding:4px 12px">${voci.map(v => v.html).join("")}</div>` : `<div class="tiny">Niente segnato.</div>`}`; }).join("")}
     <div class="tiny" style="margin-top:12px">La regola dei ${r.incremento} ml al giorno e il numero di pasti sono quelli che ci hai indicato: segui sempre le indicazioni della pediatra, che possono cambiare con il peso e la crescita (modificale con “⚙️ Regola”). Se Gioele mangia molto meno del solito, bagna pochi pannolini o è molto sonnolento, senti la pediatra.</div>
     </div></div>`;
@@ -214,8 +229,11 @@ function formRegolaPasti() {
     <p class="small muted">Quantità per pasto = giorno di vita × ml in più al giorno. Cambiala quando la pediatra vi dà nuove indicazioni.</p>
     <div class="grid2"><label class="f">ml in più ogni giorno<input type="text" inputmode="numeric" name="incremento" value="${r.incremento}"></label>
     <label class="f">Massimo ml per pasto<input type="text" inputmode="numeric" name="maxMl" value="${r.maxMl ?? ""}" placeholder="nessuno"></label></div>
-    <div class="grid2"><label class="f">Pasti al giorno da<input type="text" inputmode="numeric" name="pastiMin" value="${r.pastiMin}"></label>
-    <label class="f">a<input type="text" inputmode="numeric" name="pastiMax" value="${r.pastiMax}"></label></div>
+    <div class="grid2"><label class="f">Biberon di formula al giorno: almeno<input type="text" inputmode="numeric" name="pastiMin" value="${r.pastiMin}"></label>
+    <label class="f">fino a<input type="text" inputmode="numeric" name="pastiMax" value="${r.pastiMax}"></label></div>
+    <div class="grid2"><label class="f">Poppate al seno al giorno: da<input type="text" inputmode="numeric" name="senoMin" value="${r.senoMin}"></label>
+    <label class="f">a<input type="text" inputmode="numeric" name="senoMax" value="${r.senoMax}"></label></div>
+    <div class="tiny">Le poppate indicate si spostano verso il minimo quando l'integrazione di formula è piena e verso il massimo quando è poca.</div>
     <label class="check"><input type="checkbox" name="nascitaGiorno1" ${r.nascitaGiorno1 ? "checked" : ""}> Conta anche il giorno della nascita (se spuntato il ${S.profilo.nascita ? dataBreve(S.profilo.nascita) : "giorno della nascita"} vale già ${r.incremento} ml; se non spuntato vale 0 ml e si parte con ${r.incremento} ml il giorno dopo)</label>
     <div class="tiny" style="margin-top:6px">Oggi con queste impostazioni: ${etGiorno()} → ${mlPerPasto()} ml a pasto.</div>
     <h3 style="font-size:15px;margin:16px 0 0">Promemoria del prossimo pasto</h3>
@@ -226,7 +244,7 @@ function formRegolaPasti() {
   `<button class="btn" value="annulla" formnovalidate>Annulla</button><button class="btn pri" value="ok">Salva</button>`,
   async () => {
     const f = $("#sheetForm"), v = n => num(f.elements[n].value);
-    S.config.pasti = { incremento: v("incremento") || 10, maxMl: v("maxMl") || null, pastiMin: v("pastiMin") || 6, pastiMax: Math.max(v("pastiMax") || 7, v("pastiMin") || 6), nascitaGiorno1: f.elements.nascitaGiorno1.checked, confermato: true,
+    S.config.pasti = { incremento: v("incremento") || 10, maxMl: v("maxMl") || null, pastiMin: v("pastiMin") || 6, pastiMax: Math.max(v("pastiMax") || 7, v("pastiMin") || 6), senoMin: v("senoMin") || 8, senoMax: Math.max(v("senoMax") || 12, v("senoMin") || 8), nascitaGiorno1: f.elements.nascitaGiorno1.checked, confermato: true,
       intervalloMin: f.elements.intervallo.value ? min(f.elements.intervallo.value) || 210 : 210, intervalloDa: f.elements.intervalloDa.value, avvisoPasto: f.elements.avvisoPasto.checked, pastiCalendario: f.elements.pastiCalendario.checked };
     await salva(); toast("Regola salvata");
   });
@@ -448,7 +466,7 @@ async function segnaVitaminaD() {
 function cardHomePasti() {
   if (!S.profilo.nascita || giorniDiVita() > 400) return "";
   const r = regolaPasti(), oggi = giornata(oggiISO()), ultimo = pastiOrd()[0], p = poppataInCorso();
-  return `${rigaProssimoPasto(true)}${cardVitaminaD()}<div class="notice info small" data-act="vai-salute" data-sez="pasti" style="cursor:pointer">🍼 <b>Oggi ${oggi.n} su ${r.pastiMin}-${r.pastiMax} pasti</b>${oggi.ml ? ` · ${oggi.ml} ml di rinforzo` : ""} · indicati <b>${mlPerPasto()} ml</b> a pasto (${etGiorno()})${ultimo ? `<br>Ultimo pasto: ${traQuanto(Date.now() - daOraLocale(ultimo.quando))} fa` : ""}<br>🧷 Oggi 💧 ${pannoliniGiorno(oggiISO()).pipi} pipì · 💩 ${pannoliniGiorno(oggiISO()).cacca} cacche${p ? `<br>⏱️ Poppata in corso (seno ${p.seno === "sx" ? "sinistro" : "destro"})` : ""}</div>`;
+  return `${rigaProssimoPasto(true)}${cardVitaminaD()}<div class="notice info small" data-act="vai-salute" data-sez="pasti" style="cursor:pointer">🍼 <b>Ultime 24 ore: 🤱 ${ultime24().poppate} poppate (indicate ~${ultime24().poppateIndicate}) · 🍼 ${ultime24().biberon}/${r.pastiMin} biberon di formula</b>${oggi.ml ? ` · oggi ${oggi.ml} ml` : ""} · indicati <b>${mlPerPasto()} ml</b> a pasto (${etGiorno()})${ultimo ? `<br>Ultimo pasto: ${traQuanto(Date.now() - daOraLocale(ultimo.quando))} fa` : ""}<br>🧷 Oggi 💧 ${pannoliniGiorno(oggiISO()).pipi} pipì · 💩 ${pannoliniGiorno(oggiISO()).cacca} cacche${p ? `<br>⏱️ Poppata in corso (seno ${p.seno === "sx" ? "sinistro" : "destro"})` : ""}</div>`;
 }
 async function azionePasti(act, b) {
   switch (act) {

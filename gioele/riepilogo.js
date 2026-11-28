@@ -326,9 +326,9 @@ async function creaRiepilogoPdf({ da, allegati, note, avanzamento }) {
     const gg = []; for (let i = 6; i >= 0; i--) { const iso = oggiISO(new Date(Date.now() - i * 864e5)), g = giornata(iso); if (g.n || pannoliniGiorno(iso).lista.length) gg.push(g); }
     if (gg.length) {
       const r = regolaPasti(); w.spazio(280);
-      w.titolo("Alimentazione e pannolini (ultimi 7 giorni)", `Indicazione seguita: ${r.incremento} ml in più per ogni giorno di vita${r.nascitaGiorno1 ? " (contando il giorno della nascita)" : " (senza contare il giorno della nascita)"}, ${r.pastiMin}-${r.pastiMax} pasti nelle 24 ore.`);
+      w.titolo("Alimentazione e pannolini (ultimi 7 giorni)", `Indicazione seguita: ${r.incremento} ml in più per ogni giorno di vita${r.nascitaGiorno1 ? " (contando il giorno della nascita)" : " (senza contare il giorno della nascita)"}, almeno ${r.pastiMin} biberon di formula (fino a ${r.pastiMax}) e ${r.senoMin}-${r.senoMax} poppate al seno nelle 24 ore (meno poppate quando l'integrazione è piena).`);
       try { await w.immagine(await svgInPng(graficoPasti(7, { larg: 640, alt: 200, perStampa: true }), 640, 200), w.W - 2 * w.M); } catch (e) { console.warn(e); }
-      w.tabella([{ t: "Giorno", w: .17 }, { t: "Pasti", w: .08 }, { t: "Poppate (min)", w: .17 }, { t: "Rinforzi (ml)", w: .17 }, { t: "Indicati", w: .11 }, { t: "Pipì", w: .1 }, { t: "Cacche", w: .2 }],
+      w.tabella([{ t: "Giorno", w: .17 }, { t: "Pasti", w: .08 }, { t: "Poppate al seno (min)", w: .17 }, { t: "Biberon formula (ml)", w: .17 }, { t: "Indicati", w: .11 }, { t: "Pipì", w: .1 }, { t: "Cacche", w: .2 }],
         gg.map(g => { const pn = pannoliniGiorno(g.iso), col = [...new Set(pn.lista.filter(x => x.cacca && x.colore).map(x => COLORI_CACCA[x.colore].split(" (")[0].toLowerCase()))].join(", ");
           return [`${dIt(g.iso)}\n${etGiorno(g.iso)}`, String(g.n), `${g.poppate}${g.minuti ? " (" + g.minuti + ")" : ""}`, `${g.rinforzi}${g.ml ? " (" + g.ml + ")" : ""}`, g.obiettivo ? g.obiettivo + " ml" : "", String(pn.pipi), `${pn.cacca}${col ? "\n" + col : ""}`]; }));
     }

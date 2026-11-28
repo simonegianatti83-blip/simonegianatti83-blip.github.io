@@ -84,11 +84,11 @@ function cardStatistichePasti() {
   const s = statistichePasti(); if (!s.n24 && !s.giorni7) return "";
   const r = regolaPasti(), ob = mlPerPasto();
   return `<div class="card"><b>📊 Statistiche</b>
-    <div class="slot"><span>Ultime 24 ore</span><b>${nPasti(s.n24)}${s.ml24 ? ` · ${s.ml24} ml` : ""}${s.minSeno24 ? ` · ${s.minSeno24} min al seno` : ""}</b></div>
+    ${(u => `<div class="slot"><span>Ultime 24 ore</span><b>🤱 ${u.poppate} poppate${u.minuti ? ` (${u.minuti} min)` : ""} · 🍼 ${u.biberon} biberon${u.ml ? ` (${u.ml} ml)` : ""}</b></div>`)(ultime24())}
     ${s.intMedio ? `<div class="slot"><span>Tempo medio tra un pasto e l'altro</span><b>${hhmmDurata(s.intMedio)}</b></div><div class="slot"><span>Pausa più lunga</span><b>${hhmmDurata(s.intMax)}</b></div>` : ""}
     ${s.mlMedio ? `<div class="slot"><span>Rinforzo medio</span><b>${s.mlMedio} ml${ob ? ` <span class="chip ${s.mlMedio >= ob ? "ok" : ""}">indicati ${ob}</span>` : ""}</b></div>` : ""}
     ${s.giorni7 ? `<div class="slot"><span>Media dei giorni precedenti (${s.giorni7})</span><b>${fmt(s.pastiGiorno7, 1)} pasti · ${s.mlGiorno7} ml al giorno</b></div>` : ""}
-    <div class="tiny" style="margin-top:6px">Riferimento della regola: ${r.pastiMin}-${r.pastiMax} pasti al giorno, ogni ${hm(r.intervalloMin)} circa.</div></div>`;
+    <div class="tiny" style="margin-top:6px">Riferimento della regola: almeno ${r.pastiMin} biberon di formula e ${r.senoMin}-${r.senoMax} poppate al seno al giorno, un pasto ogni ${hm(r.intervalloMin)} circa.</div></div>`;
 }
 /* ripete l'ultimo pasto all'ora attuale (stesso seno/ml/latte) */
 async function ripetiUltimoPasto() {
@@ -174,6 +174,48 @@ async function finePoppataSubito() {
   await salva(); ricordaAnnulla("pasti", S.pasti[S.pasti.length - 1].id);
   toast(`🤱 Poppata salvata: ${tot} minuti`);
 }
+/* =====================================================================
+   TEMA CHIARO / SCURO: automatico con alba e tramonto (Sondrio) o a scelta
+   ===================================================================== */
+const TEMI = { sole: "🌅 Automatico (alba e tramonto)", chiaro: "☀️ Sempre chiaro", scuro: "🌙 Sempre scuro", sistema: "📱 Come il telefono" };
+/* alba e tramonto (formule NOAA, precisione di qualche minuto); Sondrio 46,17 N – 9,87 E */
+function albaTramonto(d = new Date(), lat = 46.17, lon = 9.87) {
+  const rad = Math.PI / 180, inizioAnno = Date.UTC(d.getFullYear(), 0, 1);
+  const n = Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - inizioAnno) / 864e5) + 1;
+  const g = 2 * Math.PI / 365 * (n - 1);
+  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const dec = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const ha = Math.acos(Math.cos(90.833 * rad) / (Math.cos(lat * rad) * Math.cos(dec)) - Math.tan(lat * rad) * Math.tan(dec)) / rad;
+  const aOra = m => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0) + m * 60000);
+  return { alba: aOra(720 - 4 * (lon + ha) - eq), tramonto: aOra(720 - 4 * (lon - ha) - eq) };
+}
+function temaScelto() { const t = ls.get("tema", "sole"); return TEMI[t] ? t : "sole"; }
+function temaScuroAdesso(ora = new Date()) {
+  const t = temaScelto();
+  if (t === "chiaro") return false;
+  if (t === "scuro") return true;
+  if (t === "sistema") return matchMedia("(prefers-color-scheme: dark)").matches;
+  const { alba, tramonto } = albaTramonto(ora);
+  return ora < alba || ora >= tramonto;
+}
+function applicaTema() {
+  const n = document.getElementById("notte"); if (n && !n.hidden) return;   // la modalità notte resta nera
+  const t = temaScelto(), scuro = temaScuroAdesso();
+  if (t === "sistema") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = scuro ? "dark" : "light";
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", scuro ? "#0F3F3B" : "#0E746E");
+}
+const oraBreve = d => `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+function cardTema() {
+  const t = temaScelto(), { alba, tramonto } = albaTramonto();
+  return `<h2>Aspetto</h2><div class="card small">
+    <div class="btns" style="flex-direction:column;align-items:stretch">${Object.entries(TEMI).map(([k, v]) => `<button type="button" class="btn ${t === k ? "pri" : ""}" data-act="tema" data-tema="${k}">${t === k ? "✓ " : ""}${v}</button>`).join("")}</div>
+    <div class="tiny" style="margin-top:8px">Oggi a Sondrio: alba alle <b>${oraBreve(alba)}</b>, tramonto alle <b>${oraBreve(tramonto)}</b>. ${t === "sole" ? `In automatico l'app è chiara di giorno e scura dal tramonto all'alba (adesso: <b>${temaScuroAdesso() ? "scura" : "chiara"}</b>).` : ""}</div></div>`;
+}
+try { applicaTema(); } catch (e) { console.warn(e); }
+setInterval(() => { try { applicaTema(); } catch {} }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) try { applicaTema(); } catch {} });
+
 function apriNotte() {
   if (soloLettura()) return toast("Sei in sola lettura");
   let el = document.getElementById("notte");
@@ -186,8 +228,7 @@ function apriNotte() {
 function chiudiNotte() {
   const el = document.getElementById("notte"); if (!el) return;
   el.hidden = true;
-  if (el.dataset.temaPrima) document.documentElement.dataset.theme = el.dataset.temaPrima; else delete document.documentElement.dataset.theme;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#0E746E");
+  applicaTema();
   ls.set("notteAperta", false); render();
 }
 function disegnaNotte() {
@@ -310,7 +351,8 @@ async function backupSettimanale() {
 function cardsAltroExtra() {
   const base = `${location.origin}${location.pathname}`;
   const scorc = [["notte", "🌙 Modalità notte"], ["biberon", "🍼 Biberon (ml del giorno)"], ["ripeti", "🔁 Ripeti l'ultimo pasto"], ["pipi", "💧 Pipì"], ["cacca", "💩 Cacca"], ["dorme", "😴 Si è addormentato"], ["sveglio", "☀️ Si è svegliato"], ["vitd", "💊 Vitamina D data"]];
-  return `<h2>Blocco dell'app</h2>
+  return `${cardTema()}
+  <h2>Blocco dell'app</h2>
   <div class="card small">${bloccoAttivo() ? `🔒 <b>Attivo</b>: all'apertura (e dopo 5 minuti in sottofondo) l'app chiede Face ID o il codice.<div class="btns"><button type="button" class="btn bad" data-act="blocco-togli">Togli il blocco</button></div>`
     : `Protegge i dati sanitari e i documenti di Gioele con <b>Face ID</b> (o il codice) quando apri l'app su questo telefono.<div class="btns"><button type="button" class="btn" data-act="blocco-attiva">🔒 Attiva il blocco</button></div>`}</div>
   <h2>Azioni con un tocco</h2>
@@ -324,6 +366,7 @@ function cardsAltroExtra() {
 async function azioneExtra(act, b, e) {
   switch (act) {
     case "notte-apri": apriNotte(); return true;
+    case "tema": ls.set("tema", b.dataset.tema); applicaTema(); render(); toast(TEMI[b.dataset.tema]); return true;
     case "notte-chiudi": chiudiNotte(); return true;
     case "notte-poppata": avviaPoppata(b.dataset.seno); disegnaNotte(); return true;
     case "notte-fine-poppata": await finePoppataSubito(); disegnaNotte(); return true;
