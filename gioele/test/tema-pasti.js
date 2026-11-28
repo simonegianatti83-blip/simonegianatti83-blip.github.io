@@ -35,5 +35,17 @@ const { chromium, devices } = require('playwright');
   console.log('poca integrazione → poppate indicate:', await p.evaluate(() => ultime24().poppateIndicate));
   await p.evaluate(async () => { for (let i = 0; i < 6; i++) S.pasti.push({ id: 'c' + i, quando: '2026-11-27T' + (14 + i * 1.5 | 0) + ':00', ml: 60, latte: 'artificiale', updatedAt: 1 }); await salva(false); });
   console.log('integrazione piena → poppate indicate:', await p.evaluate(() => ultime24().poppateIndicate));
+  // tema scuro: i numeri scritti nel modulo del pasto devono vedersi (testo chiaro su fondo scuro)
+  await p2.click('[data-act=tema][data-tema=scuro]');
+  await p2.evaluate(() => formPasto()); await p2.fill('input[name=ml]', '70'); await p2.fill('input[name=minSx]', '12');
+  const col = await p2.evaluate(() => ['ml', 'minSx', 'chi'].map(n => { const st = getComputedStyle(document.querySelector(`[name=${n}]`)); return n + ' ' + st.color + ' su ' + st.backgroundColor; }));
+  console.log('colori campi (scuro):', col.join(' | '));
+  const lum = c => { const [r, g, bb] = c.match(/\d+/g).map(Number); return (0.2126 * r + 0.7152 * g + 0.0722 * bb) / 255; };
+  console.log('numeri leggibili in scuro:', col.every(x => { const [t, f] = x.split(' su '); return lum(t.replace(/^\S+ /, '')) - lum(f) > 0.5; }));
+  await p2.click('button[value=annulla]');
+  // prossimo pasto: 4 ore dopo l'inizio dell'ultimo
+  console.log('intervallo pasti:', await p.evaluate(() => regolaPasti().intervalloMin));
+  await p.evaluate(async () => { S.config.pasti = { ...(S.config.pasti || {}), intervalloMin: 210 }; await salva(false); });
+  console.log('vecchio 3h30 salvato → ora:', await p.evaluate(() => regolaPasti().intervalloMin));
   console.log('errori:', errs); await b.close();
 })();
